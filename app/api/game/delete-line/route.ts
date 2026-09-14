@@ -1,0 +1,2 @@
+import { deleteLine, GameError } from "@/lib/game/game-service";
+export async function POST(request: Request) { try { const body = (await request.json()) as { gameId?: unknown; playerId?: unknown; lineIndex?: unknown }; return Response.json(deleteLine(body.gameId, body.playerId, body.lineIndex)); } catch (error) { if (error instanceof GameError) return Response.json({ error: error.message }, { status: error.status }); return Response.json({ error: "Could not delete line" }, { status: 500 }); } }

@@ -1,31 +1,25 @@
 "use client";
 
-import { useCodeJenga } from "@/hooks/useCodeJenga";
-import { StartScreen } from "@/components/screens/StartScreen";
-import { CreateRoomScreen } from "@/components/screens/CreateRoomScreen";
-import { JoinRoomScreen } from "@/components/screens/JoinRoomScreen";
-import { LobbyScreen } from "@/components/screens/LobbyScreen";
-import { GameScreen } from "@/components/screens/GameScreen";
-import { ResultScreen } from "@/components/screens/ResultScreen";
+import { useState } from "react";
+import type { GameView, Player, TestResult } from "@/lib/game/types";
 
-// 画面遷移：①スタート → ②部屋作成/参加 → ③待機 → ④コード → ⑤終了
-// どの画面を出すかは useGameSession が持つ room.phase から決まるので、
-// ここは振り分けるだけです。
-export default function CodeJengaPage() {
-  const game = useCodeJenga();
+type ApiResult = { game?: GameView; result?: TestResult; output?: string; error?: string; gameId?: string; code?: string };
+async function api(path: string, body: object): Promise<ApiResult> {
+  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = (await response.json()) as ApiResult;
+  if (!response.ok) throw new Error(data.error ?? "Request failed");
+  return data;
+}
+const initialPlayers: Player[] = [{ id: "player-1", name: "Player 1" }, { id: "player-2", name: "Player 2" }];
 
-  switch (game.session.screen) {
-    case "create":
-      return <CreateRoomScreen session={game.session} />;
-    case "join":
-      return <JoinRoomScreen session={game.session} />;
-    case "lobby":
-      return <LobbyScreen game={game} />;
-    case "game":
-      return <GameScreen game={game} />;
-    case "result":
-      return <ResultScreen game={game} />;
-    default:
-      return <StartScreen game={game} />;
-  }
+export default function Home() {
+  const [game, setGame] = useState<GameView | null>(null);
+  const [selectedLine, setSelectedLine] = useState<number | null>(null);
+  const [result, setResult] = useState<TestResult>(null);
+  const [output, setOutput] = useState(""); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  async function startGame() { setBusy(true); setError(""); setResult(null); setOutput(""); try { const created = await api("/api/game/create", { playerNames: initialPlayers.map((player) => player.name) }); const generated = await api("/api/game/generate-code", { gameId: created.gameId }); setGame(generated as GameView); } catch (caught) { setError(caught instanceof Error ? caught.message : "開始できませんでした"); } finally { setBusy(false); } }
+  async function removeLine() { if (!game || selectedLine === null) return; setBusy(true); setError(""); try { const response = await api("/api/game/delete-line", { gameId: game.id, playerId: game.currentPlayerId, lineIndex: selectedLine }); setGame({ ...game, code: response.code ?? game.code, pendingPlayerId: game.currentPlayerId, pendingLineIndex: selectedLine }); } catch (caught) { setError(caught instanceof Error ? caught.message : "行を削除できませんでした"); } finally { setBusy(false); } }
+  async function testCode() { if (!game) return; setBusy(true); setError(""); try { const tested = await api("/api/game/test", { gameId: game.id }); setResult(tested.result ?? null); setOutput(tested.output ?? ""); setGame(tested.game ?? game); setSelectedLine(null); } catch (caught) { setError(caught instanceof Error ? caught.message : "テストできませんでした"); } finally { setBusy(false); } }
+  const players = game?.players ?? initialPlayers; const currentPlayer = players.find((player) => player.id === game?.currentPlayerId); const lines = game?.code.split("\n") ?? []; const finished = game?.status === "finished"; const canRemove = Boolean(game && selectedLine !== null && !game.pendingPlayerId && !finished && !busy);
+  return <main className="shell"><header className="topbar"><div className="brand"><span className="brand-mark">CJ</span><span>CODE JENGA</span></div><span className="round-label">LIVE DEMO / 01</span></header><section className="hero"><div><p className="eyebrow">REMOVE ONE LINE. KEEP IT RUNNING.</p><h1>コードを抜いて、<em>生き残れ。</em></h1><p className="intro">1行の判断が、次のターンを決める。壊した瞬間にゲームオーバー。</p></div><button className="start-button" onClick={startGame} disabled={busy}>{busy ? "PROCESSING..." : game ? "RESTART GAME" : "GAME START"}<span>↗</span></button></section><section className="scoreboard"><div className="score-heading"><span>PLAYERS</span><span className="status-dot" /> <span>{finished ? "GAME OVER" : game ? "IN PLAY" : "READY"}</span></div><div className="players">{players.map((player, index) => <div className={`player ${player.id === game?.currentPlayerId ? "active" : ""}`} key={player.id}><span className="player-number">0{index + 1}</span><strong>{player.name}</strong><span className="player-state">{player.id === game?.currentPlayerId && !finished ? "YOUR TURN" : player.id === game?.loserPlayerId ? "OUT" : "WAITING"}</span></div>)}</div></section><section className="arena"><div className="section-label"><span>CODE STACK</span><span>{game ? `${lines.length} LINES / ${game.language.toUpperCase()}` : "AWAITING CODE"}</span></div><div className="code-panel">{game ? lines.map((line, index) => <button className={`code-line ${selectedLine === index ? "selected" : ""}`} key={`${index}-${line}`} onClick={() => !game.pendingPlayerId && !finished && setSelectedLine(index)} disabled={Boolean(game.pendingPlayerId) || finished || busy}><span className="line-number">{String(index + 1).padStart(2, "0")}</span><code>{line || " "}</code><span className="line-action">{selectedLine === index ? "SELECTED" : ""}</span></button>) : <div className="empty-code"><span className="empty-icon">+</span><p>ゲームを開始すると<br />コードが生成されます</p></div>}</div><div className="controls"><div className="selection-note">{selectedLine !== null ? `LINE ${String(selectedLine + 1).padStart(2, "0")} SELECTED` : "SELECT A LINE TO REMOVE"}</div><button className="delete-button" onClick={removeLine} disabled={!canRemove}>REMOVE LINE <span>↓</span></button><button className="test-button" onClick={testCode} disabled={!game?.pendingPlayerId || busy || finished}>RUN TEST <span>▶</span></button></div></section><section className={`result ${result?.toLowerCase() ?? "neutral"}`}><div><p className="eyebrow">TEST RESULT</p><h2>{result ?? "--"}</h2></div><div className="result-copy">{result === "SAFE" ? <><strong>SAFE TO PASS</strong><span>{currentPlayer?.name} cleared the stack. Next player, your move.</span></> : result === "LOSE" ? <><strong>{players.find((player) => player.id === game?.loserPlayerId)?.name} LOSES</strong><span>GAME OVER / The stack collapsed on this turn.</span></> : <><strong>MAKE YOUR MOVE</strong><span>Remove one line, then run the test.</span></>}{output && <small>{output}</small>}</div></section>{error && <p className="error-message" role="alert">{error}</p>}<footer><span>CODE JENGA / DEMO BUILD</span><span>SERVER-VALIDATED PLAY</span></footer></main>;
 }

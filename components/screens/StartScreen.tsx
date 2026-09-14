@@ -2,6 +2,7 @@
 
 import { Button, ErrorBanner } from "@/components/ui";
 import { TowerArt } from "@/components/TowerArt";
+import { Backdrop } from "@/components/Backdrop";
 import { MAX_PLAYERS } from "@/lib/types";
 import type { CodeJenga } from "@/hooks/useCodeJenga";
 
@@ -17,6 +18,8 @@ export function StartScreen({ game }: { game: CodeJenga }) {
 
   return (
     <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-5 py-12 text-neutral-100">
+      <Backdrop />
+
       <div className="relative w-full max-w-sm">
         <header className="mb-8 text-center">
           <p className="mb-2 font-mono text-[11px] tracking-[0.3em] text-amber-600/80 uppercase">

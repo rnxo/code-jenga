@@ -1,6 +1,7 @@
 "use client";
 
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import { Backdrop } from "@/components/Backdrop";
 
 // 見た目の最小単位。デザインを変えるときはまずこのファイルを触れば全画面に効きます。
 
@@ -80,6 +81,7 @@ export function Screen({
 }) {
   return (
     <main className="flex min-h-dvh flex-col [justify-content:safe_center] p-5 text-neutral-100 sm:p-8">
+      <Backdrop />
       <div className={wide ? "" : "mx-auto w-full max-w-md"}>
         <h1 className="mb-1 text-2xl font-bold text-amber-500 sm:text-3xl">{title}</h1>
         {subtitle && <p className="mb-6 text-sm text-neutral-400">{subtitle}</p>}

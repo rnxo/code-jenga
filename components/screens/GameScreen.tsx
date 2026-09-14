@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, ErrorBanner, Panel } from "@/components/ui";
+import { Backdrop } from "@/components/Backdrop";
 import type { Verdict } from "@/lib/types";
 import type { CodeJenga } from "@/hooks/useCodeJenga";
 
@@ -25,6 +26,8 @@ export function GameScreen({ game }: { game: CodeJenga }) {
 
   return (
     <main className="min-h-dvh p-5 text-neutral-100 sm:p-8">
+      <Backdrop />
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-amber-500">🧱 Code Jenga</h1>

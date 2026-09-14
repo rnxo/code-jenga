@@ -1,0 +1,3 @@
+import type { GeneratedCode } from "@/lib/game/types";
+import type { AiCodeGenerator } from "@/lib/services/ai/AiCodeGenerator";
+export class MockAiCodeGenerator implements AiCodeGenerator { async generateCode(): Promise<GeneratedCode> { return { code: ["function add(a, b) {", "  return a + b;", "}", "", "console.log(add(1, 2));"].join("\n"), language: "javascript", testCode: "add(1, 2) should equal 3" }; } }

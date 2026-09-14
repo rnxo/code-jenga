@@ -1,0 +1,2 @@
+import type { CodeExecutor, ExecutionParams, ExecutionResult } from "@/lib/services/code-execution/CodeExecutor";
+export class PistonCodeExecutor implements CodeExecutor { async execute(params: ExecutionParams): Promise<ExecutionResult> { void params; throw new Error("Piston integration is not configured yet"); } }

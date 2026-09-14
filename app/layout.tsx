@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Backdrop } from "@/components/Backdrop";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Code Jenga",
-  description: "コードを1行ずつ積み上げ、崩さずに耐えるゲーム。Gemini が対戦相手にも審判にもなります。",
+  title: "Code Jenga | Line by line",
+  description: "A code survival game where every line matters.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -24,10 +23,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="ja"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-100">
-        <Backdrop />
-        {children}
-      </body>
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }

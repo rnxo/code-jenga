@@ -1,0 +1,2 @@
+import { GameError, testGame } from "@/lib/game/game-service";
+export async function POST(request: Request) { try { const body = (await request.json()) as { gameId?: unknown }; return Response.json(await testGame(body.gameId)); } catch (error) { if (error instanceof GameError) return Response.json({ error: error.message }, { status: error.status }); return Response.json({ error: "Could not test code" }, { status: 500 }); } }
