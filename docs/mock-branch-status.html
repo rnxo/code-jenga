@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>コードジェンガ mock ブランチ進捗</title>
+<meta name="description" content="mock ブランチの実装済み範囲・残タスク・未マージブランチを棚卸ししたステータスドキュメント">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #efeee5;
+    --surface: #ffffff;
+    --surface-2: #f7f5ec;
+    --ink: #262019;
+    --ink-muted: #6b6558;
+    --line: #dad5c4;
+    --line-soft: #e6e2d3;
+    --accent: #2c5f6f;
+    --accent-ink: #ffffff;
+    --done: #2f8f5b;
+    --done-bg: #e5f3ea;
+    --done-line: #b9dcc4;
+    --partial: #a96c15;
+    --partial-bg: #f7ecd8;
+    --partial-line: #e6cd9e;
+    --blocked: #b23b32;
+    --blocked-bg: #f8e4e1;
+    --blocked-line: #e8b6af;
+    --shadow: 0 1px 0 rgba(38,32,25,0.06);
+    --radius: 10px;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17140f;
+      --surface: #211d16;
+      --surface-2: #1c1911;
+      --ink: #ede8dc;
+      --ink-muted: #a79e8c;
+      --line: #3a342a;
+      --line-soft: #2c281f;
+      --accent: #7fb3c7;
+      --accent-ink: #14201f;
+      --done: #6fce97;
+      --done-bg: #1c2a20;
+      --done-line: #375c40;
+      --partial: #e3ab54;
+      --partial-bg: #2c2416;
+      --partial-line: #5c4826;
+      --blocked: #e57a70;
+      --blocked-bg: #2e1c19;
+      --blocked-line: #5c332c;
+      --shadow: 0 1px 0 rgba(0,0,0,0.4);
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #17140f;
+    --surface: #211d16;
+    --surface-2: #1c1911;
+    --ink: #ede8dc;
+    --ink-muted: #a79e8c;
+    --line: #3a342a;
+    --line-soft: #2c281f;
+    --accent: #7fb3c7;
+    --accent-ink: #14201f;
+    --done: #6fce97;
+    --done-bg: #1c2a20;
+    --done-line: #375c40;
+    --partial: #e3ab54;
+    --partial-bg: #2c2416;
+    --partial-line: #5c4826;
+    --blocked: #e57a70;
+    --blocked-bg: #2e1c19;
+    --blocked-line: #5c332c;
+    --shadow: 0 1px 0 rgba(0,0,0,0.4);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    padding-inline: 20px;
+    padding-block: 48px 96px;
+    margin: 0;
+  }
+
+  .wrap { max-width: 780px; margin: 0 auto; }
+
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  h1, h2, h3 {
+    font-family: "Big Shoulders", "IBM Plex Sans", sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  .eyebrow {
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  /* ---------- Header ---------- */
+  header.hero {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+    border-bottom: 1px solid var(--line);
+  }
+  header.hero .top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  header.hero h1 {
+    font-size: clamp(34px, 6vw, 52px);
+    font-weight: 800;
+    line-height: 0.98;
+  }
+  header.hero .lede {
+    max-width: 46rem;
+    color: var(--ink-muted);
+    font-size: 16.5px;
+  }
+  .meta-row {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--ink-muted);
+  }
+  .meta-row .mono { color: var(--ink); }
+
+  /* block stack motif */
+  .stack {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 6px;
+    width: 186px;
+    flex-shrink: 0;
+  }
+  .block {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 4px;
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.06em;
+    border: 1px solid;
+    box-shadow: var(--shadow);
+  }
+  .block span.pct { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 11.5px; opacity: 0.75; }
+  .block.done    { background: var(--done-bg);    border-color: var(--done-line);    color: var(--done); }
+  .block.partial { background: var(--partial-bg); border-color: var(--partial-line); color: var(--partial); transform: translateX(8px); }
+  .block.blocked { background: var(--blocked-bg); border-color: var(--blocked-line); color: var(--blocked); transform: translateX(-4px); }
+
+  /* ---------- Sections ---------- */
+  section { margin-bottom: 56px; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .section-head h2 { font-size: 26px; font-weight: 700; }
+  .section-head .num {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    color: var(--ink-muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 2px 9px;
+  }
+  .prose { max-width: 42rem; color: var(--ink); }
+  .prose.muted { color: var(--ink-muted); }
+  p { margin: 0 0 12px; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ---------- git graph ---------- */
+  .gitlog {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin: 0 0 18px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    line-height: 1.9;
+    color: var(--ink-muted);
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .gitlog b { color: var(--ink); font-weight: 600; }
+  .gitlog .sha { color: var(--accent); }
+
+  /* ---------- table ---------- */
+  .table-shell { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 520px; }
+  th, td {
+    text-align: left;
+    padding: 9px 13px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 13.5px;
+    vertical-align: top;
+  }
+  th {
+    background: var(--surface-2);
+    color: var(--ink-muted);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  td { background: var(--surface); color: var(--ink-muted); }
+  tr:last-child td { border-bottom: none; }
+  td .mono { color: var(--ink); font-size: 12.5px; }
+
+  /* ---------- layer cards ---------- */
+  .layer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .layer-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .layer-card .badge {
+    align-self: flex-start;
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 800;
+    font-size: 19px;
+    letter-spacing: 0.04em;
+    padding: 3px 12px;
+    border-radius: 5px;
+    border: 1px solid;
+  }
+  .layer-card.done .badge    { color: var(--done);    background: var(--done-bg);    border-color: var(--done-line); }
+  .layer-card.partial .badge { color: var(--partial); background: var(--partial-bg); border-color: var(--partial-line); }
+  .layer-card h3 { font-size: 14px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+  .layer-card ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .layer-card li {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    font-size: 13px;
+    color: var(--ink-muted);
+    line-height: 1.55;
+  }
+  .layer-card li .mark { flex-shrink: 0; width: 13px; font-weight: 700; text-align: center; }
+  .layer-card li.ok .mark { color: var(--done); }
+  .layer-card li.warn .mark { color: var(--partial); }
+  .layer-card li code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  /* ---------- verification ---------- */
+  .verify-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .verify-tile {
+    background: var(--surface);
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .verify-tile .num {
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 800;
+    font-size: 26px;
+    color: var(--done);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .verify-tile .num.warn { color: var(--partial); }
+  .verify-tile .label { font-size: 11.5px; color: var(--ink-muted); }
+
+  /* ---------- todo list ---------- */
+  .todo-list { display: flex; flex-direction: column; gap: 12px; }
+  .todo-item {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 15px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .todo-item.is-blocker { border-color: var(--blocked-line); background: var(--blocked-bg); }
+  .todo-item .sev {
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 800;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: 1px solid;
+    border-radius: 5px;
+    padding: 3px 8px;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+  .todo-item .sev.s1 { color: var(--blocked); border-color: var(--blocked-line); background: var(--surface); }
+  .todo-item .sev.s2 { color: var(--partial); border-color: var(--partial-line); background: var(--partial-bg); }
+  .todo-item .sev.s3 { color: var(--ink-muted); border-color: var(--line); background: var(--surface-2); }
+  .todo-item .body { min-width: 0; }
+  .todo-item h3 { font-size: 15px; font-weight: 600; text-transform: none; letter-spacing: 0; margin-bottom: 5px; }
+  .todo-item p { font-size: 13.5px; color: var(--ink-muted); margin: 0; }
+  .todo-item code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  /* ---------- branch list ---------- */
+  .branch-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .branch-list li {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    flex-wrap: wrap;
+    padding: 11px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .branch-list li:last-child { border-bottom: none; }
+  .branch-list .name {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .branch-list .what { font-size: 13.5px; color: var(--ink-muted); }
+
+  /* ---------- next step ---------- */
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+  .callout h3 { font-size: 16px; font-weight: 700; text-transform: none; letter-spacing: 0; margin-bottom: 8px; }
+  .callout p { font-size: 14px; color: var(--ink-muted); }
+  .callout code { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink); word-break: break-word; }
+  .callout ol { margin: 10px 0 0; padding-left: 20px; color: var(--ink-muted); font-size: 14px; }
+  .callout li { margin-bottom: 5px; }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--ink-muted);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 700px) {
+    .layer-grid { grid-template-columns: 1fr; }
+    .verify-strip { grid-template-columns: repeat(2, 1fr); }
+    header.hero .top-row { flex-direction: column; }
+    .stack { width: 100%; flex-direction: row; }
+    .block.partial, .block.blocked { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="top-row">
+      <div>
+        <div class="eyebrow">CODE JENGA — BRANCH STATUS</div>
+        <h1>mock ブランチ進捗</h1>
+      </div>
+      <div class="stack" aria-hidden="true">
+        <div class="block blocked">BLOCKER <span class="pct">2</span></div>
+        <div class="block partial">残タスク <span class="pct">6</span></div>
+        <div class="block done">API <span class="pct">6/6</span></div>
+      </div>
+    </div>
+    <p class="lede">画面遷移・DB・ゲームロジックの骨格はひととおり通っている。ただしテスト実行基盤（Piston）が未実装のため、実DBモードではセーフ／アウト判定が成立せず、現在はモックの固定レスポンスで動いている状態。</p>
+    <div class="meta-row">
+      <span>ブランチ <span class="mono">mock</span></span>
+      <span>ベース <span class="mono">origin/develop</span> +1 commit</span>
+      <span>棚卸し日 <span class="mono">2026-09-14</span></span>
+    </div>
+  </header>
+
+  <section id="position">
+    <div class="section-head"><h2>ブランチの位置づけ</h2><span class="num">+1 COMMIT</span></div>
+    <p class="prose muted" style="margin-bottom:18px;"><span class="mono">mock</span> は <span class="mono">origin/develop</span> の先端にコミット1本を積んだだけのブランチ。<span class="mono">develop</span> には <span class="mono">feat/difficulty-roulette</span> と <span class="mono">feat/BE-AB</span> が既にマージ済み。</p>
+
+<pre class="gitlog"><span class="sha">c20a0d2</span> <b>(HEAD -&gt; mock, origin/mock)</b> feat: ルーム管理機能を追加し、試合開始権限のチェックを強化
+<span class="sha">ac89557</span> <b>(origin/develop)</b> Merge feat/difficulty-roulette + origin
+<span class="sha">4ae709e</span> fix: feat/BE-AB プル時のコンフリクト解消
+<span class="sha">86ec0be</span> feat: コード削除に難易度別縛り機能を追加
+<span class="sha">970c4f6</span> <b>(origin/feat/BE-AB)</b> feat: Implement game and room management APIs</pre>
+
+    <p class="prose muted" style="margin-bottom:14px;">このブランチ独自の差分は <b>6ファイル / 133行</b>。内容は「ロビー画面の完成（ホストの試合開始ボタン）」に集約される。</p>
+
+    <div class="table-shell"><div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>ファイル</th><th>変更内容</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="mono">src/features/lobby/components/LobbyPanel.tsx</span></td>
+            <td><b>新規。</b>Realtime 購読 + nickname 解決 + ホスト用「試合を開始」ボタン</td>
+          </tr>
+          <tr>
+            <td><span class="mono">src/app/rooms/[code]/page.tsx</span></td>
+            <td><span class="mono">PlayerList</span> 直置きから <span class="mono">LobbyPanel</span> に差し替え</td>
+          </tr>
+          <tr>
+            <td><span class="mono">src/app/api/games/[gameId]/start/route.ts</span></td>
+            <td>開始権限の判定を <span class="mono">current_player_id</span> → <span class="mono">rooms.host_id</span> に修正（バグ修正）</td>
+          </tr>
+          <tr>
+            <td><span class="mono">src/lib/server/repositories/rooms.ts</span></td>
+            <td><span class="mono">findRoomById()</span> を追加</td>
+          </tr>
+          <tr>
+            <td><span class="mono">src/app/layout.tsx</span></td>
+            <td><span class="mono">LayoutProps&lt;"/"&gt;</span> から <span class="mono">{ children: ReactNode }</span> へ</td>
+          </tr>
+        </tbody>
+      </table>
+    </div></div>
+  </section>
+
+  <section id="done">
+    <div class="section-head"><h2>実装済みの範囲</h2><span class="num">3 LAYERS</span></div>
+    <div class="layer-grid">
+
+      <div class="layer-card done">
+        <span class="badge">DB・基盤</span>
+        <h3>完了</h3>
+        <ul>
+          <li class="ok"><span class="mark">✓</span><span>マイグレーション3本（スキーマ / インデックス・RLS / <code>turn_difficulty</code> 追加）</span></li>
+          <li class="ok"><span class="mark">✓</span><span><code>join_room</code> RPC（SECURITY DEFINER）</span></li>
+          <li class="ok"><span class="mark">✓</span><span><code>profiles</code> 自動生成トリガー</span></li>
+          <li class="ok"><span class="mark">✓</span><span><code>src/proxy.ts</code> で匿名サインイン</span></li>
+        </ul>
+      </div>
+
+      <div class="layer-card partial">
+        <span class="badge">バックエンド</span>
+        <h3>Piston 以外は実装済み</h3>
+        <ul>
+          <li class="ok"><span class="mark">✓</span><span>Route Handler <b>6本すべて実体あり</b></span></li>
+          <li class="ok"><span class="mark">✓</span><span><code>startGame()</code> お題確定・先頭手番・難易度ロール</span></li>
+          <li class="ok"><span class="mark">✓</span><span><code>applyTurn()</code> 手番検証 → 難易度縛り → 実行 → 判定 → 更新 → 終了判定</span></li>
+          <li class="ok"><span class="mark">✓</span><span><code>judge.ts</code> は <code>error</code> を <code>out</code> に落とさない分離済み</span></li>
+          <li class="ok"><span class="mark">✓</span><span>Gemini お題生成（<code>gemini-2.5-flash</code>・型ガード込み）</span></li>
+          <li class="warn"><span class="mark">!</span><span>Piston 実行と Vitest 出力パースが未実装</span></li>
+        </ul>
+      </div>
+
+      <div class="layer-card partial">
+        <span class="badge">フロント</span>
+        <h3>画面遷移は一周する</h3>
+        <ul>
+          <li class="ok"><span class="mark">✓</span><span>トップ → ロビー → 盤面 → 結果を <code>games.status</code> で出し分け</span></li>
+          <li class="ok"><span class="mark">✓</span><span>Monaco Editor の行クリック選択</span></li>
+          <li class="ok"><span class="mark">✓</span><span>手番インジケータ＋残り時間＋難易度バッジ</span></li>
+          <li class="ok"><span class="mark">✓</span><span><code>useGameRealtime</code> / <code>useLobbyRealtime</code> で Realtime 購読</span></li>
+          <li class="ok"><span class="mark">✓</span><span>難易度ルーレットをフロント事前ブロック＋サーバ検証の二重で担保</span></li>
+          <li class="warn"><span class="mark">!</span><span>結果画面の敗者名・再戦フローは TODO のまま</span></li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="verify">
+    <div class="section-head"><h2>検証結果</h2><span class="num">2026-09-14 実行</span></div>
+    <div class="verify-strip">
+      <div class="verify-tile">
+        <span class="num">0</span>
+        <span class="label">tsc --noEmit の型エラー</span>
+      </div>
+      <div class="verify-tile">
+        <span class="num">35</span>
+        <span class="label">vitest 成功テスト数（4ファイル）</span>
+      </div>
+      <div class="verify-tile">
+        <span class="num">6/6</span>
+        <span class="label">実体のある Route Handler</span>
+      </div>
+      <div class="verify-tile">
+        <span class="num warn">2</span>
+        <span class="label">未実装のまま throw する関数</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="todo">
+    <div class="section-head"><h2>残っている部分</h2><span class="num">6 ITEMS</span></div>
+    <div class="todo-list">
+
+      <div class="todo-item is-blocker">
+        <span class="sev s1">BLOCKER</span>
+        <div class="body">
+          <h3>Piston 実行が未実装（最大の穴）</h3>
+          <p><code>src/lib/server/piston/run.ts</code> と <code>parse-vitest.ts</code> がどちらも <code>throw new Error("未実装: …")</code>。このため実DBモードの <code>applyTurn</code> は必ず <code>TEST_RUN_ERROR</code> で落ち、<b>セーフ／アウト判定が成立しない</b>。</p>
+        </div>
+      </div>
+
+      <div class="todo-item is-blocker">
+        <span class="sev s1">BLOCKER</span>
+        <div class="body">
+          <h3>いまはモックの固定レスポンスで動いている</h3>
+          <p><code>.env.local</code> が <code>NEXT_PUBLIC_USE_MOCK_API=true</code> のまま。<code>src/lib/api/mock.ts</code> の <code>createTurn</code> は常に <code>safe</code> を返すため、ゲームとしては未成立。</p>
+        </div>
+      </div>
+
+      <div class="todo-item">
+        <span class="sev s2">HIGH</span>
+        <div class="body">
+          <h3>お題生成が試合開始フローに繋がっていない</h3>
+          <p><code>startGame()</code> は <code>findVerifiedProblem()</code> で既存の検証済みお題を拾うだけで、<code>POST /api/problems</code> を呼ぶ導線がどこにもない。<code>is_verified=true</code> にする Piston 事前検証も未実装のため、DBに検証済みお題が無いと <code>PROBLEM_GENERATION_FAILED</code> になる。</p>
+        </div>
+      </div>
+
+      <div class="todo-item">
+        <span class="sev s2">HIGH</span>
+        <div class="body">
+          <h3>タイムアウト処理がない</h3>
+          <p><code>turn_deadline_at</code> は画面に表示されるだけ。時間切れで <code>turn_result='timeout'</code> に倒す処理が存在しない。</p>
+        </div>
+      </div>
+
+      <div class="todo-item">
+        <span class="sev s3">MEDIUM</span>
+        <div class="body">
+          <h3>nickname が捨てられている</h3>
+          <p>フォームは入力させているのに <code>POST /api/rooms</code> も <code>join_room</code> RPC も受け取っていない。トリガー生成の既定値のまま表示される。</p>
+        </div>
+      </div>
+
+      <div class="todo-item">
+        <span class="sev s3">LOW</span>
+        <div class="body">
+          <h3>小さめの TODO</h3>
+          <p>結果画面の <code>loser_id → nickname</code> 解決 ／ 再戦フロー（DB_DESIGN 5章-6） ／ Monaco の選択行ハイライト（decorations）。</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="branches">
+    <div class="section-head"><h2>未マージの兄弟ブランチ</h2><span class="num">4 BRANCHES</span></div>
+    <p class="prose muted" style="margin-bottom:14px;"><span class="mono">develop</span> に入っていない機能ブランチ。合流計画があるなら衝突範囲の確認が必要。</p>
+    <ul class="branch-list">
+      <li><span class="name">origin/feat/tower-3d-graphics</span><span class="what">3Dタワー演出・手番表示・終了画面</span></li>
+      <li><span class="name">origin/feat/gesture</span><span class="what">ハンドジェスチャーでの行削除</span></li>
+      <li><span class="name">origin/feat/room-lobby-screens</span><span class="what">画面デザイン刷新（④コード画面・⑤終了画面）</span></li>
+      <li><span class="name">origin/feat/gemini-code-jenga</span><span class="what">画面デザイン刷新（②部屋作成・③待機画面）</span></li>
+    </ul>
+  </section>
+
+  <section id="next">
+    <div class="section-head"><h2>次の一手</h2><span class="num">RECOMMENDED</span></div>
+    <div class="callout">
+      <h3><code>runOnPiston()</code> と <code>parseVitestOutput()</code> を埋める</h3>
+      <p>ここが塞がっている限り、他をいくら作っても対戦が成立しない。逆にここが埋まれば <code>NEXT_PUBLIC_USE_MOCK_API=false</code> に切り替えて実ゲームが通せる。</p>
+      <ol>
+        <li><code>runOnPiston()</code> — <code>PISTON_API_URL</code> へ POST し、ネットワーク失敗を <code>failed</code> と混同せず投げ分ける</li>
+        <li><code>parseVitestOutput()</code> — 標準出力から総数／成功／失敗を抽出。パース不能なら <code>null</code> を返す</li>
+        <li>お題生成 → Piston 事前検証 → <code>is_verified=true</code> の導線を <code>startGame</code> の前に繋ぐ</li>
+        <li>モックを切って1試合を通しで確認する</li>
+      </ol>
+    </div>
+  </section>
+
+  <footer>
+    <span>コードジェンガ — ブランチ棚卸しドキュメント</span>
+    <span class="mono">docs/mock-branch-status.html</span>
+  </footer>
+
+</div>
+
+</body>
+</html>
