@@ -2,5 +2,6 @@
 
 export { CreateRoomForm } from "./components/CreateRoomForm";
 export { JoinRoomForm } from "./components/JoinRoomForm";
+export { LobbyPanel } from "./components/LobbyPanel";
 export { PlayerList, type LobbyPlayer } from "./components/PlayerList";
 export { useLobbyRealtime, type UseLobbyRealtimeResult } from "./hooks/useLobbyRealtime";

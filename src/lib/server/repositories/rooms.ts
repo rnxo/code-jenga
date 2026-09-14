@@ -39,6 +39,15 @@ export async function findRoomByCode(code: string): Promise<Room | null> {
   return data;
 }
 
+/** IDからルームを取得する。 */
+export async function findRoomById(roomId: string): Promise<Room | null> {
+  const { data, error } = await createAdminClient().from("rooms").select().eq("id", roomId).maybeSingle();
+  if (error) {
+    throw new Error(`ルームの取得に失敗しました: ${error.message}`);
+  }
+  return data;
+}
+
 /** ルームの状態を更新する。 */
 export async function updateRoomStatus(roomId: string, status: RoomStatus): Promise<void> {
   const { error } = await createAdminClient().from("rooms").update({ status }).eq("id", roomId);
