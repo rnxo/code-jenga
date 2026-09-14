@@ -10,12 +10,14 @@ create table if not exists public.rooms (
   password text not null,
   host_id uuid not null,
   phase text not null default 'lobby'
-    check (phase in ('lobby', 'generating', 'playing', 'finished')),
+    check (phase in ('lobby', 'generating', 'seeding', 'playing', 'finished')),
   loser_id uuid,
   -- Gemini が付けた舞台の名前と、何手目か
   stage_title text,
   turn_index int not null default 0,
   round int not null default 1,
+  -- 舞台の生成を誰かが取った時刻。古いまま進んでいなければ別の人が奪い取れる
+  seeding_started_at timestamptz,
   -- 全員の画面で同じ結果を出すために、最後の実行結果と講評を部屋で共有する
   last_output text,
   verdict text check (verdict in ('stable', 'wobbly', 'collapsed')),
@@ -31,6 +33,7 @@ alter table public.rooms add column if not exists loser_id uuid;
 alter table public.rooms add column if not exists stage_title text;
 alter table public.rooms add column if not exists turn_index int not null default 0;
 alter table public.rooms add column if not exists round int not null default 1;
+alter table public.rooms add column if not exists seeding_started_at timestamptz;
 alter table public.rooms add column if not exists last_output text;
 alter table public.rooms add column if not exists verdict text;
 alter table public.rooms add column if not exists judge_comment text;
@@ -38,7 +41,7 @@ alter table public.rooms add column if not exists judge_comment text;
 -- check 制約は貼り直す（列追加と違って if not exists が使えないため）
 alter table public.rooms drop constraint if exists rooms_phase_check;
 alter table public.rooms add constraint rooms_phase_check
-  check (phase in ('lobby', 'generating', 'playing', 'finished'));
+  check (phase in ('lobby', 'generating', 'seeding', 'playing', 'finished'));
 
 alter table public.rooms drop constraint if exists rooms_verdict_check;
 alter table public.rooms add constraint rooms_verdict_check

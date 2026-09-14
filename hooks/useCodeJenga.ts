@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useGameSession, type GameSession } from "./useGameSession";
 import { useJengaTower, type JengaTower } from "./useJengaTower";
 import { useGemini, type GeminiHost } from "./useGemini";
@@ -10,8 +10,12 @@ export interface CodeJenga {
   session: GameSession;
   tower: JengaTower;
   gemini: GeminiHost;
-  /** Gemini が舞台を作っている最中かどうか */
+  /** Gemini が舞台を作っている最中かどうか（取りに行く前・生成中の両方） */
   isGenerating: boolean;
+  /** 生成を取った人が落ちていて、誰でも作り直せる状態か */
+  canRetryStage: boolean;
+  /** 止まっている生成を引き取ってやり直す */
+  retryStage: () => Promise<void>;
   /** いま手番のプレイヤー。参加順の巡回で決まる */
   currentPlayer: Player | null;
   /** 自分の手番かどうか。抜き取りボタンの活性制御に使う */
@@ -32,39 +36,64 @@ export function useCodeJenga(): CodeJenga {
   const tower = useJengaTower(session.room?.id ?? null, session.room?.round ?? 1);
   const gemini = useGemini();
 
-  const { players, me, room, isHost } = session;
-  const isGenerating = room?.phase === "generating";
+  const { players, me, room } = session;
 
-  // 生成はホストの端末だけが、1部屋1ラウンドにつき1回だけ走らせる。
-  // フラグを消して回ると、room のスナップショットが一瞬でも巻き戻ったときに
-  // 二重生成されうるので、ラウンドまで含めた鍵を覚えておいて消さない。
-  const generatedKey = useRef<string | null>(null);
+  // 取りに行く前（generating）と、誰かが取って作っている最中（seeding）の両方
+  const isGenerating = room?.phase === "generating" || room?.phase === "seeding";
+  const canRetryStage = session.isStaleClaim;
+
+  /**
+   * 舞台を作る。
+   *
+   * 「誰が作るか」は DB 側の条件つき更新で決めるので、ホストかどうかは見ない。
+   * 取れた1人だけが先に進み、その人が落ちても 60 秒後に別の人が引き取れる。
+   */
+  const runStageGeneration = useCallback(async () => {
+    if (!room) return;
+
+    const won = await session.claimStage();
+    if (!won) return;
+
+    const playerCount = players.length;
+
+    // Supabase があるならサーバーに投げる。以降はサーバーで走るので、
+    // ここで呼んだタブが閉じられても最後まで進む。
+    if (tower.isSyncedRemotely) {
+      try {
+        const res = await fetch("/api/play/stage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomId: room.id, playerCount }),
+        });
+
+        // 成功したら Realtime で playing が飛んでくるので、ここでは何もしない
+        if (res.ok) return;
+      } catch {
+        // 落ちたら下のクライアント生成に回る
+      }
+    }
+
+    // Supabase 無し、またはサーバーが駄目だったときは、このタブで作る
+    const stage = await gemini.buildStage(playerCount);
+    const error = await tower.seedStage(stage.lines);
+
+    if (error) {
+      gemini.setComment(`⚠ 舞台を並べられませんでした: ${error}`);
+      await session.releaseStage();
+      return;
+    }
+
+    await session.beginPlaying({
+      stageTitle: stage.title,
+      comment: stage.comment,
+    });
+  }, [room, players.length, session, tower, gemini]);
 
   useEffect(() => {
-    if (!room || room.phase !== "generating" || !isHost) return;
-
-    const key = `${room.id}:${room.round ?? 1}`;
-    if (generatedKey.current === key) return;
-    generatedKey.current = key;
-
-    (async () => {
-      const stage = await gemini.buildStage(players.length);
-      const error = await tower.seedStage(stage.lines);
-
-      if (error) {
-        session.clearError();
-        gemini.setComment(`⚠ 舞台を並べられませんでした: ${error}`);
-        // 失敗したときだけ、もう一度試せるように鍵を戻す
-        generatedKey.current = null;
-        return;
-      }
-
-      await session.beginPlaying({
-        stageTitle: stage.title,
-        comment: stage.comment,
-      });
-    })();
-  }, [room, isHost, players.length, gemini, tower, session]);
+    // seeding は誰かが持っているので触らない（引き取りは retryStage から）
+    if (!room || room.phase !== "generating") return;
+    runStageGeneration();
+  }, [room, runStageGeneration]);
 
   const currentPlayer = useMemo(() => {
     if (players.length === 0) return null;
@@ -123,6 +152,8 @@ export function useCodeJenga(): CodeJenga {
     tower,
     gemini,
     isGenerating,
+    canRetryStage,
+    retryStage: runStageGeneration,
     currentPlayer,
     isMyTurn,
     loser,

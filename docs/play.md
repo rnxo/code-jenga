@@ -56,7 +56,9 @@ pnpm dev                     # http://localhost:3000
 | `hooks/useJengaTower.ts` | タワーの取得／舞台を並べる／抜く／実行 |
 | `lib/fallbackStage.ts` | 鍵が無いときに使う作り置きの舞台 |
 | `hooks/useGemini.ts` | Gemini の呼び出しと状態 |
+| `app/api/play/stage/route.ts` | 舞台づくりをサーバー側で完結させる。呼んだタブが閉じても最後まで進む |
 | `app/api/gemini/route.ts` | Gemini 呼び出し。`mode: "build"` = 舞台を作る / `mode: "judge"` = 講評 |
+| `lib/gemini/stage.ts` | 舞台生成のプロンプトと応答形。上の2ルートが共有する |
 | `app/api/execute/route.ts` | コード実行。Piston を叩き、使えなければクライアント側サンドボックスへフォールバック |
 | `lib/supabase.ts` | Supabase クライアント。鍵が無ければローカル同期モード |
 | `lib/localFallback.ts` | localStorage + BroadcastChannel による同一ブラウザ間の同期 |
@@ -116,3 +118,22 @@ TypeScript のコンパイラは載せていないため、素の JavaScript と
 - 実行はあくまで**プレイヤー自身のブラウザ**の中です。CPU を数秒使い切ることはできます（タイムアウトで止まります）
 - いまタワーになるのは **Gemini が生成したコード**だけで、プレイヤーが任意のコードを書き込む経路はありません。
   もし将来プレイヤーがコードを書けるようにするなら、1 の Piston（またはサーバー側の隔離実行）に寄せてください
+
+## 舞台は誰が作るか
+
+「誰が作るか」は **DB 側の条件つき更新**で決めます。ホストかどうかは見ません。
+
+```
+phase: generating        ← まだ誰も取っていない
+   ↓  update ... where phase = 'generating'  （1人だけが成功する）
+phase: seeding           ← 取った人が作っている。seeding_started_at に時刻
+   ↓  Supabase があれば POST /api/play/stage（以降はサーバーで走る）
+   ↓  無ければ、取ったタブが自分で作る
+phase: playing
+```
+
+取った人が落ちてもロックが残らないよう、`seeding_started_at` が 60 秒より古ければ
+**誰でも奪い取れます**。待機画面に「もう一度生成する」が出るので、押せば引き取れます。
+
+Supabase が未設定のときはサーバーから localStorage を触れないので、`/api/play/stage`
+は 501 を返し、呼び出し側がそのタブでの生成に落ちます。

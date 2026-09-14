@@ -157,8 +157,20 @@ export function LobbyScreen({ game }: { game: CodeJenga }) {
           </div>
 
           <p className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-300">
-            {gemini.comment || "できあがり次第、全員の画面が切り替わります。"}
+            {game.canRetryStage
+              ? "生成が止まっているようです。誰でも引き取ってやり直せます。"
+              : gemini.comment || "できあがり次第、全員の画面が切り替わります。"}
           </p>
+
+          {game.canRetryStage && (
+            <Button
+              className="mt-3 w-full"
+              onClick={game.retryStage}
+              disabled={gemini.busy}
+            >
+              もう一度生成する
+            </Button>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">

@@ -2,20 +2,11 @@
 // 抜いたあとの実行結果を講評させる（mode: "judge"）。
 // API キーはこのサーバー側ルートから出さない。
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+import { GEMINI_MODEL, generateStage } from "@/lib/gemini/stage";
+
+const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 type BlockInput = { code_snippet: string; player_name: string };
-
-const BUILD_SCHEMA = {
-  type: "OBJECT",
-  properties: {
-    title: { type: "STRING" },
-    lines: { type: "ARRAY", items: { type: "STRING" } },
-    comment: { type: "STRING" },
-  },
-  required: ["title", "lines", "comment"],
-};
 
 const JUDGE_SCHEMA = {
   type: "OBJECT",
@@ -25,27 +16,6 @@ const JUDGE_SCHEMA = {
   },
   required: ["verdict", "comment"],
 };
-
-function buildPrompt(playerCount: number) {
-  return `あなたは「Code Jenga」というゲームの出題者です。
-プレイヤーは、あなたが作った JavaScript の関数 startJenga() の本体から
-1行ずつ抜き取っていきます。抜いたあとに実行してエラーになったら「タワー崩壊」で、
-抜いた人の負けです。
-
-${playerCount} 人で遊ぶ舞台になるコードを作ってください。
-
-条件:
-- lines は 10〜14 個。各要素がちょうど1行ぶんの JavaScript（先頭は半角スペース2つでインデント）
-- 全部そろっている状態では、必ずエラーなく最後まで実行され、console.log で何か出力されること
-- if / for などの複数行にまたがるブロック文は使わず、1行で完結する文だけにすること
-  （1行だけで閉じる形なら if (x) doSomething(); のように書いてよい）
-- 抜いても平気な行（ログ出力など）と、抜くと即エラーになる行（あとで使う変数の宣言など）を
-  半々くらいで混ぜること。どれが危ないか一目で分からないようにする
-- 禁止: 無限ループ、1万回を超えるループ、while、fetch/XMLHttpRequest、import/require、
-  eval、debugger、process や window への参照
-- title は舞台の名前を日本語で短く（例:「発注書の集計」）
-- comment はゲーム開始の実況を日本語で1〜2文。どこが危ういか匂わせる程度に`;
-}
 
 function judgePrompt(blocks: BlockInput[], output: string, removed: string) {
   const tower =
@@ -78,20 +48,11 @@ comment には、日本語で2〜3文の実況・講評を書いてください�
 export async function GET() {
   return Response.json({
     configured: Boolean(process.env.GEMINI_API_KEY),
-    model: MODEL,
+    model: GEMINI_MODEL,
   });
 }
 
 export async function POST(request: Request) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return Response.json({
-      missingKey: true,
-      error:
-        "GEMINI_API_KEY が未設定です。.env.local に設定して dev サーバーを再起動してください。",
-    });
-  }
-
   let mode: "build" | "judge" = "build";
   let blocks: BlockInput[] = [];
   let output = "";
@@ -109,7 +70,22 @@ export async function POST(request: Request) {
     return Response.json({ error: "リクエストの形式が不正です" }, { status: 400 });
   }
 
-  const isBuild = mode === "build";
+  // 舞台づくりは /api/play/stage と同じ実装を使う
+  if (mode === "build") {
+    const result = await generateStage(playerCount);
+    return "stage" in result
+      ? Response.json({ mode, ...result.stage })
+      : Response.json({ mode, error: result.error, missingKey: result.missingKey });
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return Response.json({
+      missingKey: true,
+      error:
+        "GEMINI_API_KEY が未設定です。.env.local に設定して dev サーバーを再起動してください。",
+    });
+  }
 
   try {
     const res = await fetch(ENDPOINT, {
@@ -120,21 +96,12 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: isBuild
-                  ? buildPrompt(playerCount)
-                  : judgePrompt(blocks, output, removed),
-              },
-            ],
-          },
+          { role: "user", parts: [{ text: judgePrompt(blocks, output, removed) }] },
         ],
         generationConfig: {
-          temperature: isBuild ? 1.0 : 0.4,
+          temperature: 0.4,
           responseMimeType: "application/json",
-          responseSchema: isBuild ? BUILD_SCHEMA : JUDGE_SCHEMA,
+          responseSchema: JUDGE_SCHEMA,
         },
       }),
       signal: AbortSignal.timeout(45_000),

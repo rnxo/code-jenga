@@ -2,7 +2,14 @@
 export type Screen = "start" | "create" | "join" | "lobby" | "game" | "result";
 
 /** 部屋の進行状態。全端末で共有され、これが screen を決める */
-export type RoomPhase = "lobby" | "generating" | "playing" | "finished";
+export type RoomPhase =
+  | "lobby"
+  /** 生成待ち。まだ誰も取りに行っていない */
+  | "generating"
+  /** 誰かが生成を取った（ロック中）。seeding_started_at が古ければ奪い取れる */
+  | "seeding"
+  | "playing"
+  | "finished";
 
 export interface Room {
   id: string;
@@ -18,6 +25,8 @@ export interface Room {
   turn_index: number;
   /** 何戦目か。「このまま もう一戦」で増える。舞台の生成が1回だけ走る鍵になる */
   round: number;
+  /** 生成を取った時刻。これが古いまま進んでいなければ、別の誰かが奪い取れる */
+  seeding_started_at: string | null;
   /** 全員で共有する最後の実行結果 */
   last_output: string | null;
   /** 全員で共有する Gemini の判定 */

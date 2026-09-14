@@ -6,7 +6,6 @@
 // タブを4つ開けば4人プレイの確認まではできます（別端末とは同期しません）。
 
 type Row = Record<string, unknown>;
-type Result<T> = Promise<{ data: T; error: { message: string } | null }>;
 type ChangeHandler = (payload: { eventType: string; table: string }) => void;
 type SubscribeCallback = (status: string) => void;
 
@@ -99,6 +98,45 @@ function selectChain(table: string, filters: Array<[string, unknown]> = []) {
   return chain;
 }
 
+/**
+ * eq を重ねて絞り込んでから更新するチェーン。
+ * 更新できた行を返すので、呼び出し側は「条件に合う行があったか」で
+ * ロックを取れたかどうかを判定できる（Supabase の update().select() と同じ形）。
+ */
+function updateChain(table: string, patch: Row, filters: Array<[string, unknown]> = []) {
+  const apply = () => {
+    const rows = readRows(table);
+    const updated: Row[] = [];
+
+    const next = rows.map((row) => {
+      if (!filters.every(([col, val]) => row[col] === val)) return row;
+      const merged = { ...row, ...patch };
+      updated.push(merged);
+      return merged;
+    });
+
+    if (updated.length > 0) writeRows(table, next);
+    return { data: updated, error: null };
+  };
+
+  const chain = {
+    eq(column: string, value: unknown) {
+      return updateChain(table, patch, [...filters, [column, value]]);
+    },
+    select() {
+      return {
+        then: <T,>(resolve: (v: ReturnType<typeof apply>) => T) =>
+          Promise.resolve(apply()).then(resolve),
+      };
+    },
+    then<T>(resolve: (v: ReturnType<typeof apply>) => T) {
+      return Promise.resolve(apply()).then(resolve);
+    },
+  };
+
+  return chain;
+}
+
 export function createLocalFallbackClient() {
   return {
     from(table: string) {
@@ -125,22 +163,12 @@ export function createLocalFallbackClient() {
         },
 
         update(patch: Row) {
-          return {
-            eq(column: string, value: unknown): Result<null> {
-              writeRows(
-                table,
-                readRows(table).map((row) =>
-                  row[column] === value ? { ...row, ...patch } : row,
-                ),
-              );
-              return Promise.resolve({ data: null, error: null });
-            },
-          };
+          return updateChain(table, patch);
         },
 
         delete() {
           return {
-            eq(column: string, value: unknown): Result<null> {
+            eq(column: string, value: unknown) {
               writeRows(
                 table,
                 readRows(table).filter((row) => row[column] !== value),

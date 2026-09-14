@@ -11,6 +11,9 @@ import {
   type Identity,
 } from "@/lib/identityStore";
 
+/** 舞台の生成を取ったまま これだけ進まなければ、取った人が落ちたとみなす */
+const STALE_CLAIM_MS = 60_000;
+
 /** ①スタート内での行き先。部屋に入ったあとは room.phase が画面を決める */
 type Nav = "start" | "create" | "join";
 
@@ -47,6 +50,15 @@ export interface GameSession {
   toggleReady: () => Promise<void>;
   /** ホストが待たずに開始する。まず Gemini の生成待ちに入る */
   startGame: () => Promise<void>;
+  /**
+   * 舞台の生成を取りに行く。取れたのが1人だけになるよう、DB 側の条件つき更新で
+   * 決める。取れたら true。前に取った人が落ちていれば奪い取る。
+   */
+  claimStage: () => Promise<boolean>;
+  /** 生成に失敗したので、取ったロックを返す */
+  releaseStage: () => Promise<void>;
+  /** 誰かが取ったまま止まっているか（「もう一度生成」を出す判断に使う） */
+  isStaleClaim: boolean;
   /** 生成が終わったら舞台名を記録して本番へ */
   beginPlaying: (params: { stageTitle: string; comment: string }) => Promise<void>;
   /** 1手進める */
@@ -251,6 +263,78 @@ export function useGameSession(): GameSession {
     await refresh();
   }, [room, players, refresh]);
 
+  // 取ってから STALE_CLAIM_MS 進んでいなければ、取った人が落ちたとみなして奪える。
+  // 描画中に Date.now() を読むと結果が安定しないので、時計は state で持つ。
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    if (room?.phase !== "seeding") return;
+    const id = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(id);
+  }, [room?.phase]);
+
+  const isStaleClaim = Boolean(
+    room?.phase === "seeding" &&
+      now > 0 &&
+      (!room.seeding_started_at ||
+        now - Date.parse(room.seeding_started_at) > STALE_CLAIM_MS),
+  );
+
+  const claimStage = useCallback(async () => {
+    if (!room) return false;
+
+    const now = new Date().toISOString();
+    const round = room.round ?? 1;
+
+    // ① まだ誰も取っていない場合。phase が generating の行だけが動く
+    const { data: taken } = await supabase
+      .from("rooms")
+      .update({ phase: "seeding", seeding_started_at: now })
+      .eq("id", room.id)
+      .eq("round", round)
+      .eq("phase", "generating")
+      .select();
+
+    if (taken && taken.length > 0) {
+      await refresh();
+      return true;
+    }
+
+    // ② 取った人が落ちている場合。見えている時刻ごと指定して奪う（compare-and-swap）
+    const stale =
+      room.phase === "seeding" &&
+      room.seeding_started_at &&
+      Date.now() - Date.parse(room.seeding_started_at) > STALE_CLAIM_MS;
+
+    if (stale) {
+      const { data: stolen } = await supabase
+        .from("rooms")
+        .update({ phase: "seeding", seeding_started_at: now })
+        .eq("id", room.id)
+        .eq("round", round)
+        .eq("phase", "seeding")
+        .eq("seeding_started_at", room.seeding_started_at)
+        .select();
+
+      if (stolen && stolen.length > 0) {
+        await refresh();
+        return true;
+      }
+    }
+
+    return false;
+  }, [room, refresh]);
+
+  const releaseStage = useCallback(async () => {
+    if (!room) return;
+    await supabase
+      .from("rooms")
+      .update({ phase: "generating", seeding_started_at: null })
+      .eq("id", room.id)
+      .eq("phase", "seeding");
+    await refresh();
+  }, [room, refresh]);
+
   const beginPlaying = useCallback(
     async ({ stageTitle, comment }: { stageTitle: string; comment: string }) => {
       if (!room) return;
@@ -258,6 +342,7 @@ export function useGameSession(): GameSession {
         .from("rooms")
         .update({
           phase: "playing",
+          seeding_started_at: null,
           stage_title: stageTitle,
           judge_comment: comment,
           turn_index: 0,
@@ -348,6 +433,7 @@ export function useGameSession(): GameSession {
         verdict: null,
         judge_comment: null,
         stage_title: null,
+        seeding_started_at: null,
         turn_index: 0,
         // ラウンドが変わるので、舞台の生成がもう一度だけ走る
         round: (room.round ?? 1) + 1,
@@ -401,6 +487,9 @@ export function useGameSession(): GameSession {
     joinRoom,
     toggleReady,
     startGame,
+    claimStage,
+    releaseStage,
+    isStaleClaim,
     beginPlaying,
     advanceTurn,
     recordRun,
