@@ -6,6 +6,7 @@
 // 対応マイグレーション:
 //   - supabase/migrations/20260914061141_init_schema.sql
 //   - supabase/migrations/20260914061323_tune_indexes_and_rls.sql
+//   - supabase/migrations/20260914093123_add_turn_difficulty.sql
 // ============================================================================
 
 export type Json =
@@ -72,6 +73,9 @@ export type Database = {
           current_code: string | null
           current_line_count: number | null
           current_player_id: string | null
+          current_turn_difficulty:
+            | Database["public"]["Enums"]["turn_difficulty"]
+            | null
           finish_reason:
             | Database["public"]["Enums"]["game_finish_reason"]
             | null
@@ -92,6 +96,9 @@ export type Database = {
           current_code?: string | null
           current_line_count?: number | null
           current_player_id?: string | null
+          current_turn_difficulty?:
+            | Database["public"]["Enums"]["turn_difficulty"]
+            | null
           finish_reason?:
             | Database["public"]["Enums"]["game_finish_reason"]
             | null
@@ -112,6 +119,9 @@ export type Database = {
           current_code?: string | null
           current_line_count?: number | null
           current_player_id?: string | null
+          current_turn_difficulty?:
+            | Database["public"]["Enums"]["turn_difficulty"]
+            | null
           finish_reason?:
             | Database["public"]["Enums"]["game_finish_reason"]
             | null
@@ -353,6 +363,7 @@ export type Database = {
           player_id: string
           result: Database["public"]["Enums"]["turn_result"]
           test_run_id: string | null
+          turn_difficulty: Database["public"]["Enums"]["turn_difficulty"]
           turn_no: number
         }
         Insert: {
@@ -367,6 +378,7 @@ export type Database = {
           player_id: string
           result: Database["public"]["Enums"]["turn_result"]
           test_run_id?: string | null
+          turn_difficulty: Database["public"]["Enums"]["turn_difficulty"]
           turn_no: number
         }
         Update: {
@@ -381,6 +393,7 @@ export type Database = {
           player_id?: string
           result?: Database["public"]["Enums"]["turn_result"]
           test_run_id?: string | null
+          turn_difficulty?: Database["public"]["Enums"]["turn_difficulty"]
           turn_no?: number
         }
         Relationships: [
@@ -426,6 +439,7 @@ export type Database = {
       room_status: "waiting" | "playing" | "finished" | "closed"
       test_run_kind: "problem_verification" | "turn_check"
       test_run_status: "passed" | "failed" | "error"
+      turn_difficulty: "easy" | "normal" | "hard"
       turn_result: "safe" | "out" | "timeout"
     }
     CompositeTypes: {
@@ -565,6 +579,7 @@ export const Constants = {
       room_status: ["waiting", "playing", "finished", "closed"],
       test_run_kind: ["problem_verification", "turn_check"],
       test_run_status: ["passed", "failed", "error"],
+      turn_difficulty: ["easy", "normal", "hard"],
       turn_result: ["safe", "out", "timeout"],
     },
   },

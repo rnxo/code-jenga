@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Game, GameFinishReason, GameStatus } from "@/types/game";
+import type { Game, GameFinishReason, GameStatus, TurnDifficulty } from "@/types/game";
 
 // games テーブルへのアクセスをまとめるリポジトリ。担当: BE-A
 
@@ -28,6 +28,8 @@ export interface UpdateGameInput {
   currentCode?: string | null;
   currentLineCount?: number | null;
   currentPlayerId?: string | null;
+  /** 現在のターンに適用中の難易度（ランダム難易度ルーレット）。手番が無い間は null。 */
+  currentTurnDifficulty?: TurnDifficulty | null;
   turnNo?: number;
   turnDeadlineAt?: string | null;
   loserId?: string | null;

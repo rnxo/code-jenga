@@ -18,6 +18,7 @@ import type {
   StartGameResponse,
 } from "@/types/api";
 import type { Game, GamePlayer, Problem, Room, Turn } from "@/types/game";
+import { rollTurnDifficulty } from "@/lib/shared/difficulty";
 
 const MOCK_HOST_ID = "00000000-0000-4000-8000-000000000001";
 const MOCK_GUEST_ID = "00000000-0000-4000-8000-000000000002";
@@ -91,6 +92,7 @@ function mockGame(overrides: Partial<Game> = {}): Game {
     status: "playing",
     turn_no: 1,
     current_player_id: MOCK_HOST_ID,
+    current_turn_difficulty: rollTurnDifficulty(problem.source_code),
     turn_time_limit_seconds: 60,
     turn_deadline_at: new Date(Date.now() + 60_000).toISOString(),
     current_code: problem.source_code,
@@ -131,6 +133,7 @@ export async function createRoom(_req: CreateRoomRequest): Promise<ApiResult<Cre
     game: mockGame({
       status: "waiting",
       current_player_id: null,
+      current_turn_difficulty: null,
       current_code: null,
       current_line_count: null,
       turn_no: 0,
@@ -170,6 +173,7 @@ export async function createTurn(
     deleted_line_text: deletedLine,
     code_before: game.current_code ?? "",
     code_after: codeAfter,
+    turn_difficulty: game.current_turn_difficulty ?? "easy",
     result: "safe",
     test_run_id: null,
     duration_ms: 1200,
@@ -183,6 +187,8 @@ export async function createTurn(
       current_line_count: (game.current_line_count ?? 1) - 1,
       turn_no: game.turn_no + 1,
       current_player_id: MOCK_GUEST_ID,
+      // 次のターンの縛りを、削除後のコードに対して引き直す（ランダム難易度ルーレット）。
+      current_turn_difficulty: rollTurnDifficulty(codeAfter),
     }),
   });
 }

@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>コードジェンガ 難易度ルーレット</title>
+<meta name="description" content="ターンごとにEASY/NORMAL/HARDを抽選し削除できる行に縛りをかける新機能の実装ドキュメント">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #efeee5;
+    --surface: #ffffff;
+    --surface-2: #f7f5ec;
+    --ink: #262019;
+    --ink-muted: #6b6558;
+    --line: #dad5c4;
+    --line-soft: #e6e2d3;
+    --accent: #2c5f6f;
+    --accent-ink: #ffffff;
+    --easy: #2f8f5b;
+    --easy-bg: #e5f3ea;
+    --easy-line: #b9dcc4;
+    --normal: #a96c15;
+    --normal-bg: #f7ecd8;
+    --normal-line: #e6cd9e;
+    --hard: #b23b32;
+    --hard-bg: #f8e4e1;
+    --hard-line: #e8b6af;
+    --shadow: 0 1px 0 rgba(38,32,25,0.06);
+    --radius: 10px;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17140f;
+      --surface: #211d16;
+      --surface-2: #1c1911;
+      --ink: #ede8dc;
+      --ink-muted: #a79e8c;
+      --line: #3a342a;
+      --line-soft: #2c281f;
+      --accent: #7fb3c7;
+      --accent-ink: #14201f;
+      --easy: #6fce97;
+      --easy-bg: #1c2a20;
+      --easy-line: #375c40;
+      --normal: #e3ab54;
+      --normal-bg: #2c2416;
+      --normal-line: #5c4826;
+      --hard: #e57a70;
+      --hard-bg: #2e1c19;
+      --hard-line: #5c332c;
+      --shadow: 0 1px 0 rgba(0,0,0,0.4);
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #17140f;
+    --surface: #211d16;
+    --surface-2: #1c1911;
+    --ink: #ede8dc;
+    --ink-muted: #a79e8c;
+    --line: #3a342a;
+    --line-soft: #2c281f;
+    --accent: #7fb3c7;
+    --accent-ink: #14201f;
+    --easy: #6fce97;
+    --easy-bg: #1c2a20;
+    --easy-line: #375c40;
+    --normal: #e3ab54;
+    --normal-bg: #2c2416;
+    --normal-line: #5c4826;
+    --hard: #e57a70;
+    --hard-bg: #2e1c19;
+    --hard-line: #5c332c;
+    --shadow: 0 1px 0 rgba(0,0,0,0.4);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    padding-inline: 20px;
+    padding-block: 48px 96px;
+  }
+
+  .wrap { max-width: 780px; margin: 0 auto; }
+
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  h1, h2, h3 {
+    font-family: "Big Shoulders", "IBM Plex Sans", sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  .eyebrow {
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  /* ---------- Header ---------- */
+  header.hero {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+    border-bottom: 1px solid var(--line);
+  }
+  header.hero .top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  header.hero h1 {
+    font-size: clamp(34px, 6vw, 52px);
+    font-weight: 800;
+    line-height: 0.98;
+  }
+  header.hero .lede {
+    max-width: 46rem;
+    color: var(--ink-muted);
+    font-size: 16.5px;
+  }
+  .meta-row {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--ink-muted);
+  }
+  .meta-row .mono { color: var(--ink); }
+
+  /* block stack motif */
+  .stack {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 6px;
+    width: 168px;
+    flex-shrink: 0;
+  }
+  .block {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 4px;
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.06em;
+    border: 1px solid;
+    box-shadow: var(--shadow);
+  }
+  .block span.pct { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 11.5px; opacity: 0.75; }
+  .block.easy   { background: var(--easy-bg);   border-color: var(--easy-line);   color: var(--easy); }
+  .block.normal { background: var(--normal-bg); border-color: var(--normal-line); color: var(--normal); transform: translateX(8px); }
+  .block.hard   { background: var(--hard-bg);   border-color: var(--hard-line);   color: var(--hard); transform: translateX(-4px); }
+
+  /* ---------- Sections ---------- */
+  section { margin-bottom: 56px; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .section-head h2 {
+    font-size: 26px;
+    font-weight: 700;
+  }
+  .section-head .num {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    color: var(--ink-muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 2px 9px;
+  }
+  .prose { max-width: 42rem; color: var(--ink); }
+  .prose.muted { color: var(--ink-muted); }
+  p { margin: 0 0 12px; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ---------- Flow steps ---------- */
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .flow-step {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 16px;
+    position: relative;
+  }
+  .flow-step .step-no {
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 800;
+    font-size: 34px;
+    color: var(--line);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .flow-step h3 { font-size: 15px; font-weight: 600; text-transform: none; margin-bottom: 6px; letter-spacing: 0; }
+  .flow-step p { font-size: 14px; color: var(--ink-muted); }
+  .flow-step .tag {
+    display: inline-block;
+    margin-top: 10px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    color: var(--accent);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 2px 6px;
+  }
+
+  /* ---------- Difficulty cards ---------- */
+  .diff-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .diff-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .diff-card .badge {
+    align-self: flex-start;
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: 0.04em;
+    padding: 3px 12px;
+    border-radius: 5px;
+    border: 1px solid;
+  }
+  .diff-card.easy .badge   { color: var(--easy);   background: var(--easy-bg);   border-color: var(--easy-line); }
+  .diff-card.normal .badge { color: var(--normal); background: var(--normal-bg); border-color: var(--normal-line); }
+  .diff-card.hard .badge   { color: var(--hard);   background: var(--hard-bg);   border-color: var(--hard-line); }
+  .diff-card .rule { font-size: 13.5px; color: var(--ink-muted); }
+  .diff-card .lines { display: flex; flex-direction: column; gap: 6px; }
+  .line-ex {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    border-radius: 5px;
+    padding: 5px 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+  }
+  .line-ex .mark { flex-shrink: 0; width: 14px; text-align: center; font-weight: 700; }
+  .line-ex.ok .mark { color: var(--easy); }
+  .line-ex.no .mark { color: var(--hard); }
+  .line-ex code { color: var(--ink); overflow-x: auto; white-space: pre; }
+
+  /* ---------- Playground ---------- */
+  .playground {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .playground .field-label {
+    font-size: 12.5px;
+    color: var(--ink-muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
+  }
+  #line-input {
+    width: 100%;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 15px;
+    padding: 11px 13px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  #line-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 12px;
+  }
+  .preset-btn {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: border-color 150ms ease, color 150ms ease;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .preset-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .result-row {
+    display: flex;
+    gap: 14px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .kind-readout {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    color: var(--ink-muted);
+  }
+  .kind-readout b { color: var(--ink); font-weight: 600; }
+  .verdicts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .verdict {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    padding: 5px 10px 5px 8px;
+    border-radius: 6px;
+    border: 1px solid;
+  }
+  .verdict.easy   { color: var(--easy);   background: var(--easy-bg);   border-color: var(--easy-line); }
+  .verdict.normal { color: var(--normal); background: var(--normal-bg); border-color: var(--normal-line); }
+  .verdict.hard   { color: var(--hard);   background: var(--hard-bg);   border-color: var(--hard-line); }
+
+  /* ---------- sample code table ---------- */
+  .sample-table { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .sample-row {
+    display: grid;
+    grid-template-columns: 34px 1fr 90px 90px 90px;
+    gap: 10px;
+    align-items: center;
+    padding: 7px 12px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .sample-row:last-child { border-bottom: none; }
+  .sample-row.head {
+    background: var(--surface-2);
+    color: var(--ink-muted);
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .sample-row .n { color: var(--ink-muted); }
+  .sample-row .code { white-space: pre; overflow-x: auto; color: var(--ink); }
+  .cell { text-align: center; }
+  .cell.yes { color: var(--easy); font-weight: 600; }
+  .cell.no { color: var(--ink-muted); opacity: 0.4; }
+
+  /* ---------- architecture cards ---------- */
+  .arch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .arch-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .arch-card .col-name {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 8px;
+    display: block;
+  }
+  .arch-card p { font-size: 13.5px; color: var(--ink-muted); }
+  .arch-card .role {
+    display: inline-block;
+    margin-top: 10px;
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 3px 8px;
+  }
+
+  /* ---------- file tree ---------- */
+  .file-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .file-group h3 {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--ink-muted);
+    margin-bottom: 10px;
+  }
+  .file-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .file-list li {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line-soft);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink);
+  }
+  .file-list li:last-child { border-bottom: none; }
+  .file-list .new-tag {
+    font-family: "Big Shoulders", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--easy);
+    background: var(--easy-bg);
+    border: 1px solid var(--easy-line);
+    border-radius: 4px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+  }
+
+  /* ---------- verification ---------- */
+  .verify-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .verify-tile {
+    background: var(--surface);
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .verify-tile .num {
+    font-family: "Big Shoulders", sans-serif;
+    font-weight: 800;
+    font-size: 26px;
+    color: var(--easy);
+    font-variant-numeric: tabular-nums;
+  }
+  .verify-tile .label { font-size: 11.5px; color: var(--ink-muted); }
+
+  /* ---------- future work ---------- */
+  .future-list { display: flex; flex-direction: column; gap: 10px; }
+  .future-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .future-item .phase {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: var(--accent);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 2px 6px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .future-item p { font-size: 13.5px; color: var(--ink-muted); margin: 0; }
+  .future-item b { color: var(--ink); font-weight: 600; }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--ink-muted);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 700px) {
+    .flow, .diff-grid, .arch-grid, .file-cols { grid-template-columns: 1fr; }
+    .verify-strip { grid-template-columns: repeat(2, 1fr); }
+    header.hero .top-row { flex-direction: column; }
+    .stack { width: 100%; flex-direction: row; }
+    .block.normal { transform: none; }
+    .block.hard { transform: none; }
+    .sample-row { grid-template-columns: 22px 1fr; row-gap: 4px; }
+    .sample-row .cell { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="top-row">
+      <div>
+        <div class="eyebrow">CODE JENGA — FEATURE SPEC</div>
+        <h1>難易度ルーレット</h1>
+      </div>
+      <div class="stack" aria-hidden="true">
+        <div class="block hard">HARD <span class="pct">1/3</span></div>
+        <div class="block normal">NORMAL <span class="pct">1/3</span></div>
+        <div class="block easy">EASY <span class="pct">1/3</span></div>
+      </div>
+    </div>
+    <p class="lede">自分のターンが来るたびにサーバーが EASY / NORMAL / HARD を均等抽選し、削除してよい行の種類に縛りをかける機能。安全牌だった空行・コメント行を難易度が上がるごとに奪い、終盤を待たずに実コードへ手を出させる。</p>
+    <div class="meta-row">
+      <span>ブランチ <span class="mono">feat/difficulty-roulette</span></span>
+      <span>ENUM <span class="mono">turn_difficulty</span></span>
+      <span>中核ロジック <span class="mono">src/lib/shared/difficulty.ts</span></span>
+    </div>
+  </header>
+
+  <section id="flow">
+    <div class="section-head"><h2>UX フロー</h2><span class="num">3 STEPS</span></div>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="step-no">01</div>
+        <h3>手番が回ってくる</h3>
+        <p>safe 判定の直後、games.current_player_id が次のプレイヤーに切り替わる。</p>
+        <span class="tag">apply-turn.ts</span>
+      </div>
+      <div class="flow-step">
+        <div class="step-no">02</div>
+        <h3>サーバーが抽選する</h3>
+        <p>rollTurnDifficulty(codeAfter) で EASY/NORMAL/HARD を均等抽選。削除可能行が0行なら EASY に自動フォールバック。</p>
+        <span class="tag">rollTurnDifficulty()</span>
+      </div>
+      <div class="flow-step">
+        <div class="step-no">03</div>
+        <h3>画面に難易度が出る</h3>
+        <p>games の Realtime 購読が current_turn_difficulty をそのまま流すので、フック側は無改修でバッジが表示される。</p>
+        <span class="tag">TurnIndicator.tsx</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="rules">
+    <div class="section-head"><h2>3つの縛り</h2><span class="num">EASY ⊇ NORMAL ⊇ HARD</span></div>
+    <p class="prose muted" style="margin-bottom:18px;">削除できる行の集合は難易度が上がるほど単調に縮小する（累積型）。判定は行テキストを5種類に分類する classifyLine() から導かれる。</p>
+    <div class="diff-grid">
+      <div class="diff-card easy">
+        <span class="badge">EASY</span>
+        <p class="rule">制限なし。どの行でも削除できる。</p>
+        <div class="lines">
+          <div class="line-ex ok"><span class="mark">✓</span><code>total += n;</code></div>
+          <div class="line-ex ok"><span class="mark">✓</span><code>// 合計を返す</code></div>
+          <div class="line-ex ok"><span class="mark">✓</span><code>}</code></div>
+        </div>
+      </div>
+      <div class="diff-card normal">
+        <span class="badge">NORMAL</span>
+        <p class="rule">空行・コメント行・記号だけの行は削除できない。</p>
+        <div class="lines">
+          <div class="line-ex ok"><span class="mark">✓</span><code>total += n;</code></div>
+          <div class="line-ex no"><span class="mark">✕</span><code>// 合計を返す</code></div>
+          <div class="line-ex no"><span class="mark">✕</span><code>}</code></div>
+        </div>
+      </div>
+      <div class="diff-card hard">
+        <span class="badge">HARD</span>
+        <p class="rule">宣言・制御を含む行しか削除できない。</p>
+        <div class="lines">
+          <div class="line-ex no"><span class="mark">✕</span><code>total += n;</code></div>
+          <div class="line-ex ok"><span class="mark">✓</span><code>let total = 0;</code></div>
+          <div class="line-ex ok"><span class="mark">✓</span><code>if (total &gt; 0) {</code></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="playground">
+    <div class="section-head"><h2>行分類プレイグラウンド</h2><span class="num">LIVE</span></div>
+    <p class="prose muted" style="margin-bottom:16px;">difficulty.ts の classifyLine() / isDeletableUnder() をそのまま JavaScript に移植。行を書き換えると、実際にどの難易度なら削除できるかがリアルタイムで変わる。</p>
+    <div class="playground">
+      <div class="field-label">試したい行のテキスト</div>
+      <input id="line-input" class="mono" type="text" value="total += n;" spellcheck="false" autocomplete="off" />
+      <div class="presets" id="presets"></div>
+      <div class="result-row">
+        <div class="kind-readout">分類: <b id="kind-out">expression</b></div>
+        <div class="verdicts" id="verdicts"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="sample">
+    <div class="section-head"><h2>サンプルコードでの内訳</h2><span class="num">MONOTONIC</span></div>
+    <p class="prose muted" style="margin-bottom:16px;">difficulty.test.ts で単調性を検証している実例（sum 関数、7行）。EASY は7行、NORMAL は5行、HARD は4行が削除可能で、HARD ⊆ NORMAL ⊆ EASY が成立する。</p>
+    <div class="sample-table">
+      <div class="sample-row head"><span></span><span>行</span><span class="cell">EASY</span><span class="cell">NORMAL</span><span class="cell">HARD</span></div>
+      <div class="sample-row"><span class="n">1</span><span class="code">function sum(numbers: number[]): number {</span><span class="cell yes">✓</span><span class="cell yes">✓</span><span class="cell yes">✓</span></div>
+      <div class="sample-row"><span class="n">2</span><span class="code">  let total = 0;</span><span class="cell yes">✓</span><span class="cell yes">✓</span><span class="cell yes">✓</span></div>
+      <div class="sample-row"><span class="n">3</span><span class="code">  for (const n of numbers) {</span><span class="cell yes">✓</span><span class="cell yes">✓</span><span class="cell yes">✓</span></div>
+      <div class="sample-row"><span class="n">4</span><span class="code">    total += n;</span><span class="cell yes">✓</span><span class="cell yes">✓</span><span class="cell no">–</span></div>
+      <div class="sample-row"><span class="n">5</span><span class="code">  }</span><span class="cell yes">✓</span><span class="cell no">–</span><span class="cell no">–</span></div>
+      <div class="sample-row"><span class="n">6</span><span class="code">  return total;</span><span class="cell yes">✓</span><span class="cell yes">✓</span><span class="cell yes">✓</span></div>
+      <div class="sample-row"><span class="n">7</span><span class="code">}</span><span class="cell yes">✓</span><span class="cell no">–</span><span class="cell no">–</span></div>
+    </div>
+  </section>
+
+  <section id="architecture">
+    <div class="section-head"><h2>永続化の設計</h2><span class="num">2 COLUMNS</span></div>
+    <p class="prose muted" style="margin-bottom:16px;">games / turns の両方に持たせる。current_code・current_line_count と同じ「非正規化キャッシュ＋履歴の真実」パターンに乗せることで、Realtime 購読フックは無改修で新フィールドを受け取る。</p>
+    <div class="arch-grid">
+      <div class="arch-card">
+        <span class="col-name">games.current_turn_difficulty</span>
+        <p>今まさに進行中のターンに適用されている縛り。NULL 可（waiting / generating 中は手番が無いため）。turns の INSERT と同一トランザクションで更新する。</p>
+        <span class="role">非正規化キャッシュ</span>
+      </div>
+      <div class="arch-card">
+        <span class="col-name">turns.turn_difficulty</span>
+        <p>その手に実際に適用されていた縛りのスナップショット。NOT NULL・DEFAULT なし — 渡し忘れを型と制約の両方で検出する。</p>
+        <span class="role">履歴 / 真実</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="files">
+    <div class="section-head"><h2>変更ファイル</h2><span class="num">13 CHANGED · 4 NEW</span></div>
+    <div class="file-cols">
+      <div class="file-group">
+        <h3>NEW</h3>
+        <ul class="file-list">
+          <li><span class="new-tag">NEW</span>supabase/migrations/…_add_turn_difficulty.sql</li>
+          <li><span class="new-tag">NEW</span>src/lib/shared/difficulty.ts</li>
+          <li><span class="new-tag">NEW</span>src/lib/shared/difficulty.test.ts</li>
+          <li><span class="new-tag">NEW</span>…/TurnIndicator.test.tsx</li>
+        </ul>
+      </div>
+      <div class="file-group">
+        <h3>CHANGED</h3>
+        <ul class="file-list">
+          <li>DB_DESIGN.md</li>
+          <li>src/types/{database,game,api}.ts</li>
+          <li>src/lib/api/{errors,mock}.ts</li>
+          <li>src/lib/server/repositories/{games,turns}.ts</li>
+          <li>src/lib/server/game/{start-game,apply-turn}.ts</li>
+          <li>…/{TurnIndicator,GameBoard,LineDeleteControls}.tsx</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="verify">
+    <div class="section-head"><h2>検証</h2><span class="num">PASS</span></div>
+    <div class="verify-strip">
+      <div class="verify-tile"><span class="num">35</span><span class="label">pnpm test 成功件数</span></div>
+      <div class="verify-tile"><span class="num">✓</span><span class="label">pnpm build（型チェック込み）</span></div>
+      <div class="verify-tile"><span class="num">✓</span><span class="label">pnpm lint</span></div>
+      <div class="verify-tile"><span class="num">✓</span><span class="label">Supabase へマイグレーション適用済み</span></div>
+    </div>
+  </section>
+
+  <section id="future">
+    <div class="section-head"><h2>今後の拡張</h2><span class="num">未着手</span></div>
+    <div class="future-list">
+      <div class="future-item">
+        <span class="phase">PHASE 3</span>
+        <p><b>Monaco decorations</b> — 削除不可の行をエディタ上でグレーアウトする。CodeViewer.tsx の既存 TODO（selectedLineNo のハイライト）とまとめて着手する想定。</p>
+      </div>
+      <div class="future-item">
+        <span class="phase">PHASE 3</span>
+        <p><b>ルーレット演出</b> — turn_no の変化を検知して EASY→NORMAL→HARD を高速に切り替えてから確定値で止める。デモ映え目的で機能要件ではない。</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>コードジェンガ — 3日間ハッカソン</span>
+    <span class="mono">src/lib/shared/difficulty.ts</span>
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    var DECLARATION_KEYWORDS = ["import","export","function","class","interface","type","enum","const","let","var","return","if","else","for","while","switch","case","do","try","catch","finally","throw"];
+    var DECLARATION_PATTERN = new RegExp("\\b(" + DECLARATION_KEYWORDS.join("|") + ")\\b");
+    var SYMBOL_ONLY_PATTERN = /^[{}()\[\];,]+$/;
+
+    var KIND_LABEL = {
+      "blank": "blank（空行）",
+      "comment": "comment（コメント）",
+      "symbol-only": "symbol-only（記号だけ）",
+      "declaration": "declaration（宣言・制御）",
+      "expression": "expression（式）"
+    };
+
+    var DELETABLE_KINDS = {
+      easy: ["blank", "comment", "symbol-only", "declaration", "expression"],
+      normal: ["declaration", "expression"],
+      hard: ["declaration"]
+    };
+
+    function classifyLine(lineText) {
+      var trimmed = lineText.trim();
+      if (trimmed.length === 0) return "blank";
+      if (trimmed.indexOf("//") === 0 || trimmed.indexOf("/*") === 0 || trimmed.indexOf("*") === 0) return "comment";
+      if (SYMBOL_ONLY_PATTERN.test(trimmed)) return "symbol-only";
+      if (DECLARATION_PATTERN.test(trimmed)) return "declaration";
+      return "expression";
+    }
+
+    function isDeletableUnder(difficulty, lineText) {
+      return DELETABLE_KINDS[difficulty].indexOf(classifyLine(lineText)) !== -1;
+    }
+
+    var input = document.getElementById("line-input");
+    var kindOut = document.getElementById("kind-out");
+    var verdicts = document.getElementById("verdicts");
+    var presets = document.getElementById("presets");
+
+    var PRESET_LINES = [
+      "function sum(numbers: number[]): number {",
+      "  let total = 0;",
+      "  for (const n of numbers) {",
+      "    total += n;",
+      "  }",
+      "  return total;",
+      "}",
+      "  // 合計を返す"
+    ];
+
+    function render() {
+      var text = input.value;
+      var kind = classifyLine(text);
+      kindOut.textContent = KIND_LABEL[kind];
+
+      var order = ["easy", "normal", "hard"];
+      verdicts.innerHTML = "";
+      order.forEach(function (diff) {
+        var ok = isDeletableUnder(diff, text);
+        var el = document.createElement("span");
+        el.className = "verdict " + diff;
+        el.textContent = (ok ? "✓ " : "✕ ") + diff.toUpperCase();
+        el.style.opacity = ok ? "1" : "0.45";
+        verdicts.appendChild(el);
+      });
+    }
+
+    PRESET_LINES.forEach(function (line) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "preset-btn";
+      btn.textContent = line.trim() === "" ? "(空行)" : line.trim();
+      btn.addEventListener("click", function () {
+        input.value = line;
+        render();
+        input.focus();
+      });
+      presets.appendChild(btn);
+    });
+
+    input.addEventListener("input", render);
+    render();
+  })();
+</script>
+</body>
+</html>

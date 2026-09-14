@@ -31,6 +31,12 @@ export type TestRunStatus = Enums<"test_run_status">;
 /** 試合が終了した理由 */
 export type GameFinishReason = Enums<"game_finish_reason">;
 
+/**
+ * 1手ごとにルーレットで決まる難易度（削除してよい行の縛り）。
+ * problems.difficulty（お題自体の難易度ラベル、text の自由記述）とは別概念。
+ */
+export type TurnDifficulty = Enums<"turn_difficulty">;
+
 // ---- テーブル行の型エイリアス ------------------------------------------
 
 export type Profile = Tables<"profiles">;

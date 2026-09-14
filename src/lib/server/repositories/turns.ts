@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Turn, TurnResult } from "@/types/game";
+import type { Turn, TurnDifficulty, TurnResult } from "@/types/game";
 
 // turns テーブルへのアクセスをまとめるリポジトリ。担当: BE-A
 
@@ -12,6 +12,8 @@ export interface CreateTurnInput {
   deletedLineText: string;
   codeBefore: string;
   codeAfter: string;
+  /** この手に適用されていた難易度（ランダム難易度ルーレット）のスナップショット。 */
+  turnDifficulty: TurnDifficulty;
   result: TurnResult;
   testRunId: string | null;
   durationMs?: number;

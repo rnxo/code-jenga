@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { apiClient } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/Spinner";
+import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder } from "@/lib/shared/difficulty";
 import { useGameRealtime } from "../hooks/useGameRealtime";
 import { CodeViewer } from "./CodeViewer";
 import { LineDeleteControls } from "./LineDeleteControls";
@@ -34,8 +35,16 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const isMyTurn = game.current_player_id === currentUserId;
   const latestTurn = turns.at(-1) ?? null;
 
+  const selectedLineText =
+    selectedLineNo === null ? null : (game.current_code ?? "").split("\n")[selectedLineNo - 1] ?? null;
+  const difficulty = game.current_turn_difficulty;
+  const blockedReason =
+    difficulty && selectedLineText !== null && !isDeletableUnder(difficulty, selectedLineText)
+      ? `${DIFFICULTY_LABEL[difficulty]} ではこの行は削除できません。${DIFFICULTY_RULE_TEXT[difficulty]}`
+      : null;
+
   async function handleDeleteLine() {
-    if (selectedLineNo === null) {
+    if (selectedLineNo === null || blockedReason !== null) {
       return;
     }
     setIsSubmitting(true);
@@ -65,6 +74,7 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
           selectedLineNo={selectedLineNo}
           isSubmitting={isSubmitting}
           errorMessage={submitError}
+          blockedReason={blockedReason}
           onConfirm={handleDeleteLine}
         />
       ) : null}
