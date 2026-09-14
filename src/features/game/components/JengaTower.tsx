@@ -36,6 +36,11 @@ export interface JengaTowerProps {
   interactive: boolean;
   /** 直前の判定がアウト／タイムアウトなら崩す */
   collapsed: boolean;
+  /**
+   * 崩れ方を詰める。盤面では派手に散らしたいが、終了画面では
+   * 「崩れたあとの山」として枠に収めたいので、そちらで使う。
+   */
+  compact?: boolean;
 }
 
 export function JengaTower({
@@ -44,6 +49,7 @@ export function JengaTower({
   onSelectLine,
   interactive,
   collapsed,
+  compact = false,
 }: JengaTowerProps) {
   const lines = code.length > 0 ? code.split("\n") : [];
 
@@ -134,7 +140,10 @@ export function JengaTower({
     .join(" ");
 
   return (
-    <div className={styles.scene} style={{ paddingTop: 24, paddingBottom: collapsed ? 176 : 24 }}>
+    <div
+      className={styles.scene}
+      style={{ paddingTop: compact ? 8 : 24, paddingBottom: collapsed && !compact ? 176 : 24 }}
+    >
       <div
         className={towerClassName}
         style={{ "--rx": `${angle.rx}deg`, "--ry": `${angle.ry}deg` } as CSSProperties}
@@ -169,7 +178,7 @@ export function JengaTower({
               aria-pressed={isSelected}
               aria-label={`${lineNo} 行目: ${isBlank ? "空行" : line}`}
               onClick={() => handleSelectLine(lineNo)}
-              style={fallStyle(index, lines.length)}
+              style={fallStyle(index, lines.length, compact)}
             >
               {/* 回したときに中が抜けないよう、見えない面も置く */}
               <span className={`${styles.face} ${styles.top}`} />
@@ -209,12 +218,15 @@ export function JengaTower({
 }
 
 /** 崩れ方は段ごとに散らす（見た目だけなので index から決める）。上の段ほど遠くまで落ちる */
-function fallStyle(index: number, total: number): CSSProperties {
+function fallStyle(index: number, total: number, compact: boolean): CSSProperties {
+  // 終了画面では同じ向きのまま距離だけ詰めて、山として枠に収める
+  const spread = compact ? 0.34 : 1;
+
   return {
     "--face": FACE_COLORS[index % FACE_COLORS.length],
-    "--fall-x": `${((index % 3) - 1) * 46}px`,
-    "--fall-y": `${40 + (total - index) * 16}px`,
-    "--fall-z": `${((index % 4) - 1) * 44}px`,
+    "--fall-x": `${((index % 3) - 1) * 46 * spread}px`,
+    "--fall-y": `${(40 + (total - index) * 16) * spread}px`,
+    "--fall-z": `${((index % 4) - 1) * 44 * spread}px`,
     "--fall-rx": `${26 + (index % 3) * 22}deg`,
     "--fall-rz": `${((index % 5) - 2) * 14}deg`,
     "--fall-delay": `${index * 45}ms`,
