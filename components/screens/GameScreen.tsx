@@ -14,7 +14,8 @@ const VERDICT_BADGE: Record<Verdict, { text: string; className: string }> = {
 
 /** ④ コード画面。Gemini が作った舞台から1行ずつ抜いていく */
 export function GameScreen({ game }: { game: CodeJenga }) {
-  const { session, tower, gemini, currentPlayer, isMyTurn, pullBlock } = game;
+  const { session, tower, gemini, currentPlayer, isMyTurn, pullBlock, isCollapsing } =
+    game;
 
   // 実行結果と Gemini のコメントは部屋で共有しているので、全員が同じものを見る
   const room = session.room;
@@ -25,7 +26,7 @@ export function GameScreen({ game }: { game: CodeJenga }) {
   const verdict = room?.verdict ?? gemini.verdict;
   const badge = verdict ? VERDICT_BADGE[verdict] : null;
 
-  const canPull = isMyTurn && !tower.isRunning;
+  const canPull = isMyTurn && !tower.isRunning && !isCollapsing;
 
   return (
     <main className="min-h-dvh p-5 text-neutral-100 sm:p-8">
@@ -121,9 +122,14 @@ export function GameScreen({ game }: { game: CodeJenga }) {
 
           {/* 右: タワー */}
           <Panel title={`tower · 残り ${tower.blocks.length} 行`}>
-            <div className="max-h-[34rem] overflow-x-hidden overflow-y-auto rounded-md bg-neutral-950 p-3">
+            <div
+              className={`max-h-[34rem] rounded-md bg-neutral-950 p-3 ${
+                isCollapsing ? "overflow-visible" : "overflow-x-hidden overflow-y-auto"
+              }`}
+            >
               <TowerStack
                 blocks={tower.blocks}
+                mode={isCollapsing ? "fallen" : "play"}
                 canPull={canPull}
                 wobbly={verdict === "wobbly"}
                 onPull={pullBlock}

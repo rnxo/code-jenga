@@ -9,12 +9,12 @@ import { GameScreen } from "@/components/screens/GameScreen";
 import { ResultScreen } from "@/components/screens/ResultScreen";
 
 // 画面遷移：①スタート → ②部屋作成/参加 → ③待機 → ④コード → ⑤終了
-// どの画面を出すかは useGameSession が持つ room.phase から決まるので、
-// ここは振り分けるだけです。
+// どの画面を出すかは room.phase から決まります（崩壊中だけは、崩れる様子を
+// 見せるためにコード画面に留まります）。ここは振り分けるだけです。
 export default function CodeJengaPage() {
   const game = useCodeJenga();
 
-  switch (game.session.screen) {
+  switch (game.screen) {
     case "create":
       return <CreateRoomScreen session={game.session} />;
     case "join":

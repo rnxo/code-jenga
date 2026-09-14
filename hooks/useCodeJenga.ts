@@ -1,13 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGameSession, type GameSession } from "./useGameSession";
 import { useJengaTower, type JengaTower } from "./useJengaTower";
 import { useGemini, type GeminiHost } from "./useGemini";
-import type { Player } from "@/lib/types";
+import type { Player, Screen } from "@/lib/types";
+
+/** 崩れる様子を見せてから、終了画面に移るまでの時間 */
+const COLLAPSE_VIEW_MS = 2000;
 
 export interface CodeJenga {
   session: GameSession;
+  /** 表示すべき画面。崩壊中はコード画面に留めて、崩れるところを見せる */
+  screen: Screen;
+  /** タワーが崩れている最中か */
+  isCollapsing: boolean;
   tower: JengaTower;
   gemini: GeminiHost;
   /** Gemini が舞台を作っている最中かどうか（取りに行く前・生成中の両方） */
@@ -102,6 +109,28 @@ export function useCodeJenga(): CodeJenga {
 
   const isMyTurn = Boolean(me && currentPlayer && me.id === currentPlayer.id);
 
+  // 決着した瞬間、すぐ終了画面に飛ばすと崩れるところが見えないので、
+  // しばらくコード画面に留めてタワーを崩す。全員の端末で同じように起きる。
+  const finishedKey =
+    room?.phase === "finished" && room.loser_id ? `${room.id}:${room.round}` : null;
+
+  const [seenFinish, setSeenFinish] = useState<string | null>(null);
+  const [isCollapsing, setIsCollapsing] = useState(false);
+
+  if (finishedKey && finishedKey !== seenFinish) {
+    // 描画中に前回値と比べて調整する形（エフェクトを挟まない）
+    setSeenFinish(finishedKey);
+    setIsCollapsing(true);
+  }
+
+  useEffect(() => {
+    if (!isCollapsing) return;
+    const id = setTimeout(() => setIsCollapsing(false), COLLAPSE_VIEW_MS);
+    return () => clearTimeout(id);
+  }, [isCollapsing]);
+
+  const screen: Screen = isCollapsing ? "game" : session.screen;
+
   const loser = useMemo(
     () => players.find((p) => p.id === room?.loser_id) ?? null,
     [players, room],
@@ -149,6 +178,8 @@ export function useCodeJenga(): CodeJenga {
 
   return {
     session,
+    screen,
+    isCollapsing,
     tower,
     gemini,
     isGenerating,

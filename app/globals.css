@@ -183,21 +183,32 @@
   animation: jenga-tremble-3d 0.85s ease-in-out infinite;
 }
 
-/* 崩壊。段ごとに時間差で転がり落ちる */
+/* 崩壊。高い段ほど遠くまで落ち、落ちきったところで一度跳ねて止まる */
 @keyframes jenga-tumble {
   0% {
     transform: translate3d(0, 0, 0) rotateX(0deg) rotateZ(0deg);
-    opacity: 1;
+  }
+  14% {
+    /* まず傾く */
+    transform: translate3d(0, 3px, 0) rotateX(calc(var(--fall-rx, 20deg) * 0.18))
+      rotateZ(calc(var(--fall-rz, 10deg) * 0.3));
+  }
+  88% {
+    /* 落ちきって、少し行き過ぎる */
+    transform: translate3d(var(--fall-x, 0), calc(var(--fall-y, 80px) * 1.04),
+        var(--fall-z, 0))
+      rotateX(var(--fall-rx, 20deg)) rotateZ(var(--fall-rz, 10deg));
   }
   100% {
-    transform: translate3d(var(--fall-x, 0), var(--fall-y, 60px), var(--fall-z, 0))
-      rotateX(var(--fall-rx, 20deg)) rotateZ(var(--fall-rz, 12deg));
-    opacity: 0.92;
+    /* 跳ね返って落ち着く */
+    transform: translate3d(var(--fall-x, 0), var(--fall-y, 80px), var(--fall-z, 0))
+      rotateX(var(--fall-rx, 20deg)) rotateZ(var(--fall-rz, 10deg));
   }
 }
 
 .jenga-piece.is-falling {
-  animation: jenga-tumble 1s cubic-bezier(0.35, 0, 0.7, 1) forwards;
+  /* 重力っぽく、後半ほど速く落ちる */
+  animation: jenga-tumble 1.1s cubic-bezier(0.45, 0, 0.85, 0.72) forwards;
   animation-delay: var(--fall-delay, 0ms);
 }
 

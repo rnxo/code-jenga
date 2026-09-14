@@ -81,7 +81,12 @@ export function TowerStack({
   }
 
   return (
-    <div className="jenga-scene select-none py-6">
+    <div
+      className={`jenga-scene select-none pt-6 ${
+        // 崩れたあとの山が枠に収まるよう、落ちる分の高さを確保する
+        mode === "fallen" ? "pb-44" : "pb-6"
+      }`}
+    >
       <div
         onPointerDown={startDrag}
         onPointerMove={moveDrag}
@@ -106,13 +111,15 @@ export function TowerStack({
               style={
                 {
                   "--jenga-face": face,
-                  // 崩れる向きは段ごとに散らす（見た目だけなので index から決める）
-                  "--fall-x": `${((idx % 3) - 1) * 26}px`,
-                  "--fall-y": `${26 + idx * 9}px`,
-                  "--fall-z": `${((idx % 4) - 1) * 30}px`,
-                  "--fall-rx": `${18 + (idx % 3) * 12}deg`,
-                  "--fall-rz": `${((idx % 5) - 2) * 9}deg`,
-                  "--fall-delay": `${idx * 60}ms`,
+                  // 崩れ方は段ごとに散らす（見た目だけなので index から決める）。
+                  // 高い段＝上にあるほど遠くまで落ちる
+                  "--fall-x": `${((idx % 3) - 1) * 46}px`,
+                  "--fall-y": `${40 + (blocks.length - idx) * 16}px`,
+                  "--fall-z": `${((idx % 4) - 1) * 44}px`,
+                  "--fall-rx": `${26 + (idx % 3) * 22}deg`,
+                  "--fall-rz": `${((idx % 5) - 2) * 14}deg`,
+                  // 上から崩れていく
+                  "--fall-delay": `${idx * 45}ms`,
                 } as React.CSSProperties
               }
               className={`jenga-piece ${pulling ? "is-pulling" : ""} ${

@@ -74,7 +74,7 @@ export function ResultScreen({ game }: { game: CodeJenga }) {
           {`remains · ${tower.blocks.length} 行`}
         </p>
 
-        <div className="max-h-64 overflow-x-hidden overflow-y-auto rounded-md bg-neutral-950 p-3">
+        <div className="max-h-80 overflow-x-hidden overflow-y-auto rounded-md bg-neutral-950 p-3">
           <TowerStack blocks={tower.blocks} mode="fallen" />
         </div>
       </div>
