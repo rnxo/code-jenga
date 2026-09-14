@@ -26,6 +26,6 @@ export default function CodeJengaPage() {
     case "result":
       return <ResultScreen game={game} />;
     default:
-      return <StartScreen session={game.session} />;
+      return <StartScreen game={game} />;
   }
 }

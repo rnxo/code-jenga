@@ -24,3 +24,43 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* スタート画面のタワーアート。タワーがゆっくり揺れ、抜かれた1行が浮いている */
+@keyframes jenga-sway {
+  0%,
+  100% {
+    transform: rotate(-0.8deg);
+  }
+  50% {
+    transform: rotate(0.8deg);
+  }
+}
+
+@keyframes jenga-slip {
+  0%,
+  100% {
+    transform: translateX(30%);
+  }
+  50% {
+    transform: translateX(38%);
+  }
+}
+
+.jenga-sway {
+  transform-origin: bottom center;
+  animation: jenga-sway 7s ease-in-out infinite;
+}
+
+.jenga-slip {
+  animation: jenga-slip 3.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jenga-sway,
+  .jenga-slip {
+    animation: none;
+  }
+  .jenga-slip {
+    transform: translateX(30%);
+  }
+}
