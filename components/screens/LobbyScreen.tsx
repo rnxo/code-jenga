@@ -2,10 +2,11 @@
 
 import { Button, ErrorBanner, Panel, Screen } from "@/components/ui";
 import { MAX_PLAYERS } from "@/lib/types";
-import type { GameSession } from "@/hooks/useGameSession";
+import type { CodeJenga } from "@/hooks/useCodeJenga";
 
-/** ③ 待機画面。部屋を作った直後の「生成中の待機」もここが兼ねる */
-export function LobbyScreen({ session }: { session: GameSession }) {
+/** ③ 待機画面。Gemini が舞台を作っているあいだの「生成中」もここが兼ねる */
+export function LobbyScreen({ game }: { game: CodeJenga }) {
+  const { session, gemini, isGenerating } = game;
   const { players, me, isHost, allReady, room } = session;
 
   return (
@@ -53,6 +54,16 @@ export function LobbyScreen({ session }: { session: GameSession }) {
         </ul>
       </Panel>
 
+      {isGenerating ? (
+        <div className="rounded-lg border border-indigo-800 bg-neutral-900 p-4">
+          <p className="mb-2 text-sm font-semibold text-indigo-300">
+            🤖 Gemini が舞台を組み立てています...
+          </p>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-300">
+            {gemini.comment || "できあがり次第、全員の画面がコード画面に切り替わります。"}
+          </p>
+        </div>
+      ) : (
       <div className="flex flex-col gap-3">
         <Button
           variant={me?.is_ready ? "secondary" : "success"}
@@ -75,9 +86,12 @@ export function LobbyScreen({ session }: { session: GameSession }) {
           {isHost ? "解散する" : "退出する"}
         </Button>
       </div>
+      )}
 
       <p className="mt-6 text-xs text-neutral-500">
-        {allReady
+        {isGenerating
+          ? "Gemini が作ったコードが、そのままジェンガのタワーになります。"
+          : allReady
           ? "全員 Ready です。まもなく開始します。"
           : isHost
             ? "全員が Ready になると自動で始まります。待たずに始めることもできます。"

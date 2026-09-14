@@ -1,39 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Block, GeminiMove, Verdict } from "@/lib/types";
+import { pickFallbackStage } from "@/lib/fallbackStage";
+import type { Block, Stage, Verdict } from "@/lib/types";
 
-export interface GeminiPlayer {
-  /** サーバーに GEMINI_API_KEY があるか。false ならボタンを無効化する */
+export interface GeminiHost {
+  /** サーバーに GEMINI_API_KEY があるか。false なら作り置きの舞台を使う */
   ready: boolean;
   /** 使用中のモデル名（表示用） */
   model: string;
-  /** 思考中／講評中かどうか */
+  /** 生成中／講評中かどうか */
   busy: boolean;
   /** 直近のコメント。エラー時は「⚠ 〜」が入る */
   comment: string;
   /** 直近の判定。まだ判定していなければ null */
   verdict: Verdict | null;
-  /** 次の一手を考えさせる。失敗したら null */
-  requestMove: (blocks: Block[]) => Promise<GeminiMove | null>;
-  /** 実行結果を講評させる。結果は部屋で共有できるよう呼び出し側に返す */
+  /** ゲームの舞台になるコードを作らせる。鍵が無ければ作り置きを返す */
+  buildStage: (playerCount: number) => Promise<Stage>;
+  /** 1行抜いたあとの状態を講評させる */
   requestJudge: (
     blocks: Block[],
     output: string,
+    removed: string,
   ) => Promise<{ verdict: Verdict | null; comment: string } | null>;
   /** UI 側から実況を差し込みたいとき用 */
   setComment: (comment: string) => void;
 }
 
-/** Gemini に渡すのは中身だけでよいので、id などは落とす */
-function toPrompt(blocks: Block[]) {
-  return blocks.map(({ code_snippet, player_name }) => ({
-    code_snippet,
-    player_name,
-  }));
-}
-
-export function useGemini(): GeminiPlayer {
+export function useGemini(): GeminiHost {
   const [ready, setReady] = useState(false);
   const [model, setModel] = useState("");
   const [busy, setBusy] = useState(false);
@@ -51,64 +45,87 @@ export function useGemini(): GeminiPlayer {
       .catch(() => setReady(false));
   }, []);
 
-  const requestMove = useCallback(async (blocks: Block[]) => {
+  const buildStage = useCallback(async (playerCount: number): Promise<Stage> => {
     setBusy(true);
     setVerdict(null);
-    setComment("Gemini が次の一手を考えています...");
+    setComment("Gemini が舞台を組み立てています...");
 
     try {
       const res = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "move", blocks: toPrompt(blocks) }),
+        body: JSON.stringify({ mode: "build", playerCount }),
       });
       const data = await res.json();
 
-      if (data.error) {
-        setComment(`⚠ ${data.error}`);
-        return null;
+      const lines: string[] = Array.isArray(data.lines) ? data.lines : [];
+      if (data.error || lines.length === 0) {
+        // 鍵が無い・生成に失敗した場合は作り置きの舞台で続行する
+        const fallback = pickFallbackStage();
+        setComment(
+          data.missingKey
+            ? `${fallback.comment}\n（GEMINI_API_KEY が未設定のため、作り置きの舞台を使っています）`
+            : `${fallback.comment}\n（Gemini の生成に失敗したため作り置きの舞台を使います: ${data.error ?? "不明なエラー"}）`,
+        );
+        return fallback;
       }
 
-      setComment(data.comment ?? "");
-      return { code: data.code, comment: data.comment ?? "" } as GeminiMove;
-    } catch {
-      setComment("⚠ Gemini との通信に失敗しました");
-      return null;
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
-  const requestJudge = useCallback(async (blocks: Block[], output: string) => {
-    setBusy(true);
-
-    try {
-      const res = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "judge", blocks: toPrompt(blocks), output }),
-      });
-      const data = await res.json();
-
-      if (data.error) {
-        setComment(`⚠ ${data.error}`);
-        return null;
-      }
-
-      const judged = {
-        verdict: (data.verdict as Verdict) ?? null,
-        comment: (data.comment as string) ?? "",
+      const stage: Stage = {
+        title: data.title ?? "名もなき舞台",
+        lines,
+        comment: data.comment ?? "",
       };
-      setVerdict(judged.verdict);
-      setComment(judged.comment);
-      return judged;
+      setComment(stage.comment);
+      return stage;
     } catch {
-      setComment("⚠ Gemini との通信に失敗しました");
-      return null;
+      const fallback = pickFallbackStage();
+      setComment(
+        `${fallback.comment}\n（Gemini との通信に失敗したため作り置きの舞台を使います）`,
+      );
+      return fallback;
     } finally {
       setBusy(false);
     }
   }, []);
 
-  return { ready, model, busy, comment, verdict, requestMove, requestJudge, setComment };
+  const requestJudge = useCallback(
+    async (blocks: Block[], output: string, removed: string) => {
+      setBusy(true);
+
+      try {
+        const res = await fetch("/api/gemini", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "judge",
+            output,
+            removed,
+            blocks: blocks.map(({ code_snippet }) => ({ code_snippet })),
+          }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          setComment(`⚠ ${data.error}`);
+          return null;
+        }
+
+        const judged = {
+          verdict: (data.verdict as Verdict) ?? null,
+          comment: (data.comment as string) ?? "",
+        };
+        setVerdict(judged.verdict);
+        setComment(judged.comment);
+        return judged;
+      } catch {
+        setComment("⚠ Gemini との通信に失敗しました");
+        return null;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [],
+  );
+
+  return { ready, model, busy, comment, verdict, buildStage, requestJudge, setComment };
 }

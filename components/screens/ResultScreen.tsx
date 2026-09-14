@@ -10,11 +10,11 @@ export function ResultScreen({ game }: { game: CodeJenga }) {
 
   return (
     <Screen
-      title="🧨 タワー崩壊"
+      title={loser ? "🧨 タワー崩壊" : "🎉 完走"}
       subtitle={
         loser
-          ? `${loser.name} さんの一手で崩れました。`
-          : "決着しました。"
+          ? `${loser.name} さんが抜いた一行で崩れました。`
+          : "最後まで崩れませんでした。全員の勝ちです。"
       }
     >
       <ErrorBanner message={session.error} onClose={session.clearError} />
@@ -26,22 +26,25 @@ export function ResultScreen({ game }: { game: CodeJenga }) {
       </Panel>
 
       {room?.judge_comment && (
-        <Panel title="🤖 Gemini の講評" accent className="mb-4">
+        <Panel title="🤖 Gemini の実況" accent className="mb-4">
           <p className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-200">
             {room.judge_comment}
           </p>
         </Panel>
       )}
 
-      <Panel title={`積み上がった ${tower.blocks.length} ブロック`} className="mb-4">
-        <ol className="flex flex-col gap-1 font-mono text-[12px] text-neutral-300">
-          {tower.blocks.map((block) => (
-            <li key={block.id} className="truncate">
-              <span className="mr-2 text-neutral-500">{block.player_name}</span>
-              {block.code_snippet}
-            </li>
-          ))}
-        </ol>
+      <Panel title={`残った ${tower.blocks.length} 行`} className="mb-4">
+        {tower.blocks.length === 0 ? (
+          <p className="text-sm text-neutral-500">すべて抜き切りました。</p>
+        ) : (
+          <ol className="flex flex-col gap-1 font-mono text-[12px] text-neutral-300">
+            {tower.blocks.map((block) => (
+              <li key={block.id} className="truncate">
+                {block.code_snippet.trim()}
+              </li>
+            ))}
+          </ol>
+        )}
       </Panel>
 
       <div className="flex flex-col gap-3">

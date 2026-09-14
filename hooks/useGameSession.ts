@@ -45,8 +45,12 @@ export interface GameSession {
   createRoom: (playerName: string, password: string) => Promise<void>;
   joinRoom: (playerName: string, password: string) => Promise<void>;
   toggleReady: () => Promise<void>;
-  /** ホストが待たずに開始する */
+  /** ホストが待たずに開始する。まず Gemini の生成待ちに入る */
   startGame: () => Promise<void>;
+  /** 生成が終わったら舞台名を記録して本番へ */
+  beginPlaying: (params: { stageTitle: string; comment: string }) => Promise<void>;
+  /** 1手進める */
+  advanceTurn: () => Promise<void>;
   /** 実行結果を部屋に記録する。崩れていたらそのまま終了画面へ */
   recordRun: (params: {
     output: string;
@@ -233,16 +237,46 @@ export function useGameSession(): GameSession {
   const startGame = useCallback(async () => {
     if (!room) return;
     if (players.length < 2) return setError("2人以上集まると開始できます");
-    await supabase.from("rooms").update({ phase: "playing" }).eq("id", room.id);
+    // 本番の前に、Gemini が舞台を作るあいだの待機に入る
+    await supabase.from("rooms").update({ phase: "generating" }).eq("id", room.id);
     await refresh();
   }, [room, players, refresh]);
+
+  const beginPlaying = useCallback(
+    async ({ stageTitle, comment }: { stageTitle: string; comment: string }) => {
+      if (!room) return;
+      await supabase
+        .from("rooms")
+        .update({
+          phase: "playing",
+          stage_title: stageTitle,
+          judge_comment: comment,
+          turn_index: 0,
+          last_output: null,
+          verdict: null,
+          loser_id: null,
+        })
+        .eq("id", room.id);
+      await refresh();
+    },
+    [room, refresh],
+  );
+
+  const advanceTurn = useCallback(async () => {
+    if (!room) return;
+    await supabase
+      .from("rooms")
+      .update({ turn_index: (room.turn_index ?? 0) + 1 })
+      .eq("id", room.id);
+    await refresh();
+  }, [room, refresh]);
 
   // 全員 Ready になったらホストの端末が開始させる（同時更新を避けるため1台だけ）
   useEffect(() => {
     if (!room || room.phase !== "lobby" || !isHost || !allReady) return;
     supabase
       .from("rooms")
-      .update({ phase: "playing" })
+      .update({ phase: "generating" })
       .eq("id", room.id)
       .then(() => refresh());
   }, [room, isHost, allReady, refresh]);
@@ -301,6 +335,8 @@ export function useGameSession(): GameSession {
         last_output: null,
         verdict: null,
         judge_comment: null,
+        stage_title: null,
+        turn_index: 0,
       })
       .eq("id", room.id);
     await refresh();
@@ -327,6 +363,7 @@ export function useGameSession(): GameSession {
     if (!identity || !room) return nav;
     if (room.phase === "playing") return "game";
     if (room.phase === "finished") return "result";
+    // "generating" は待機画面が「生成中」として兼ねる
     return "lobby";
   }, [identity, room, nav]);
 
@@ -347,6 +384,8 @@ export function useGameSession(): GameSession {
     joinRoom,
     toggleReady,
     startGame,
+    beginPlaying,
+    advanceTurn,
     recordRun,
     recordJudge,
     playAgain,

@@ -20,7 +20,7 @@ export default function CodeJengaPage() {
     case "join":
       return <JoinRoomScreen session={game.session} />;
     case "lobby":
-      return <LobbyScreen session={game.session} />;
+      return <LobbyScreen game={game} />;
     case "game":
       return <GameScreen game={game} />;
     case "result":

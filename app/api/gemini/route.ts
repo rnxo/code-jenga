@@ -1,4 +1,5 @@
-// Gemini をゲーム内のプレイヤー（mode: "move"）兼・審判（mode: "judge"）として動かす。
+// Gemini にゲームの舞台（タワーとなるコード）を作らせ（mode: "build"）、
+// 抜いたあとの実行結果を講評させる（mode: "judge"）。
 // API キーはこのサーバー側ルートから出さない。
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -6,13 +7,14 @@ const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODE
 
 type BlockInput = { code_snippet: string; player_name: string };
 
-const MOVE_SCHEMA = {
+const BUILD_SCHEMA = {
   type: "OBJECT",
   properties: {
-    code: { type: "STRING" },
+    title: { type: "STRING" },
+    lines: { type: "ARRAY", items: { type: "STRING" } },
     comment: { type: "STRING" },
   },
-  required: ["code", "comment"],
+  required: ["title", "lines", "comment"],
 };
 
 const JUDGE_SCHEMA = {
@@ -24,37 +26,41 @@ const JUDGE_SCHEMA = {
   required: ["verdict", "comment"],
 };
 
-function towerText(blocks: BlockInput[]) {
-  if (blocks.length === 0) return "(まだ1ブロックもありません)";
-  return blocks
-    .map((b, i) => `${i + 1}. ${b.code_snippet}   // by ${b.player_name}`)
-    .join("\n");
+function buildPrompt(playerCount: number) {
+  return `あなたは「Code Jenga」というゲームの出題者です。
+プレイヤーは、あなたが作った JavaScript の関数 startJenga() の本体から
+1行ずつ抜き取っていきます。抜いたあとに実行してエラーになったら「タワー崩壊」で、
+抜いた人の負けです。
+
+${playerCount} 人で遊ぶ舞台になるコードを作ってください。
+
+条件:
+- lines は 10〜14 個。各要素がちょうど1行ぶんの JavaScript（先頭は半角スペース2つでインデント）
+- 全部そろっている状態では、必ずエラーなく最後まで実行され、console.log で何か出力されること
+- if / for などの複数行にまたがるブロック文は使わず、1行で完結する文だけにすること
+  （1行だけで閉じる形なら if (x) doSomething(); のように書いてよい）
+- 抜いても平気な行（ログ出力など）と、抜くと即エラーになる行（あとで使う変数の宣言など）を
+  半々くらいで混ぜること。どれが危ないか一目で分からないようにする
+- 禁止: 無限ループ、1万回を超えるループ、while、fetch/XMLHttpRequest、import/require、
+  eval、debugger、process や window への参照
+- title は舞台の名前を日本語で短く（例:「発注書の集計」）
+- comment はゲーム開始の実況を日本語で1〜2文。どこが危ういか匂わせる程度に`;
 }
 
-function buildPrompt(mode: "move" | "judge", blocks: BlockInput[], output: string) {
-  if (mode === "move") {
-    return `あなたは「Code Jenga」というゲームの対戦AIプレイヤーです。
-プレイヤーたちは JavaScript の関数 startJenga() の本体に1行ずつコードを積み上げ、
-実行してエラーになったら「タワー崩壊」で負けです。
-
-現在のタワー（上から順に実行されます）:
-${towerText(blocks)}
-
-あなたの手番です。次に積む「1行」を考えてください。
-
-ルール:
-- 出力する code は必ず JavaScript として構文的に正しい1行にすること（先頭は半角スペース2つでインデント）
-- 実行してもエラーにならないこと。ただし後続のプレイヤーが積みにくくなるような、少しトリッキーな行だと良い
-- 禁止: 無限ループ、1万回を超えるループ、while(true)、fetch/XMLHttpRequest、import/require、eval、debugger、process や window への書き込み
-- console.log で状況を実況するのは歓迎
-- comment には、その一手の狙いを日本語で1〜2文、対戦相手を煽るくらいの調子で書くこと`;
-  }
+function judgePrompt(blocks: BlockInput[], output: string, removed: string) {
+  const tower =
+    blocks.length > 0
+      ? blocks.map((b, i) => `${i + 1}. ${b.code_snippet}`).join("\n")
+      : "(空になりました)";
 
   return `あなたは「Code Jenga」というゲームの審判AIです。
-プレイヤーたちが積み上げた JavaScript のタワーと、その実行結果を見て判定してください。
+プレイヤーがタワー（JavaScript のコード）から1行抜きました。
 
-タワー:
-${towerText(blocks)}
+抜かれた行:
+${removed || "(不明)"}
+
+残ったタワー:
+${tower}
 
 実行結果:
 ${output || "(実行結果なし)"}
@@ -64,7 +70,8 @@ ${output || "(実行結果なし)"}
 - wobbly: 動いてはいるが、次の一手で崩れそうな危うさがある
 - collapsed: エラーが出ている、または実質的に破綻している
 
-comment には、日本語で2〜3文の実況・講評を書いてください。どのブロックが効いているかに触れると良いです。`;
+comment には、日本語で2〜3文の実況・講評を書いてください。
+次に抜くと危なそうな行に触れると盛り上がります。`;
 }
 
 // 鍵が設定されているかどうかだけを返す（鍵そのものは返さない）
@@ -85,18 +92,24 @@ export async function POST(request: Request) {
     });
   }
 
-  let mode: "move" | "judge" = "move";
+  let mode: "build" | "judge" = "build";
   let blocks: BlockInput[] = [];
   let output = "";
+  let removed = "";
+  let playerCount = 2;
 
   try {
     const body = await request.json();
-    mode = body.mode === "judge" ? "judge" : "move";
+    mode = body.mode === "judge" ? "judge" : "build";
     blocks = Array.isArray(body.blocks) ? body.blocks.slice(0, 100) : [];
     output = typeof body.output === "string" ? body.output.slice(0, 4000) : "";
+    removed = typeof body.removed === "string" ? body.removed.slice(0, 500) : "";
+    playerCount = Number(body.playerCount) || 2;
   } catch {
     return Response.json({ error: "リクエストの形式が不正です" }, { status: 400 });
   }
+
+  const isBuild = mode === "build";
 
   try {
     const res = await fetch(ENDPOINT, {
@@ -107,15 +120,24 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         contents: [
-          { role: "user", parts: [{ text: buildPrompt(mode, blocks, output) }] },
+          {
+            role: "user",
+            parts: [
+              {
+                text: isBuild
+                  ? buildPrompt(playerCount)
+                  : judgePrompt(blocks, output, removed),
+              },
+            ],
+          },
         ],
         generationConfig: {
-          temperature: mode === "move" ? 1.0 : 0.4,
+          temperature: isBuild ? 1.0 : 0.4,
           responseMimeType: "application/json",
-          responseSchema: mode === "move" ? MOVE_SCHEMA : JUDGE_SCHEMA,
+          responseSchema: isBuild ? BUILD_SCHEMA : JUDGE_SCHEMA,
         },
       }),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(45_000),
     });
 
     if (!res.ok) {

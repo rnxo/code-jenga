@@ -1,27 +1,25 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useGameSession, type GameSession } from "./useGameSession";
 import { useJengaTower, type JengaTower } from "./useJengaTower";
-import { useGemini, type GeminiPlayer } from "./useGemini";
-import { GEMINI_PLAYER, type Player } from "@/lib/types";
+import { useGemini, type GeminiHost } from "./useGemini";
+import type { Player } from "@/lib/types";
 
 export interface CodeJenga {
   session: GameSession;
   tower: JengaTower;
-  gemini: GeminiPlayer;
+  gemini: GeminiHost;
+  /** Gemini が舞台を作っている最中かどうか */
+  isGenerating: boolean;
   /** いま手番のプレイヤー。参加順の巡回で決まる */
   currentPlayer: Player | null;
-  /** 自分の手番かどうか。UI の活性制御に使う */
+  /** 自分の手番かどうか。抜き取りボタンの活性制御に使う */
   isMyTurn: boolean;
-  /** 崩したプレイヤー。決着前は null */
+  /** 崩した人。最後まで残った場合は null */
   loser: Player | null;
-  /** 自分の手番としてブロックを積む */
-  placeBlock: (codeSnippet: string) => Promise<string | null>;
-  /** タワーを実行し、崩れたら決着、続けて Gemini に講評させる */
-  testTower: () => Promise<void>;
-  /** Gemini に一手考えさせ、そのままタワーに積む */
-  playGeminiMove: () => Promise<void>;
+  /** 1行抜く。抜いた直後に実行して、崩れたら決着 */
+  pullBlock: (id: string) => Promise<void>;
 }
 
 /**
@@ -34,17 +32,44 @@ export function useCodeJenga(): CodeJenga {
   const tower = useJengaTower(session.room?.id ?? null);
   const gemini = useGemini();
 
-  const { players, me, room } = session;
+  const { players, me, room, isHost } = session;
+  const isGenerating = room?.phase === "generating";
 
-  // 参加順に一巡ずつ。Gemini が積んだ分は手番を消費しない扱いにする
-  const humanBlockCount = tower.blocks.filter(
-    (b) => b.player_name !== GEMINI_PLAYER,
-  ).length;
+  // 生成はホストの端末だけが1回だけ走らせる
+  const generatingFor = useRef<string | null>(null);
 
-  const currentPlayer = useMemo(
-    () => (players.length > 0 ? players[humanBlockCount % players.length] : null),
-    [players, humanBlockCount],
-  );
+  useEffect(() => {
+    if (!room || room.phase !== "generating" || !isHost) return;
+    if (generatingFor.current === room.id) return;
+    generatingFor.current = room.id;
+
+    (async () => {
+      const stage = await gemini.buildStage(players.length);
+      const error = await tower.seedStage(stage.lines);
+
+      if (error) {
+        session.clearError();
+        gemini.setComment(`⚠ 舞台を並べられませんでした: ${error}`);
+        generatingFor.current = null;
+        return;
+      }
+
+      await session.beginPlaying({
+        stageTitle: stage.title,
+        comment: stage.comment,
+      });
+    })();
+  }, [room, isHost, players.length, gemini, tower, session]);
+
+  // 部屋を出たら次の生成に備えて忘れる
+  useEffect(() => {
+    if (!room) generatingFor.current = null;
+  }, [room]);
+
+  const currentPlayer = useMemo(() => {
+    if (players.length === 0) return null;
+    return players[(room?.turn_index ?? 0) % players.length];
+  }, [players, room]);
 
   const isMyTurn = Boolean(me && currentPlayer && me.id === currentPlayer.id);
 
@@ -53,60 +78,54 @@ export function useCodeJenga(): CodeJenga {
     [players, room],
   );
 
-  const placeBlock = useCallback(
-    async (codeSnippet: string) => {
-      if (!me) return "部屋に入っていません";
-      return tower.addBlock(codeSnippet, me.name);
+  const pullBlock = useCallback(
+    async (id: string) => {
+      if (!me || !isMyTurn || tower.isRunning) return;
+
+      const target = tower.blocks.find((b) => b.id === id);
+      if (!target) return;
+
+      const remaining = tower.blocks.filter((b) => b.id !== id);
+
+      const error = await tower.removeBlock(id);
+      if (error) {
+        gemini.setComment(`⚠ 抜き取りに失敗しました: ${error}`);
+        return;
+      }
+
+      const run = await tower.runCode(remaining.map((b) => b.code_snippet));
+      const emptied = remaining.length === 0;
+
+      // 実行結果は部屋に書いて全員の画面に出す
+      await session.recordRun({
+        output: run.output,
+        // 崩れた、または抜ける行が無くなったら決着
+        collapsed: run.collapsed || emptied,
+        loserId: run.collapsed ? me.id : null,
+      });
+
+      if (!run.collapsed && !emptied) await session.advanceTurn();
+
+      if (gemini.ready) {
+        const judged = await gemini.requestJudge(
+          remaining,
+          run.output,
+          target.code_snippet,
+        );
+        if (judged) await session.recordJudge(judged);
+      }
     },
-    [me, tower],
+    [me, isMyTurn, tower, session, gemini],
   );
-
-  const testTower = useCallback(async () => {
-    const run = await tower.testTower();
-    if (!run.output) return;
-
-    // 直前に積んだ人が崩した人
-    const last = [...tower.blocks]
-      .reverse()
-      .find((b) => b.player_name !== GEMINI_PLAYER);
-    const culprit = players.find((p) => p.name === last?.player_name) ?? null;
-
-    // 実行結果は部屋に書いて全員の画面に出す
-    await session.recordRun({
-      output: run.output,
-      collapsed: run.collapsed,
-      loserId: culprit?.id ?? null,
-    });
-
-    if (gemini.ready) {
-      const judged = await gemini.requestJudge(tower.blocks, run.output);
-      if (judged) await session.recordJudge(judged);
-    }
-  }, [tower, players, session, gemini]);
-
-  const playGeminiMove = useCallback(async () => {
-    const move = await gemini.requestMove(tower.blocks);
-    if (!move) return;
-
-    const error = await tower.addBlock(move.code, GEMINI_PLAYER);
-    if (error) {
-      gemini.setComment(`追加エラー: ${error}`);
-      return;
-    }
-
-    // 煽りコメントも全員の画面に出す
-    await session.recordJudge({ verdict: null, comment: move.comment });
-  }, [tower, gemini, session]);
 
   return {
     session,
     tower,
     gemini,
+    isGenerating,
     currentPlayer,
     isMyTurn,
     loser,
-    placeBlock,
-    testTower,
-    playGeminiMove,
+    pullBlock,
   };
 }

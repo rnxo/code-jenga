@@ -5,8 +5,12 @@ create table if not exists public.rooms (
   id uuid primary key default gen_random_uuid(),
   password text not null,
   host_id uuid not null,
-  phase text not null default 'lobby' check (phase in ('lobby', 'playing', 'finished')),
+  phase text not null default 'lobby'
+    check (phase in ('lobby', 'generating', 'playing', 'finished')),
   loser_id uuid,
+  -- Gemini が付けた舞台の名前と、何手目か
+  stage_title text,
+  turn_index int not null default 0,
   -- 全員の画面で同じ結果を出すために、最後の実行結果と講評を部屋で共有する
   last_output text,
   verdict text check (verdict in ('stable', 'wobbly', 'collapsed')),
@@ -35,7 +39,6 @@ create table if not exists public.jenga_blocks (
   room_id uuid not null references public.rooms(id) on delete cascade,
   block_index int not null,
   code_snippet text not null,
-  player_name text not null default 'Anonymous',
   created_at timestamptz not null default now()
 );
 

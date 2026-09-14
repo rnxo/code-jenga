@@ -12,24 +12,28 @@ export interface TowerRun {
 }
 
 export interface JengaTower {
-  /** 下から順に並んだブロック。UI 側で好きに描画してよい */
+  /** 上から順に並んだタワーの各行 */
   blocks: Block[];
   /** true なら全端末で同期、false なら同一ブラウザの別タブ間のみ */
   isSyncedRemotely: boolean;
   /** 直近の実行結果。エラー文言もここに入る */
   output: string;
-  /** タワーを検証中かどうか */
+  /** 実行中かどうか */
   isRunning: boolean;
-  /** 積む。失敗したらエラーメッセージ、成功したら null */
-  addBlock: (codeSnippet: string, author: string) => Promise<string | null>;
-  /** 抜き取る。失敗したらエラーメッセージ、成功したら null */
+  /** Gemini が作った舞台をタワーとして並べ直す */
+  seedStage: (lines: string[]) => Promise<string | null>;
+  /** 1行抜く */
   removeBlock: (id: string) => Promise<string | null>;
-  /** 全ブロックを繋げて実行し、出力と崩壊したかどうかを返す */
-  testTower: () => Promise<TowerRun>;
-  /** 積み上がったコード全体（Gemini に渡す用など） */
-  buildFullCode: () => string;
+  /** 指定した行の並びを実行する。抜いた直後の状態を渡す */
+  runCode: (lines: string[]) => Promise<TowerRun>;
+  /** タワー全体を1つのプログラムとして組み立てる */
+  buildFullCode: (lines?: string[]) => string;
   /** 手動で取得し直す */
   refresh: () => Promise<void>;
+}
+
+function assemble(lines: string[]) {
+  return `function startJenga() {\n${lines.join("\n")}\n}\nstartJenga();`;
 }
 
 /** roomId が null の間は何もしない（部屋に入る前） */
@@ -57,12 +61,12 @@ export function useJengaTower(roomId: string | null): JengaTower {
     }
   }, [roomId]);
 
-  // 初期ロード＋Realtime 購読（Supabase 未設定時は localStorage で別タブ間同期）
+  // タワーの変更を購読する（Supabase 未設定時は localStorage で別タブ間同期）
   useEffect(() => {
     if (!roomId) return;
 
     const channel = supabase
-      .channel("jenga_realtime_channel")
+      .channel("jenga_blocks_channel")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "jenga_blocks" },
@@ -78,28 +82,26 @@ export function useJengaTower(roomId: string | null): JengaTower {
     };
   }, [roomId, refresh]);
 
-  const addBlock = useCallback(
-    async (codeSnippet: string, author: string) => {
+  const seedStage = useCallback(
+    async (lines: string[]) => {
       if (!roomId) return "部屋に入っていません";
-      if (!codeSnippet.trim()) return "空のブロックは積めません";
 
-      const block_index =
-        blocks.length > 0 ? Math.max(...blocks.map((b) => b.block_index)) + 1 : 1;
+      // 前のゲームの残りを消してから並べ直す
+      await supabase.from("jenga_blocks").delete().eq("room_id", roomId);
 
-      const { error } = await supabase.from("jenga_blocks").insert([
-        {
+      const { error } = await supabase.from("jenga_blocks").insert(
+        lines.map((code_snippet, i) => ({
           room_id: roomId,
-          block_index,
-          code_snippet: codeSnippet,
-          player_name: author || "Anonymous",
-        },
-      ]);
+          block_index: i + 1,
+          code_snippet,
+        })),
+      );
 
       if (error) return error.message;
       await refresh();
       return null;
     },
-    [roomId, blocks, refresh],
+    [roomId, refresh],
   );
 
   const removeBlock = useCallback(
@@ -113,20 +115,15 @@ export function useJengaTower(roomId: string | null): JengaTower {
   );
 
   const buildFullCode = useCallback(
-    () =>
-      `function startJenga() {\n${blocks
-        .map((b) => b.code_snippet)
-        .join("\n")}\n}\nstartJenga();`,
+    (lines?: string[]) => assemble(lines ?? blocks.map((b) => b.code_snippet)),
     [blocks],
   );
 
-  const testTower = useCallback(async (): Promise<TowerRun> => {
-    if (blocks.length === 0) return { output: "", collapsed: false };
-
+  const runCode = useCallback(async (lines: string[]): Promise<TowerRun> => {
     setIsRunning(true);
-    setOutput("タワーの構造（コード）を検証中...");
+    setOutput("タワーが揺れています...");
 
-    const fullCode = buildFullCode();
+    const fullCode = assemble(lines);
     let run: TowerRun;
 
     try {
@@ -140,16 +137,13 @@ export function useJengaTower(roomId: string | null): JengaTower {
       if (data.run) {
         const collapsed = data.run.code !== 0 || Boolean(data.run.stderr);
         run = {
-          output: data.run.output || "実行成功: タワーは安定しています！",
+          output: data.run.output || "実行成功: タワーは持ちこたえました！",
           collapsed,
         };
       } else if (data.fallback) {
         // Piston が使えないので、ブラウザ内の sandbox iframe で実行する
         const sandboxed = await runInBrowserSandbox(fullCode);
-        run = {
-          output: `※ Piston 未接続のためブラウザ内サンドボックスで実行（JavaScript として評価）\n  ${data.error}\n\n${sandboxed.output}`,
-          collapsed: !sandboxed.ok,
-        };
+        run = { output: sandboxed.output, collapsed: !sandboxed.ok };
       } else {
         run = {
           output: `崩壊エラー: ${data.error || "コードの構文・実行エラーが発生しました"}`,
@@ -163,16 +157,16 @@ export function useJengaTower(roomId: string | null): JengaTower {
     setOutput(run.output);
     setIsRunning(false);
     return run;
-  }, [blocks, buildFullCode]);
+  }, []);
 
   return {
     blocks,
     isSyncedRemotely: isSupabaseConfigured,
     output,
     isRunning,
-    addBlock,
+    seedStage,
     removeBlock,
-    testTower,
+    runCode,
     buildFullCode,
     refresh,
   };
