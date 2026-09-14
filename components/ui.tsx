@@ -79,7 +79,7 @@ export function Screen({
   children: ReactNode;
 }) {
   return (
-    <main className="min-h-dvh bg-neutral-950 p-5 text-neutral-100 sm:p-8">
+    <main className="flex min-h-dvh flex-col [justify-content:safe_center] p-5 text-neutral-100 sm:p-8">
       <div className={wide ? "" : "mx-auto w-full max-w-md"}>
         <h1 className="mb-1 text-2xl font-bold text-amber-500 sm:text-3xl">{title}</h1>
         {subtitle && <p className="mb-6 text-sm text-neutral-400">{subtitle}</p>}

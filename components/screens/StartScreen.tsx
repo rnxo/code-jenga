@@ -16,13 +16,7 @@ export function StartScreen({ game }: { game: CodeJenga }) {
   const { session, gemini } = game;
 
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-neutral-950 px-5 py-12 text-neutral-100">
-      {/* 背景。タワーの足元がほのかに照らされている感じ */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-1/4 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-amber-500/10 blur-3xl"
-      />
-
+    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-5 py-12 text-neutral-100">
       <div className="relative w-full max-w-sm">
         <header className="mb-8 text-center">
           <p className="mb-2 font-mono text-[11px] tracking-[0.3em] text-amber-600/80 uppercase">
