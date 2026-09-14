@@ -1,0 +1,2 @@
+import { createGame, GameError } from "@/lib/game/game-service";
+export async function POST(request: Request) { try { const body: unknown = await request.json(); const playerNames = typeof body === "object" && body !== null && "playerNames" in body ? body.playerNames : undefined; return Response.json(createGame(playerNames)); } catch (error) { if (error instanceof GameError) return Response.json({ error: error.message }, { status: error.status }); return Response.json({ error: "Invalid request" }, { status: 400 }); } }

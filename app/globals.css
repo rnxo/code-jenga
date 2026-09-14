@@ -1,26 +1,9 @@
 @import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+:root { --ink: #16211f; --paper: #f1ede4; --acid: #d9ff3f; --orange: #ff6b35; --line: #c8c2b6; }
+* { box-sizing: border-box; } body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-geist-sans), sans-serif; } button { font: inherit; }
+.shell { max-width: 1180px; min-height: 100vh; margin: auto; padding: 0 34px; overflow: hidden; }.topbar { height: 76px; border-bottom: 1px solid var(--ink); display: flex; align-items: center; justify-content: space-between; font-size: 11px; letter-spacing: .12em; font-weight: 700; }.brand { display: flex; gap: 11px; align-items: center; }.brand-mark { display: grid; place-items: center; width: 30px; height: 30px; background: var(--ink); color: var(--acid); font-size: 10px; letter-spacing: 0; }.round-label { color: #766f65; }
+.hero { display: flex; justify-content: space-between; align-items: end; padding: 72px 0 58px; border-bottom: 1px solid var(--ink); gap: 28px; }.eyebrow { font-size: 10px; letter-spacing: .18em; font-weight: 700; margin: 0 0 14px; }.hero h1 { font-size: clamp(42px, 6vw, 78px); line-height: .98; letter-spacing: -.04em; margin: 0; max-width: 720px; }.hero h1 em { color: var(--orange); font-style: normal; }.intro { color: #706b62; margin: 22px 0 0; font-size: 14px; }.start-button, .delete-button, .test-button { border: 1px solid var(--ink); cursor: pointer; font-size: 11px; letter-spacing: .1em; font-weight: 700; padding: 16px 18px; display: flex; gap: 26px; align-items: center; justify-content: space-between; min-width: 162px; }.start-button { background: var(--acid); box-shadow: 4px 4px 0 var(--ink); }.start-button:disabled, button:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }.start-button span, .delete-button span, .test-button span { font-size: 18px; }
+.scoreboard { padding: 22px 0 32px; display: grid; grid-template-columns: 180px 1fr; border-bottom: 1px solid var(--ink); }.score-heading { font-size: 10px; letter-spacing: .16em; font-weight: 700; color: #787166; }.status-dot { display: inline-block; height: 6px; width: 6px; border-radius: 50%; background: var(--orange); margin: 0 7px; }.players { display: flex; gap: 12px; }.player { min-width: 220px; border-left: 1px solid var(--line); padding-left: 18px; display: grid; grid-template-columns: 32px 1fr; gap: 3px 10px; }.player.active { border-left: 4px solid var(--orange); padding-left: 15px; }.player-number { grid-row: 1 / 3; font-family: var(--font-geist-mono), monospace; color: #938b7e; font-size: 12px; }.player strong { font-size: 15px; }.player-state { color: #938b7e; font-size: 9px; letter-spacing: .1em; font-weight: 700; }
+.arena { padding: 38px 0 32px; }.section-label { display: flex; justify-content: space-between; font: 700 10px var(--font-geist-mono), monospace; letter-spacing: .12em; color: #787166; margin-bottom: 12px; }.code-panel { background: #202a27; color: #e9eee5; padding: 13px 0; min-height: 214px; box-shadow: 8px 8px 0 #d5cfc3; }.code-line { width: 100%; min-height: 36px; border: 0; background: transparent; color: inherit; display: grid; grid-template-columns: 62px 1fr 100px; align-items: center; text-align: left; padding: 0 20px; cursor: pointer; }.code-line:hover, .code-line.selected { background: #33433b; }.code-line.selected { border-left: 4px solid var(--acid); padding-left: 16px; }.line-number { font: 11px var(--font-geist-mono), monospace; color: #7e9486; }.code-line code { white-space: pre; font: 14px/1.5 var(--font-geist-mono), monospace; }.line-action { color: var(--acid); font-size: 9px; letter-spacing: .1em; text-align: right; }.empty-code { min-height: 188px; display: grid; place-content: center; text-align: center; color: #8fa094; font-size: 13px; line-height: 1.6; }.empty-icon { font: 26px var(--font-geist-mono), monospace; color: var(--acid); }.empty-code p { margin: 8px 0; }.controls { display: flex; justify-content: end; align-items: center; gap: 10px; margin-top: 24px; }.selection-note { margin-right: auto; color: #787166; font: 10px var(--font-geist-mono), monospace; letter-spacing: .1em; }.delete-button { background: var(--orange); }.test-button { background: var(--ink); color: var(--paper); }
+.result { margin: 10px 0 38px; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 25px 0; display: flex; align-items: center; gap: 70px; }.result h2 { margin: 0; font: 700 60px/.8 var(--font-geist-mono), monospace; letter-spacing: -.1em; }.result.safe h2 { color: #789300; }.result.lose h2 { color: var(--orange); }.result-copy { display: grid; gap: 5px; }.result-copy strong { font-size: 12px; letter-spacing: .08em; }.result-copy span, .result-copy small { color: #787166; font-size: 12px; }.result-copy small { font-family: var(--font-geist-mono), monospace; }.error-message { color: #a63319; font-size: 12px; margin: -20px 0 30px; } footer { border-top: 1px solid var(--line); padding: 16px 0 30px; display: flex; justify-content: space-between; font: 10px var(--font-geist-mono), monospace; color: #938b7e; letter-spacing: .08em; }
+@media (max-width: 700px) { .shell { padding: 0 18px; }.hero { display: block; padding: 48px 0 42px; }.start-button { margin-top: 32px; }.scoreboard { display: block; }.players { margin-top: 18px; flex-direction: column; gap: 16px; }.player { min-width: 0; }.code-line { grid-template-columns: 44px 1fr 70px; padding: 0 12px; }.code-line.selected { padding-left: 8px; }.code-line code { font-size: 11px; overflow: hidden; text-overflow: ellipsis; }.controls { flex-wrap: wrap; }.selection-note { flex-basis: 100%; margin-bottom: 4px; }.result { gap: 30px; }.result h2 { font-size: 46px; } footer { font-size: 8px; } }

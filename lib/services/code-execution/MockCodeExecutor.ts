@@ -1,0 +1,2 @@
+import type { CodeExecutor, ExecutionParams, ExecutionResult } from "@/lib/services/code-execution/CodeExecutor";
+export class MockCodeExecutor implements CodeExecutor { async execute({ removedLineWasBlank }: ExecutionParams): Promise<ExecutionResult> { const passed = removedLineWasBlank === true; return { passed, output: passed ? "All tests passed" : "Test failed: add is incomplete" }; } }
