@@ -76,30 +76,42 @@ pnpm dev                     # http://localhost:3000
 
 ## コード実行の安全性について
 
-公開 Piston API は 2026/2/15 から whitelist 制になったため、既定では 401 が返ります。
-その場合は自動的に **ブラウザ内の sandbox iframe**（`allow-same-origin` なし）で実行されます。
-アプリのオリジンにも端末にもアクセスできない隔離環境なので、Gemini や他プレイヤーが積んだコードを実行しても安全です。
-無限ループ対策として4秒のタイムアウトも入れています。
+このゲームで一番難しいのは「1行抜かれたコードを安全に実行する」ところです。3段構えにしています。
 
-ただし TypeScript コンパイラは載せていないため、素の JavaScript として評価されます。
-型注釈を使いたい場合は Piston を自前ホストして `PISTON_URL` を設定してください。
+### 1. 自前ホストの Piston（`PISTON_URL` を設定した場合）
 
-## フロントエンドを触るとき
+コンテナ単位で隔離され、TypeScript の型注釈もそのまま通ります。本番はこれが本命です。
+公開 Piston API は **2026/2/15 から whitelist 制**になり 401 を返すので、使うなら自前でホストしてください。
 
-見た目を変えるなら `components/` だけで完結します。
+### 2. ブラウザ内の sandbox iframe（既定）
 
-- 共通の見た目 → `components/ui.tsx`（Button の色や角丸はここ）
-- 各画面のレイアウト → `components/screens/*.tsx`
-- ロジックには触らなくてよい → 必要な値と操作は `useCodeJenga()` が全部返します
+Piston に到達できないと、自動でこちらに切り替わります。次の5つを重ねています。
 
-`useCodeJenga()` が返すもの:
-
-| 名前 | 中身 |
+| 対策 | 効果 |
 | --- | --- |
-| `session` | 画面・部屋・参加者・自分・ホストか・エラー、部屋の操作一式 |
-| `tower` | タワーの各行・実行結果・抜く／実行 |
-| `gemini` | 接続状態・生成中か・コメント・判定 |
-| `currentPlayer` / `isMyTurn` | 手番の制御 |
-| `loser` | 崩した人 |
-| `isGenerating` | Gemini が舞台を作っている最中か |
-| `pullBlock(id)` | 1行抜く。実行と決着判定まで面倒を見る |
+| `sandbox="allow-scripts"` のみ（`allow-same-origin` なし） | 不透明オリジンになり、アプリの DOM / localStorage / Cookie に触れない |
+| CSP `default-src 'none'` | 中から fetch / XHR / WebSocket / 画像読み込みが一切できない |
+| `eval` を使わない（`'unsafe-eval'` を許可しない） | コードは `<script>` に直接埋めて実行。文字列からの動的生成は塞いだまま |
+| `allow-popups` / `allow-top-navigation` / `allow-forms` なし | 別タブを開いたり、親ページを飛ばしたりできない |
+| 4秒でタイムアウトし iframe ごと破棄 | 同期の無限ループを書かれても、親スレッドのタイマーで止められる |
+
+実際に Chrome 上で確認した結果:
+
+```
+parent.document      → SecurityError
+parent.localStorage  → SecurityError
+document.cookie      → SecurityError
+location.origin      → "null"（不透明オリジン）
+fetch('https://…')   → blocked (TypeError, CSP)
+while (true) {}      → 親スレッドは 500ms 刻みで動き続け、破棄後も生存
+構文エラー           → window.onerror で拾って「崩壊」として扱う
+```
+
+TypeScript のコンパイラは載せていないため、素の JavaScript として評価されます。
+型注釈を使いたい場合は 1 の Piston を用意してください。
+
+### 3. 残っている限界
+
+- 実行はあくまで**プレイヤー自身のブラウザ**の中です。CPU を数秒使い切ることはできます（タイムアウトで止まります）
+- いまタワーになるのは **Gemini が生成したコード**だけで、プレイヤーが任意のコードを書き込む経路はありません。
+  もし将来プレイヤーがコードを書けるようにするなら、1 の Piston（またはサーバー側の隔離実行）に寄せてください
