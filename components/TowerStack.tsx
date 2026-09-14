@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Block } from "@/lib/types";
 
-// タワーの描画。コード行を木片として積む。
-// play : 抜ける（抜いた1枚がスライドして消えてから、実際の削除が走る）
-// fallen: 崩れたあと（時間差で落ちる）
+// タワーの描画。各段を CSS の直方体として組み、カメラごと回せるようにする。
+// 文字は前面にだけ置くので、立体にしても読みやすさは落ちない。
 
-const PULL_ANIMATION_MS = 450;
+const PULL_ANIMATION_MS = 550;
 
-/** 木口の色。段ごとに少し変えて、木を積んでいるように見せる */
+/** 木口の色。段ごとに変えて、木を積んでいるように見せる */
 const FACE = ["#d97706", "#b45309", "#c2620a", "#a8480a"];
+
+const DEFAULT_RX = 4;
+const DEFAULT_RY = -14;
 
 export function TowerStack({
   blocks,
@@ -26,8 +28,40 @@ export function TowerStack({
   wobbly?: boolean;
   onPull?: (id: string) => void;
 }) {
-  // 抜けていく1枚は、アニメーションが終わるまで DOM に残す
   const [pullingId, setPullingId] = useState<string | null>(null);
+
+  // ドラッグで回す。文字が読めなくなるところまでは倒せないようにする
+  const [angle, setAngle] = useState({ rx: DEFAULT_RX, ry: DEFAULT_RY });
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ x: number; y: number; rx: number; ry: number } | null>(null);
+
+  const startDrag = (e: React.PointerEvent) => {
+    // ボタンの上では掴まない。捕捉するとボタンに click が届かなくなる
+    if ((e.target as HTMLElement).closest("button")) return;
+
+    drag.current = { x: e.clientX, y: e.clientY, ...angle };
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const moveDrag = (e: React.PointerEvent) => {
+    if (!drag.current) return;
+    const dx = e.clientX - drag.current.x;
+    const dy = e.clientY - drag.current.y;
+    setAngle({
+      ry: clamp(drag.current.ry + dx * 0.35, -55, 55),
+      rx: clamp(drag.current.rx - dy * 0.25, -10, 40),
+    });
+  };
+
+  const endDrag = (e: React.PointerEvent) => {
+    if (!drag.current) return;
+    drag.current = null;
+    setDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
 
   const handlePull = (id: string) => {
     if (!canPull || pullingId) return;
@@ -47,57 +81,86 @@ export function TowerStack({
   }
 
   return (
-    <div
-      className={`jenga-stack flex flex-col gap-2 pt-2 pr-3 ${wobbly ? "is-wobbly" : ""}`}
-    >
-      {blocks.map((block, idx) => {
-        const face = FACE[idx % FACE.length];
-        const pulling = block.id === pullingId;
-        const pullable = canPull && !pullingId;
+    <div className="jenga-scene select-none py-6">
+      <div
+        onPointerDown={startDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onDoubleClick={() => setAngle({ rx: DEFAULT_RX, ry: DEFAULT_RY })}
+        style={
+          { "--rx": `${angle.rx}deg`, "--ry": `${angle.ry}deg` } as React.CSSProperties
+        }
+        className={`jenga-tower mx-auto flex w-full max-w-[26rem] flex-col gap-3 ${dragging ? "cursor-grabbing" : "cursor-grab"} ${
+          !dragging && mode === "play" ? "is-idle" : ""
+        } ${wobbly ? "is-wobbly" : ""}`}
+      >
+        {blocks.map((block, idx) => {
+          const face = FACE[idx % FACE.length];
+          const pulling = block.id === pullingId;
+          const pullable = canPull && !pullingId;
 
-        return (
-          <div
-            key={block.id}
-            style={
-              {
-                "--jenga-face": face,
-                background: face,
-                // 崩れる向きは段ごとに散らす（見た目だけなので index から決める）
-                "--fall-y": `${18 + idx * 6}px`,
-                "--fall-x": `${((idx % 3) - 1) * 14}px`,
-                "--fall-r": `${((idx % 5) - 2) * 3}deg`,
-                "--fall-delay": `${idx * 55}ms`,
-              } as React.CSSProperties
-            }
-            className={`jenga-block flex h-11 items-center gap-3 rounded-sm px-3 shadow-lg shadow-black/50 ${
-              pulling ? "is-pulling" : ""
-            } ${pullable ? "is-pullable" : ""} ${
-              mode === "fallen" ? "is-falling" : ""
-            } ${!canPull && mode === "play" ? "opacity-60" : ""}`}
-          >
-            <span className="shrink-0 font-mono text-[10px] text-black/40">
-              {String(idx + 1).padStart(2, "0")}
-            </span>
+          return (
+            <div
+              key={block.id}
+              style={
+                {
+                  "--jenga-face": face,
+                  // 崩れる向きは段ごとに散らす（見た目だけなので index から決める）
+                  "--fall-x": `${((idx % 3) - 1) * 26}px`,
+                  "--fall-y": `${26 + idx * 9}px`,
+                  "--fall-z": `${((idx % 4) - 1) * 30}px`,
+                  "--fall-rx": `${18 + (idx % 3) * 12}deg`,
+                  "--fall-rz": `${((idx % 5) - 2) * 9}deg`,
+                  "--fall-delay": `${idx * 60}ms`,
+                } as React.CSSProperties
+              }
+              className={`jenga-piece ${pulling ? "is-pulling" : ""} ${
+                pullable ? "is-pullable" : ""
+              } ${mode === "fallen" ? "is-falling" : ""} ${
+                !canPull && mode === "play" ? "opacity-70" : ""
+              }`}
+            >
+              {/* 見えない面も置いて、回したときに中が抜けないようにする */}
+              <span className="jenga-face top" />
+              <span className="jenga-face bottom" />
+              <span className="jenga-face side" />
+              <span className="jenga-face side side-left" />
+              <span className="jenga-face back" />
 
-            <span className="truncate font-mono text-[13px] text-black/85">
-              {block.code_snippet.trim()}
-            </span>
+              <span className="jenga-face front">
+                <span className="shrink-0 font-mono text-[10px] text-black/40">
+                  {String(idx + 1).padStart(2, "0")}
+                </span>
 
-            {mode === "play" && onPull && (
-              <button
-                onClick={() => handlePull(block.id)}
-                disabled={!pullable}
-                className="ml-auto shrink-0 cursor-pointer rounded-sm bg-black/25 px-2 py-1 font-mono text-[10px] tracking-[0.15em] text-black/70 uppercase transition hover:bg-black/40 disabled:cursor-not-allowed"
-              >
-                pull
-              </button>
-            )}
-          </div>
-        );
-      })}
+                <span className="truncate font-mono text-[13px] text-black/85">
+                  {block.code_snippet.trim()}
+                </span>
 
-      {/* 台 */}
-      <div className="mt-1 h-1.5 rounded-full bg-gradient-to-r from-transparent via-neutral-700 to-transparent" />
+                {mode === "play" && onPull && (
+                  <button
+                    onClick={() => handlePull(block.id)}
+                    disabled={!pullable}
+                    className="ml-auto shrink-0 cursor-pointer rounded-sm bg-black/25 px-2 py-1 font-mono text-[10px] tracking-[0.15em] text-black/70 uppercase transition hover:bg-black/40 disabled:cursor-not-allowed"
+                  >
+                    pull
+                  </button>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {mode === "play" && (
+        <p className="mt-5 text-center font-mono text-[10px] tracking-[0.15em] text-neutral-600 uppercase">
+          drag to rotate · double-click to reset
+        </p>
+      )}
     </div>
   );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }

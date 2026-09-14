@@ -48,117 +48,167 @@
   }
 }
 
-/* --- タワーの積み木表現 ------------------------------------------------
-   コード行を「上面と側面のある木片」に見せる。文字は平面のままにして
-   読みやすさを落とさず、疑似要素だけで厚みを出している。 */
+/* --- タワー（CSS 3D） --------------------------------------------------
+   各段を実際の直方体として組む。カメラは正面寄りに固定しておき、
+   ドラッグで回せる。文字は前面にだけ置くので読みやすさは落ちない。 */
 
-.jenga-stack {
-  perspective: 900px;
+.jenga-scene {
+  perspective: 1500px;
+  perspective-origin: 50% 45%;
 }
 
-.jenga-block {
+.jenga-tower {
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rx, 4deg)) rotateY(var(--ry, -14deg));
+  transition: transform 0.12s linear;
+}
+
+/* 手を離しているあいだは、ゆっくり息をするように揺れる */
+@keyframes jenga-breathe {
+  0%,
+  100% {
+    transform: rotateX(var(--rx, 4deg)) rotateY(calc(var(--ry, -14deg) - 2.5deg));
+  }
+  50% {
+    transform: rotateX(var(--rx, 4deg)) rotateY(calc(var(--ry, -14deg) + 2.5deg));
+  }
+}
+
+.jenga-tower.is-idle {
+  animation: jenga-breathe 9s ease-in-out infinite;
+}
+
+.jenga-piece {
   position: relative;
-  transition:
-    transform 0.25s ease,
-    filter 0.25s ease;
+  height: 44px;
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease;
 }
 
-/* 上面 */
-.jenga-block::before {
-  content: "";
+.jenga-face {
   position: absolute;
-  top: -7px;
-  left: 4px;
-  right: -7px;
-  height: 7px;
-  background: color-mix(in srgb, var(--jenga-face) 100%, white 22%);
-  transform: skewX(-45deg);
-  border-radius: 1px 1px 0 0;
+  background: var(--jenga-face);
+  border-radius: 2px;
 }
 
-/* 側面 */
-.jenga-block::after {
-  content: "";
-  position: absolute;
-  top: -7px;
-  right: -7px;
+.jenga-face.front {
+  inset: 0;
+  transform: translateZ(6px);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 0.75rem;
+}
+
+.jenga-face.back {
+  inset: 0;
+  transform: translateZ(-6px) rotateY(180deg);
+  filter: brightness(0.55);
+}
+
+.jenga-face.top {
+  left: 0;
+  right: 0;
+  height: 12px;
+  top: -6px;
+  transform: rotateX(90deg);
+  filter: brightness(1.12);
+}
+
+.jenga-face.bottom {
+  left: 0;
+  right: 0;
+  height: 12px;
+  bottom: -6px;
+  transform: rotateX(-90deg);
+  filter: brightness(0.4);
+}
+
+.jenga-face.side {
+  top: 0;
   bottom: 0;
-  width: 7px;
-  background: color-mix(in srgb, var(--jenga-face) 100%, black 28%);
-  transform: skewY(-45deg);
-  border-radius: 0 1px 1px 0;
+  width: 12px;
+  right: -6px;
+  transform: rotateY(90deg);
+  filter: brightness(0.7);
 }
 
-/* 自分の番のとき、抜ける気配を出す */
-.jenga-block.is-pullable:hover {
-  transform: translateX(10px);
-  filter: brightness(1.08);
+.jenga-face.side-left {
+  right: auto;
+  left: -6px;
+  transform: rotateY(-90deg);
 }
 
-/* 抜き取られる1枚 */
-@keyframes jenga-pull-out {
+/* 自分の番のとき、手前に少し出て「抜けそう」に見せる */
+.jenga-piece.is-pullable:hover {
+  transform: translateZ(18px);
+}
+
+/* 抜き取られる1枚。手前に引き出してから消す */
+@keyframes jenga-pull-3d {
   0% {
-    transform: translateX(0) rotate(0deg);
+    transform: translateZ(0) translateX(0) rotateY(0deg);
     opacity: 1;
   }
-  55% {
-    transform: translateX(58%) rotate(1.5deg);
+  45% {
+    transform: translateZ(150px) translateX(10%) rotateY(-8deg);
     opacity: 1;
   }
   100% {
-    transform: translateX(150%) rotate(7deg);
+    transform: translateZ(260px) translateX(60%) rotateY(-22deg) rotateZ(6deg);
     opacity: 0;
   }
 }
 
-.jenga-block.is-pulling {
-  animation: jenga-pull-out 0.45s ease-in forwards;
-  z-index: 5;
+.jenga-piece.is-pulling {
+  animation: jenga-pull-3d 0.55s cubic-bezier(0.3, 0, 0.6, 1) forwards;
+  z-index: 20;
 }
 
-/* タワーが危ういときの揺れ */
-@keyframes jenga-tremble {
+/* グラグラ */
+@keyframes jenga-tremble-3d {
   0%,
   100% {
-    transform: translateX(0) rotate(0deg);
+    transform: translateX(0) rotateZ(0deg);
   }
   25% {
-    transform: translateX(-1.5px) rotate(-0.25deg);
+    transform: translateX(-2px) rotateZ(-0.4deg);
   }
   75% {
-    transform: translateX(1.5px) rotate(0.25deg);
+    transform: translateX(2px) rotateZ(0.4deg);
   }
 }
 
-.jenga-stack.is-wobbly .jenga-block {
-  animation: jenga-tremble 0.9s ease-in-out infinite;
+.jenga-tower.is-wobbly .jenga-piece {
+  animation: jenga-tremble-3d 0.85s ease-in-out infinite;
 }
 
-/* 崩壊。段ごとに時間差で落とす */
-@keyframes jenga-fall {
+/* 崩壊。段ごとに時間差で転がり落ちる */
+@keyframes jenga-tumble {
   0% {
-    transform: translateY(0) rotate(0deg);
+    transform: translate3d(0, 0, 0) rotateX(0deg) rotateZ(0deg);
     opacity: 1;
   }
   100% {
-    transform: translateY(var(--fall-y, 40px)) translateX(var(--fall-x, 0))
-      rotate(var(--fall-r, 6deg));
-    opacity: 0.9;
+    transform: translate3d(var(--fall-x, 0), var(--fall-y, 60px), var(--fall-z, 0))
+      rotateX(var(--fall-rx, 20deg)) rotateZ(var(--fall-rz, 12deg));
+    opacity: 0.92;
   }
 }
 
-.jenga-block.is-falling {
-  animation: jenga-fall 0.8s cubic-bezier(0.4, 0, 0.7, 1) forwards;
+.jenga-piece.is-falling {
+  animation: jenga-tumble 1s cubic-bezier(0.35, 0, 0.7, 1) forwards;
   animation-delay: var(--fall-delay, 0ms);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .jenga-block.is-pulling,
-  .jenga-block.is-falling,
-  .jenga-stack.is-wobbly .jenga-block {
+  .jenga-tower.is-idle,
+  .jenga-tower.is-wobbly .jenga-piece,
+  .jenga-piece.is-pulling,
+  .jenga-piece.is-falling {
     animation: none;
   }
-  .jenga-block.is-pullable:hover {
+  .jenga-piece.is-pullable:hover {
     transform: none;
   }
 }
