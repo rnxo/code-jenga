@@ -30,17 +30,65 @@ export function Button({
 
 export function TextField({
   label,
+  hint,
+  trailing,
   className = "",
   ...props
-}: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+}: InputHTMLAttributes<HTMLInputElement> & {
+  label: string;
+  hint?: ReactNode;
+  /** 入力欄の右端に置くもの（サイコロボタンなど） */
+  trailing?: ReactNode;
+}) {
   return (
-    <label className="flex flex-col gap-1.5 text-xs text-neutral-400">
-      {label}
-      <input
-        {...props}
-        className={`rounded bg-neutral-800 px-3 py-2 text-sm text-neutral-100 outline-none focus:ring-2 focus:ring-amber-600 ${className}`}
-      />
+    <label className="flex flex-col gap-1.5">
+      <span className="font-mono text-[10px] tracking-[0.2em] text-neutral-500 uppercase">
+        {label}
+      </span>
+      <span className="relative flex items-center">
+        <input
+          {...props}
+          className={`w-full rounded-md bg-neutral-900 px-3.5 py-2.5 text-sm text-neutral-100 ring-1 ring-neutral-800 outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-amber-600 ${trailing ? "pr-11" : ""} ${className}`}
+        />
+        {trailing && <span className="absolute right-1.5">{trailing}</span>}
+      </span>
+      {hint && <span className="text-[11px] text-neutral-500">{hint}</span>}
     </label>
+  );
+}
+
+/** スタート画面と同じ見出しの組み方。②以降の画面で使う */
+export function ScreenHeader({
+  eyebrow,
+  title,
+  lead,
+}: {
+  eyebrow: string;
+  title: ReactNode;
+  lead?: ReactNode;
+}) {
+  return (
+    <header className="mb-7">
+      <p className="mb-2 font-mono text-[11px] tracking-[0.3em] text-amber-600/80 uppercase">
+        {eyebrow}
+      </p>
+      <h1 className="text-3xl font-bold tracking-tight text-amber-500">{title}</h1>
+      {lead && (
+        <p className="mt-2.5 text-sm leading-relaxed text-neutral-400">{lead}</p>
+      )}
+    </header>
+  );
+}
+
+/** 主導線の下に置く控えめな戻り導線 */
+export function BackLink({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="mt-5 w-full cursor-pointer text-center font-mono text-[11px] tracking-[0.2em] text-neutral-500 uppercase transition hover:text-neutral-300"
+    >
+      ← back
+    </button>
   );
 }
 
@@ -74,7 +122,8 @@ export function Screen({
   wide = false,
   children,
 }: {
-  title: ReactNode;
+  /** 省略したときは ScreenHeader を children 側で組む */
+  title?: ReactNode;
   subtitle?: ReactNode;
   wide?: boolean;
   children: ReactNode;
@@ -83,7 +132,9 @@ export function Screen({
     <main className="flex min-h-dvh flex-col [justify-content:safe_center] p-5 text-neutral-100 sm:p-8">
       <Backdrop />
       <div className={wide ? "" : "mx-auto w-full max-w-md"}>
-        <h1 className="mb-1 text-2xl font-bold text-amber-500 sm:text-3xl">{title}</h1>
+        {title && (
+          <h1 className="mb-1 text-2xl font-bold text-amber-500 sm:text-3xl">{title}</h1>
+        )}
         {subtitle && <p className="mb-6 text-sm text-neutral-400">{subtitle}</p>}
         {children}
       </div>

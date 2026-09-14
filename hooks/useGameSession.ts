@@ -143,6 +143,7 @@ export function useGameSession(): GameSession {
 
   const createRoom = useCallback(
     async (playerName: string, password: string) => {
+      setError(null);
       if (!password.trim()) return setError("合言葉を入力してください");
       if (!playerName.trim()) return setError("名前を入力してください");
 
@@ -181,6 +182,7 @@ export function useGameSession(): GameSession {
 
   const joinRoom = useCallback(
     async (playerName: string, password: string) => {
+      setError(null);
       if (!password.trim()) return setError("合言葉を入力してください");
       if (!playerName.trim()) return setError("名前を入力してください");
 
@@ -379,7 +381,10 @@ export function useGameSession(): GameSession {
     error,
     clearError: () => setError(null),
     busy,
-    goTo: setNav,
+    goTo: (next: Nav) => {
+      setError(null);
+      setNav(next);
+    },
     createRoom,
     joinRoom,
     toggleReady,
