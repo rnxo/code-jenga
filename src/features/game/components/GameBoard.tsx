@@ -4,7 +4,7 @@ import { useState } from "react";
 import { apiClient } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/Spinner";
 import { useGameRealtime } from "../hooks/useGameRealtime";
-import { CodeViewer } from "./CodeViewer";
+import { JengaTower } from "./JengaTower";
 import { LineDeleteControls } from "./LineDeleteControls";
 import { TestResultPanel } from "./TestResultPanel";
 import { TurnIndicator } from "./TurnIndicator";
@@ -33,6 +33,8 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
 
   const isMyTurn = game.current_player_id === currentUserId;
   const latestTurn = turns.at(-1) ?? null;
+  // 直前の手でアウト／タイムアウトになっていたらタワーを崩す
+  const hasCollapsed = latestTurn !== null && latestTurn.result !== "safe";
 
   async function handleDeleteLine() {
     if (selectedLineNo === null) {
@@ -54,13 +56,14 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   return (
     <div className="flex flex-col gap-4">
       <TurnIndicator game={game} isMyTurn={isMyTurn} />
-      <CodeViewer
+      <JengaTower
         code={game.current_code ?? ""}
-        language="typescript"
         selectedLineNo={selectedLineNo}
         onSelectLine={setSelectedLineNo}
+        interactive={isMyTurn && !isSubmitting}
+        collapsed={hasCollapsed}
       />
-      {isMyTurn ? (
+      {isMyTurn && !hasCollapsed ? (
         <LineDeleteControls
           selectedLineNo={selectedLineNo}
           isSubmitting={isSubmitting}
