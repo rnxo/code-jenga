@@ -24,7 +24,7 @@ export function GameScreen({ game }: { game: CodeJenga }) {
   const canPull = isMyTurn && !tower.isRunning;
 
   return (
-    <main className="min-h-full bg-neutral-950 p-5 text-neutral-100 sm:p-8">
+    <main className="min-h-dvh bg-neutral-950 p-5 text-neutral-100 sm:p-8">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-amber-500">🧱 Code Jenga</h1>
