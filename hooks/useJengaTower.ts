@@ -37,10 +37,18 @@ function assemble(lines: string[]) {
 }
 
 /** roomId が null の間は何もしない（部屋に入る前） */
-export function useJengaTower(roomId: string | null): JengaTower {
+export function useJengaTower(roomId: string | null, round = 1): JengaTower {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [output, setOutput] = useState("");
   const [isRunning, setIsRunning] = useState(false);
+
+  // ラウンドが変わったら、前の一戦の出力は捨てる。
+  // 描画中に前回値と比べて直す、React 公式の「props 変化でstateを調整する」形。
+  const [outputRound, setOutputRound] = useState(round);
+  if (round !== outputRound) {
+    setOutputRound(round);
+    setOutput("");
+  }
 
   const refresh = useCallback(async () => {
     if (!roomId) {
@@ -88,7 +96,6 @@ export function useJengaTower(roomId: string | null): JengaTower {
 
       // 前のゲームの残りを消してから並べ直す
       await supabase.from("jenga_blocks").delete().eq("room_id", roomId);
-      setOutput("");
 
       const { error } = await supabase.from("jenga_blocks").insert(
         lines.map((code_snippet, i) => ({

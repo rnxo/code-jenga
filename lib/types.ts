@@ -16,6 +16,8 @@ export interface Room {
   stage_title: string | null;
   /** 何手目か。参加順と組み合わせて手番を決める */
   turn_index: number;
+  /** 何戦目か。「このまま もう一戦」で増える。舞台の生成が1回だけ走る鍵になる */
+  round: number;
   /** 全員で共有する最後の実行結果 */
   last_output: string | null;
   /** 全員で共有する Gemini の判定 */

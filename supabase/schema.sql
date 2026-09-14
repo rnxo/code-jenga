@@ -11,6 +11,7 @@ create table if not exists public.rooms (
   -- Gemini が付けた舞台の名前と、何手目か
   stage_title text,
   turn_index int not null default 0,
+  round int not null default 1,
   -- 全員の画面で同じ結果を出すために、最後の実行結果と講評を部屋で共有する
   last_output text,
   verdict text check (verdict in ('stable', 'wobbly', 'collapsed')),

@@ -152,7 +152,14 @@ export function useGameSession(): GameSession {
       const playerId = newId();
 
       const { error: roomError } = await supabase.from("rooms").insert([
-        { id: roomId, password: password.trim(), host_id: playerId, phase: "lobby" },
+        {
+          id: roomId,
+          password: password.trim(),
+          host_id: playerId,
+          phase: "lobby",
+          turn_index: 0,
+          round: 1,
+        },
       ]);
 
       if (roomError) {
@@ -295,7 +302,7 @@ export function useGameSession(): GameSession {
     }) => {
       if (!room || room.phase === "finished") return;
 
-      await supabase
+      const { error } = await supabase
         .from("rooms")
         .update({
           last_output: output,
@@ -303,6 +310,9 @@ export function useGameSession(): GameSession {
           ...(collapsed ? { phase: "finished", loser_id: loserId } : {}),
         })
         .eq("id", room.id);
+
+      // 書き込みに失敗すると結果が全員から見えなくなるので、黙って捨てない
+      if (error) setError(`実行結果を共有できませんでした: ${error.message}`);
 
       await refresh();
     },
@@ -339,6 +349,8 @@ export function useGameSession(): GameSession {
         judge_comment: null,
         stage_title: null,
         turn_index: 0,
+        // ラウンドが変わるので、舞台の生成がもう一度だけ走る
+        round: (room.round ?? 1) + 1,
       })
       .eq("id", room.id);
     await refresh();

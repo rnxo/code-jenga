@@ -29,24 +29,23 @@ export interface CodeJenga {
  */
 export function useCodeJenga(): CodeJenga {
   const session = useGameSession();
-  const tower = useJengaTower(session.room?.id ?? null);
+  const tower = useJengaTower(session.room?.id ?? null, session.room?.round ?? 1);
   const gemini = useGemini();
 
   const { players, me, room, isHost } = session;
   const isGenerating = room?.phase === "generating";
 
-  // 生成はホストの端末だけが1回だけ走らせる。
-  // 生成中でなくなったら忘れて、次の一戦でまた走れるようにする。
-  const generatingFor = useRef<string | null>(null);
+  // 生成はホストの端末だけが、1部屋1ラウンドにつき1回だけ走らせる。
+  // フラグを消して回ると、room のスナップショットが一瞬でも巻き戻ったときに
+  // 二重生成されうるので、ラウンドまで含めた鍵を覚えておいて消さない。
+  const generatedKey = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!room || room.phase !== "generating") {
-      generatingFor.current = null;
-      return;
-    }
-    if (!isHost) return;
-    if (generatingFor.current === room.id) return;
-    generatingFor.current = room.id;
+    if (!room || room.phase !== "generating" || !isHost) return;
+
+    const key = `${room.id}:${room.round ?? 1}`;
+    if (generatedKey.current === key) return;
+    generatedKey.current = key;
 
     (async () => {
       const stage = await gemini.buildStage(players.length);
@@ -55,7 +54,8 @@ export function useCodeJenga(): CodeJenga {
       if (error) {
         session.clearError();
         gemini.setComment(`⚠ 舞台を並べられませんでした: ${error}`);
-        generatingFor.current = null;
+        // 失敗したときだけ、もう一度試せるように鍵を戻す
+        generatedKey.current = null;
         return;
       }
 

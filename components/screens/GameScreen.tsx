@@ -17,8 +17,9 @@ export function GameScreen({ game }: { game: CodeJenga }) {
 
   // 実行結果と Gemini のコメントは部屋で共有しているので、全員が同じものを見る
   const room = session.room;
-  // 部屋側が空のラウンドでは、手元に残っている前回の出力を出さない
-  const consoleText = tower.isRunning ? tower.output : (room?.last_output ?? "");
+  // 抜いた本人は recordRun が往復するより先に結果を見たいので、手元の出力を残す。
+  // 前の一戦の出力は useJengaTower がラウンドごとに捨てている。
+  const consoleText = tower.isRunning ? tower.output : (room?.last_output ?? tower.output);
   const comment = gemini.busy ? gemini.comment : (room?.judge_comment ?? gemini.comment);
   const verdict = room?.verdict ?? gemini.verdict;
   const badge = verdict ? VERDICT_BADGE[verdict] : null;

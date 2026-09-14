@@ -7,7 +7,12 @@ import type { CodeJenga } from "@/hooks/useCodeJenga";
 export function ResultScreen({ game }: { game: CodeJenga }) {
   const { session, tower, loser } = game;
   const room = session.room;
-  const collapsed = Boolean(loser);
+
+  // 崩したかどうかは部屋の値で決める。players 由来の loser を使うと、
+  // 崩した本人が退出した瞬間に全員の画面が「完走」に化ける。
+  const collapsed = Boolean(room?.loser_id) || room?.verdict === "collapsed";
+  // 名前は出せないこともある（退出済み）
+  const loserName = loser?.name ?? "退出したプレイヤー";
 
   return (
     <Screen>
@@ -35,7 +40,7 @@ export function ResultScreen({ game }: { game: CodeJenga }) {
         <p className="text-xl font-bold">
           {collapsed ? (
             <>
-              <span className="text-red-400">{loser?.name}</span>
+              <span className="text-red-400">{loserName}</span>
               <span className="text-neutral-400"> の負け</span>
             </>
           ) : (
