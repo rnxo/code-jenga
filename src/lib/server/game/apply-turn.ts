@@ -65,6 +65,8 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
       language: problem.language,
       languageVersion: "latest",
       code: `${deletedLine.codeAfter}\n\n${problem.test_code}`,
+      sourceCode: deletedLine.codeAfter,
+      testCode: problem.test_code,
     });
   } catch (error) {
     throw new ApplicationError(
@@ -75,13 +77,12 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
 
   const summary = parseVitestOutput(pistonResult.stdout);
   const testStatus = pistonResult.exitCode === null ? "error" : pistonResult.exitCode === 0 ? "passed" : "failed";
-  const executedCode = `${deletedLine.codeAfter}\n\n${problem.test_code}`;
   const testRun = await createTestRun({
     kind: "turn_check",
     gameId: input.gameId,
-    language: "typescript",
-    languageVersion: "latest",
-    executedCode,
+    language: pistonResult.resolvedLanguage,
+    languageVersion: pistonResult.resolvedVersion,
+    executedCode: pistonResult.executedCode,
     status: testStatus,
     exitCode: pistonResult.exitCode ?? undefined,
     stdout: pistonResult.stdout,
@@ -92,6 +93,7 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
     failedTests: summary?.failedTests,
     durationMs: Date.now() - startedAt,
     pistonRaw: pistonResult.raw,
+    errorMessage: pistonResult.errorMessage ?? undefined,
   });
   const judgement = judgeTurnResult(testRun.status);
   if (!judgement.judged) {

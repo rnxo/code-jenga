@@ -1,0 +1,23 @@
+# Piston（コード実行サンドボックス）のセルフホスト定義。
+# 公開インスタンス emkc.org は 2026/2/15 からホワイトリスト制で 401 を返すため自前で立てる。
+#
+#   docker compose -f piston/docker-compose.yml up -d
+#   # 起動直後はランタイムが1つも入っていないので必ずインストールする
+#   curl -X POST http://localhost:2000/api/v2/packages -H 'content-type: application/json' \
+#        -d '{"language":"deno","version":"1.32.3"}'
+#   curl http://localhost:2000/api/v2/runtimes
+services:
+  piston:
+    image: ghcr.io/engineer-man/piston
+    container_name: piston_api
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "2000:2000"
+    volumes:
+      - piston_data:/piston
+    tmpfs:
+      - /piston/jobs:exec,uid=1000,gid=1000,mode=711
+
+volumes:
+  piston_data:
