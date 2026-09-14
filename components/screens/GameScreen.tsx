@@ -1,6 +1,7 @@
 "use client";
 
 import { Backdrop } from "@/components/Backdrop";
+import { TowerStack } from "@/components/TowerStack";
 import { ErrorBanner, Panel } from "@/components/ui";
 import type { Verdict } from "@/lib/types";
 import type { CodeJenga } from "@/hooks/useCodeJenga";
@@ -120,35 +121,13 @@ export function GameScreen({ game }: { game: CodeJenga }) {
 
           {/* 右: タワー */}
           <Panel title={`tower · 残り ${tower.blocks.length} 行`}>
-            <div className="flex max-h-[34rem] flex-col gap-1.5 overflow-y-auto rounded-md bg-neutral-950 p-2.5">
-              {tower.blocks.length === 0 ? (
-                <p className="p-5 text-center text-sm text-neutral-500">
-                  タワーは空になりました
-                </p>
-              ) : (
-                tower.blocks.map((block, idx) => (
-                  <div
-                    key={block.id}
-                    className={`flex h-11 items-center gap-3 rounded-sm px-3 shadow-md shadow-black/40 transition-all ${
-                      idx % 2 === 0 ? "bg-amber-600" : "bg-amber-700"
-                    } ${canPull ? "hover:translate-x-1.5" : "opacity-45"}`}
-                  >
-                    <span className="shrink-0 font-mono text-[10px] text-black/40">
-                      {String(idx + 1).padStart(2, "0")}
-                    </span>
-                    <span className="truncate font-mono text-[13px] text-black/85">
-                      {block.code_snippet.trim()}
-                    </span>
-                    <button
-                      onClick={() => pullBlock(block.id)}
-                      disabled={!canPull}
-                      className="ml-auto shrink-0 cursor-pointer rounded-sm bg-black/25 px-2 py-1 font-mono text-[10px] tracking-[0.15em] text-black/70 uppercase transition hover:bg-black/40 disabled:cursor-not-allowed"
-                    >
-                      pull
-                    </button>
-                  </div>
-                ))
-              )}
+            <div className="max-h-[34rem] overflow-x-hidden overflow-y-auto rounded-md bg-neutral-950 p-3">
+              <TowerStack
+                blocks={tower.blocks}
+                canPull={canPull}
+                wobbly={verdict === "wobbly"}
+                onPull={pullBlock}
+              />
             </div>
           </Panel>
         </div>

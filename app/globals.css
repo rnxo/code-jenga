@@ -47,3 +47,118 @@
     transform: translateX(30%);
   }
 }
+
+/* --- タワーの積み木表現 ------------------------------------------------
+   コード行を「上面と側面のある木片」に見せる。文字は平面のままにして
+   読みやすさを落とさず、疑似要素だけで厚みを出している。 */
+
+.jenga-stack {
+  perspective: 900px;
+}
+
+.jenga-block {
+  position: relative;
+  transition:
+    transform 0.25s ease,
+    filter 0.25s ease;
+}
+
+/* 上面 */
+.jenga-block::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 4px;
+  right: -7px;
+  height: 7px;
+  background: color-mix(in srgb, var(--jenga-face) 100%, white 22%);
+  transform: skewX(-45deg);
+  border-radius: 1px 1px 0 0;
+}
+
+/* 側面 */
+.jenga-block::after {
+  content: "";
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  bottom: 0;
+  width: 7px;
+  background: color-mix(in srgb, var(--jenga-face) 100%, black 28%);
+  transform: skewY(-45deg);
+  border-radius: 0 1px 1px 0;
+}
+
+/* 自分の番のとき、抜ける気配を出す */
+.jenga-block.is-pullable:hover {
+  transform: translateX(10px);
+  filter: brightness(1.08);
+}
+
+/* 抜き取られる1枚 */
+@keyframes jenga-pull-out {
+  0% {
+    transform: translateX(0) rotate(0deg);
+    opacity: 1;
+  }
+  55% {
+    transform: translateX(58%) rotate(1.5deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(150%) rotate(7deg);
+    opacity: 0;
+  }
+}
+
+.jenga-block.is-pulling {
+  animation: jenga-pull-out 0.45s ease-in forwards;
+  z-index: 5;
+}
+
+/* タワーが危ういときの揺れ */
+@keyframes jenga-tremble {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  25% {
+    transform: translateX(-1.5px) rotate(-0.25deg);
+  }
+  75% {
+    transform: translateX(1.5px) rotate(0.25deg);
+  }
+}
+
+.jenga-stack.is-wobbly .jenga-block {
+  animation: jenga-tremble 0.9s ease-in-out infinite;
+}
+
+/* 崩壊。段ごとに時間差で落とす */
+@keyframes jenga-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(var(--fall-y, 40px)) translateX(var(--fall-x, 0))
+      rotate(var(--fall-r, 6deg));
+    opacity: 0.9;
+  }
+}
+
+.jenga-block.is-falling {
+  animation: jenga-fall 0.8s cubic-bezier(0.4, 0, 0.7, 1) forwards;
+  animation-delay: var(--fall-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jenga-block.is-pulling,
+  .jenga-block.is-falling,
+  .jenga-stack.is-wobbly .jenga-block {
+    animation: none;
+  }
+  .jenga-block.is-pullable:hover {
+    transform: none;
+  }
+}

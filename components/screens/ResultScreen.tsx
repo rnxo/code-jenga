@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, ErrorBanner, Panel, ScreenHeader, Screen } from "@/components/ui";
+import { TowerStack } from "@/components/TowerStack";
 import type { CodeJenga } from "@/hooks/useCodeJenga";
 
 /** ⑤ 終了画面 */
@@ -73,42 +74,9 @@ export function ResultScreen({ game }: { game: CodeJenga }) {
           {`remains · ${tower.blocks.length} 行`}
         </p>
 
-        {tower.blocks.length === 0 ? (
-          <p className="rounded-md bg-neutral-900 px-3 py-4 text-center text-sm text-neutral-500 ring-1 ring-neutral-800">
-            すべて抜き切りました。
-          </p>
-        ) : (
-          <div className="flex max-h-56 flex-col gap-1 overflow-y-auto rounded-md bg-neutral-950 p-2.5">
-            {tower.blocks.map((block, i) => (
-              <div
-                key={block.id}
-                className={`flex h-9 items-center gap-3 rounded-sm px-3 ${
-                  collapsed ? "bg-neutral-800" : "bg-amber-700"
-                }`}
-                style={
-                  collapsed
-                    ? { transform: `rotate(${((i % 3) - 1) * 0.7}deg)` }
-                    : undefined
-                }
-              >
-                <span
-                  className={`shrink-0 font-mono text-[10px] ${
-                    collapsed ? "text-neutral-600" : "text-black/40"
-                  }`}
-                >
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span
-                  className={`truncate font-mono text-[12px] ${
-                    collapsed ? "text-neutral-400" : "text-black/80"
-                  }`}
-                >
-                  {block.code_snippet.trim()}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="max-h-64 overflow-x-hidden overflow-y-auto rounded-md bg-neutral-950 p-3">
+          <TowerStack blocks={tower.blocks} mode="fallen" />
+        </div>
       </div>
 
       {session.isHost ? (
