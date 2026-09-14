@@ -4,7 +4,6 @@
 .scene {
   perspective: 1500px;
   perspective-origin: 50% 45%;
-  user-select: none;
 }
 
 .tower {
@@ -22,6 +21,8 @@
 
 .towerDragging {
   cursor: grabbing;
+  /* 回している最中だけ文字選択を切る（普段はコードをコピーできる） */
+  user-select: none;
 }
 
 /* 手を離しているあいだは、ゆっくり息をするように揺れる */
@@ -41,7 +42,8 @@
 
 .piece {
   position: relative;
-  height: 44px;
+  /* 長い行は折り返して木片が高くなる。3D の各面は inset 基準なので追従する */
+  min-height: 44px;
   transform-style: preserve-3d;
   transition: transform 0.3s ease;
   border: 0;
@@ -53,14 +55,14 @@
 }
 
 .pieceBlank {
-  height: 22px;
+  min-height: 22px;
 }
 
 .pieceSelectable {
   cursor: pointer;
 }
 
-.pieceSelectable:hover {
+.pieceSelectable:not(.pieceSelected):hover {
   transform: translateZ(18px);
 }
 
@@ -85,8 +87,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0 0.75rem;
-  overflow: hidden;
+  padding: 0.5rem 0.75rem;
 }
 
 .back {
@@ -138,11 +139,13 @@
 .lineText {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* インデントをそのまま出し、長い行は折り返す（切り捨てない） */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
   font-family: var(--font-geist-mono), monospace;
   font-size: 13px;
+  line-height: 1.5;
   color: rgb(0 0 0 / 0.85);
 }
 
@@ -178,6 +181,20 @@
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: #9ca3af;
+}
+
+.resetButton {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  color: #d97706;
+  cursor: pointer;
+}
+
+.resetButton:hover {
+  color: #fbbf24;
 }
 
 @media (prefers-reduced-motion: reduce) {

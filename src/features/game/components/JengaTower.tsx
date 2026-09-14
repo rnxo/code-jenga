@@ -15,6 +15,17 @@ const FACE_COLORS = ["#d97706", "#b45309", "#c2620a", "#a8480a"] as const;
 const DEFAULT_RX = 4;
 const DEFAULT_RY = -14;
 
+/** これ以上動いたらクリックではなくドラッグと見なす */
+const DRAG_THRESHOLD_PX = 4;
+
+interface DragState {
+  pointerId: number;
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+}
+
 export interface JengaTowerProps {
   /** games.current_code。行単位に割って積む */
   code: string;
@@ -36,46 +47,83 @@ export function JengaTower({
 }: JengaTowerProps) {
   const lines = code.length > 0 ? code.split("\n") : [];
 
-  // ドラッグで回す。文字が読めなくなるところまでは倒せないようにする
+  // ドラッグで回す。文字が読めなくなるところまでは倒せないようにする。
+  //
+  // 木片がタワーの表面をほぼ覆うので、ボタンの上でも掴めるようにしてある。
+  // 代わりに「一定距離動いたらドラッグ」と見なし、そのときだけクリックを捨てる。
   const [angle, setAngle] = useState({ rx: DEFAULT_RX, ry: DEFAULT_RY });
   const [isDragging, setIsDragging] = useState(false);
-  const dragOrigin = useRef<{ x: number; y: number; rx: number; ry: number } | null>(null);
+  const drag = useRef<DragState | null>(null);
+  /** 直前のポインタ操作がドラッグだったか。クリックを無視する判断に使う */
+  const didDrag = useRef(false);
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
-    // 木片の上では掴まない。捕捉すると木片に click が届かなくなる
-    if ((event.target as HTMLElement).closest("button")) {
+    // すでに別の指で回している場合は、そちらを優先する
+    if (drag.current) {
       return;
     }
-    dragOrigin.current = { x: event.clientX, y: event.clientY, ...angle };
-    setIsDragging(true);
-    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      ...angle,
+    };
+    didDrag.current = false;
   }
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
-    const origin = dragOrigin.current;
-    if (!origin) {
+    const origin = drag.current;
+    // 掴んだ指以外の動きは無視する（2本指で触っても回転が死なない）
+    if (!origin || origin.pointerId !== event.pointerId) {
       return;
     }
+
+    const dx = event.clientX - origin.x;
+    const dy = event.clientY - origin.y;
+
+    if (!didDrag.current) {
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) {
+        return;
+      }
+      // ここで初めてドラッグと見なす
+      didDrag.current = true;
+      setIsDragging(true);
+      window.getSelection()?.removeAllRanges();
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+
     setAngle({
-      ry: clamp(origin.ry + (event.clientX - origin.x) * 0.35, -55, 55),
-      rx: clamp(origin.rx - (event.clientY - origin.y) * 0.25, -10, 40),
+      ry: clamp(origin.ry + dx * 0.35, -55, 55),
+      rx: clamp(origin.rx - dy * 0.25, -10, 40),
     });
   }
 
   function handlePointerUp(event: PointerEvent<HTMLDivElement>) {
-    if (!dragOrigin.current) {
+    const origin = drag.current;
+    if (!origin || origin.pointerId !== event.pointerId) {
       return;
     }
-    dragOrigin.current = null;
+    drag.current = null;
     setIsDragging(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   }
 
+  function handleSelectLine(lineNo: number) {
+    // 回したあとの指離しをクリックとして拾わない
+    if (didDrag.current) {
+      didDrag.current = false;
+      return;
+    }
+    onSelectLine(lineNo);
+  }
+
   if (lines.length === 0) {
     return <p className="py-8 text-center text-sm text-gray-500">お題コードがまだありません。</p>;
   }
+
+  const isRotated = angle.rx !== DEFAULT_RX || angle.ry !== DEFAULT_RY;
 
   const towerClassName = [
     styles.tower,
@@ -94,13 +142,13 @@ export function JengaTower({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        onDoubleClick={() => setAngle({ rx: DEFAULT_RX, ry: DEFAULT_RY })}
       >
         {lines.map((line, index) => {
           const lineNo = index + 1;
           const isBlank = line.trim().length === 0;
           const isSelected = selectedLineNo === lineNo;
-          const canSelect = interactive && !collapsed && !isBlank;
+          // 空行も正当な手なので選べる（DB_DESIGN.md 10章「空行の削除は禁止していない」）
+          const canSelect = interactive && !collapsed;
 
           const className = [
             styles.piece,
@@ -119,8 +167,8 @@ export function JengaTower({
               className={className}
               disabled={!canSelect}
               aria-pressed={isSelected}
-              aria-label={`${lineNo} 行目: ${isBlank ? "空行" : line.trim()}`}
-              onClick={() => onSelectLine(lineNo)}
+              aria-label={`${lineNo} 行目: ${isBlank ? "空行" : line}`}
+              onClick={() => handleSelectLine(lineNo)}
               style={fallStyle(index, lines.length)}
             >
               {/* 回したときに中が抜けないよう、見えない面も置く */}
@@ -132,7 +180,7 @@ export function JengaTower({
 
               <span className={`${styles.face} ${styles.front}`}>
                 <span className={styles.lineNo}>{String(lineNo).padStart(2, "0")}</span>
-                <span className={styles.lineText}>{line.trim()}</span>
+                <span className={styles.lineText}>{line}</span>
               </span>
             </button>
           );
@@ -141,9 +189,19 @@ export function JengaTower({
 
       {!collapsed ? (
         <p className={styles.hint}>
-          {interactive
-            ? "削除する行をクリック · ドラッグで回転 · ダブルクリックで戻す"
-            : "ドラッグで回転 · ダブルクリックで戻す"}
+          {interactive ? "削除する行をクリック · ドラッグで回転" : "ドラッグで回転"}
+          {isRotated ? (
+            <>
+              {" · "}
+              <button
+                type="button"
+                className={styles.resetButton}
+                onClick={() => setAngle({ rx: DEFAULT_RX, ry: DEFAULT_RY })}
+              >
+                正面に戻す
+              </button>
+            </>
+          ) : null}
         </p>
       ) : null}
     </div>
