@@ -3,9 +3,18 @@
 // 投稿されたコードはこのアプリのオリジンにもホストマシンにも触れません。
 // TypeScript のコンパイラは載せていないため、素の JavaScript として評価されます。
 
-export function runInBrowserSandbox(code: string, timeoutMs = 4000): Promise<string> {
+export interface SandboxResult {
+  /** false ならタワー崩壊（例外・タイムアウト） */
+  ok: boolean;
+  output: string;
+}
+
+export function runInBrowserSandbox(
+  code: string,
+  timeoutMs = 4000,
+): Promise<SandboxResult> {
   return new Promise((resolve) => {
-    const token = Math.random().toString(36).slice(2)
+    const token = Math.random().toString(36).slice(2);
 
     const html = `<!doctype html><meta charset="utf-8"><script>
 (function () {
@@ -35,42 +44,47 @@ export function runInBrowserSandbox(code: string, timeoutMs = 4000): Promise<str
   }
   parent.postMessage({ token: ${JSON.stringify(token)}, ok: ok, output: lines.join('\\n') }, '*');
 })();
-<\/script>`
+<\/script>`;
 
-    const frame = document.createElement('iframe')
-    frame.setAttribute('sandbox', 'allow-scripts')
-    frame.style.display = 'none'
+    const frame = document.createElement("iframe");
+    frame.setAttribute("sandbox", "allow-scripts");
+    frame.style.display = "none";
 
-    let done = false
+    let done = false;
+
     const cleanup = () => {
-      window.removeEventListener('message', onMessage)
-      clearTimeout(timer)
-      frame.remove()
-    }
+      window.removeEventListener("message", onMessage);
+      clearTimeout(timer);
+      frame.remove();
+    };
 
     const onMessage = (e: MessageEvent) => {
-      if (done) return
-      if (e.source !== frame.contentWindow) return
-      if (!e.data || e.data.token !== token) return
-      done = true
-      cleanup()
-      const out = String(e.data.output ?? '')
-      resolve(
-        e.data.ok
-          ? out || '実行成功: タワーは安定しています！(出力なし)'
-          : `崩壊: ${out}`
-      )
-    }
+      if (done) return;
+      if (e.source !== frame.contentWindow) return;
+      if (!e.data || e.data.token !== token) return;
+
+      done = true;
+      cleanup();
+
+      const out = String(e.data.output ?? "");
+      resolve({
+        ok: Boolean(e.data.ok),
+        output: e.data.ok ? out || "実行成功: タワーは安定しています！" : out,
+      });
+    };
 
     const timer = setTimeout(() => {
-      if (done) return
-      done = true
-      cleanup()
-      resolve(`崩壊: 実行が ${timeoutMs}ms を超えました（無限ループの可能性）`)
-    }, timeoutMs)
+      if (done) return;
+      done = true;
+      cleanup();
+      resolve({
+        ok: false,
+        output: `実行が ${timeoutMs}ms を超えました（無限ループの可能性）`,
+      });
+    }, timeoutMs);
 
-    window.addEventListener('message', onMessage)
-    frame.srcdoc = html
-    document.body.appendChild(frame)
-  })
+    window.addEventListener("message", onMessage);
+    frame.srcdoc = html;
+    document.body.appendChild(frame);
+  });
 }

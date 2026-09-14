@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { runInBrowserSandbox } from "@/lib/sandbox";
-import { DEFAULT_GAME_ID, type Block } from "@/lib/types";
+import type { Block } from "@/lib/types";
+
+export interface TowerRun {
+  output: string;
+  /** true なら崩壊（実行エラー・タイムアウト） */
+  collapsed: boolean;
+}
 
 export interface JengaTower {
   /** 下から順に並んだブロック。UI 側で好きに描画してよい */
@@ -18,23 +24,30 @@ export interface JengaTower {
   addBlock: (codeSnippet: string, author: string) => Promise<string | null>;
   /** 抜き取る。失敗したらエラーメッセージ、成功したら null */
   removeBlock: (id: string) => Promise<string | null>;
-  /** 全ブロックを繋げて実行し、結果の文字列を返す */
-  testTower: () => Promise<string>;
+  /** 全ブロックを繋げて実行し、出力と崩壊したかどうかを返す */
+  testTower: () => Promise<TowerRun>;
   /** 積み上がったコード全体（Gemini に渡す用など） */
   buildFullCode: () => string;
   /** 手動で取得し直す */
   refresh: () => Promise<void>;
 }
 
-export function useJengaTower(): JengaTower {
+/** roomId が null の間は何もしない（部屋に入る前） */
+export function useJengaTower(roomId: string | null): JengaTower {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [output, setOutput] = useState("");
   const [isRunning, setIsRunning] = useState(false);
 
   const refresh = useCallback(async () => {
+    if (!roomId) {
+      setBlocks([]);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("jenga_blocks")
       .select("*")
+      .eq("room_id", roomId)
       .order("block_index", { ascending: true });
 
     if (error) {
@@ -42,10 +55,12 @@ export function useJengaTower(): JengaTower {
     } else if (data) {
       setBlocks(data as Block[]);
     }
-  }, []);
+  }, [roomId]);
 
   // 初期ロード＋Realtime 購読（Supabase 未設定時は localStorage で別タブ間同期）
   useEffect(() => {
+    if (!roomId) return;
+
     const channel = supabase
       .channel("jenga_realtime_channel")
       .on(
@@ -61,10 +76,11 @@ export function useJengaTower(): JengaTower {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refresh]);
+  }, [roomId, refresh]);
 
   const addBlock = useCallback(
     async (codeSnippet: string, author: string) => {
+      if (!roomId) return "部屋に入っていません";
       if (!codeSnippet.trim()) return "空のブロックは積めません";
 
       const block_index =
@@ -72,7 +88,7 @@ export function useJengaTower(): JengaTower {
 
       const { error } = await supabase.from("jenga_blocks").insert([
         {
-          game_id: DEFAULT_GAME_ID,
+          room_id: roomId,
           block_index,
           code_snippet: codeSnippet,
           player_name: author || "Anonymous",
@@ -83,7 +99,7 @@ export function useJengaTower(): JengaTower {
       await refresh();
       return null;
     },
-    [blocks, refresh],
+    [roomId, blocks, refresh],
   );
 
   const removeBlock = useCallback(
@@ -104,14 +120,14 @@ export function useJengaTower(): JengaTower {
     [blocks],
   );
 
-  const testTower = useCallback(async () => {
-    if (blocks.length === 0) return "";
+  const testTower = useCallback(async (): Promise<TowerRun> => {
+    if (blocks.length === 0) return { output: "", collapsed: false };
 
     setIsRunning(true);
     setOutput("タワーの構造（コード）を検証中...");
 
     const fullCode = buildFullCode();
-    let result: string;
+    let run: TowerRun;
 
     try {
       const res = await fetch("/api/execute", {
@@ -122,21 +138,31 @@ export function useJengaTower(): JengaTower {
       const data = await res.json();
 
       if (data.run) {
-        result = data.run.output || "実行成功: タワーは安定しています！";
+        const collapsed = data.run.code !== 0 || Boolean(data.run.stderr);
+        run = {
+          output: data.run.output || "実行成功: タワーは安定しています！",
+          collapsed,
+        };
       } else if (data.fallback) {
         // Piston が使えないので、ブラウザ内の sandbox iframe で実行する
         const sandboxed = await runInBrowserSandbox(fullCode);
-        result = `※ Piston 未接続のためブラウザ内サンドボックスで実行（JavaScript として評価）\n  ${data.error}\n\n${sandboxed}`;
+        run = {
+          output: `※ Piston 未接続のためブラウザ内サンドボックスで実行（JavaScript として評価）\n  ${data.error}\n\n${sandboxed.output}`,
+          collapsed: !sandboxed.ok,
+        };
       } else {
-        result = `崩壊エラー: ${data.error || "コードの構文・実行エラーが発生しました"}`;
+        run = {
+          output: `崩壊エラー: ${data.error || "コードの構文・実行エラーが発生しました"}`,
+          collapsed: true,
+        };
       }
     } catch {
-      result = "通信エラーが発生しました。";
+      run = { output: "通信エラーが発生しました。", collapsed: false };
     }
 
-    setOutput(result);
+    setOutput(run.output);
     setIsRunning(false);
-    return result;
+    return run;
   }, [blocks, buildFullCode]);
 
   return {

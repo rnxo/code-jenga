@@ -16,8 +16,11 @@ export interface GeminiPlayer {
   verdict: Verdict | null;
   /** 次の一手を考えさせる。失敗したら null */
   requestMove: (blocks: Block[]) => Promise<GeminiMove | null>;
-  /** 実行結果を講評させる */
-  requestJudge: (blocks: Block[], output: string) => Promise<void>;
+  /** 実行結果を講評させる。結果は部屋で共有できるよう呼び出し側に返す */
+  requestJudge: (
+    blocks: Block[],
+    output: string,
+  ) => Promise<{ verdict: Verdict | null; comment: string } | null>;
   /** UI 側から実況を差し込みたいとき用 */
   setComment: (comment: string) => void;
 }
@@ -89,12 +92,19 @@ export function useGemini(): GeminiPlayer {
 
       if (data.error) {
         setComment(`⚠ ${data.error}`);
-      } else {
-        setVerdict((data.verdict as Verdict) ?? null);
-        setComment(data.comment ?? "");
+        return null;
       }
+
+      const judged = {
+        verdict: (data.verdict as Verdict) ?? null,
+        comment: (data.comment as string) ?? "",
+      };
+      setVerdict(judged.verdict);
+      setComment(judged.comment);
+      return judged;
     } catch {
       setComment("⚠ Gemini との通信に失敗しました");
+      return null;
     } finally {
       setBusy(false);
     }
