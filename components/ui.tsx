@@ -105,11 +105,15 @@ export function Panel({
 }) {
   return (
     <section
-      className={`rounded-lg border bg-neutral-900 p-4 ${
-        accent ? "border-indigo-800" : "border-neutral-800"
+      className={`rounded-lg bg-neutral-900 p-4 ring-1 ${
+        accent ? "ring-indigo-900" : "ring-neutral-800"
       } ${className}`}
     >
-      {title && <h2 className="mb-3 text-sm font-semibold text-neutral-300">{title}</h2>}
+      {title && (
+        <h2 className="mb-3 font-mono text-[10px] tracking-[0.2em] text-neutral-500 uppercase">
+          {title}
+        </h2>
+      )}
       {children}
     </section>
   );

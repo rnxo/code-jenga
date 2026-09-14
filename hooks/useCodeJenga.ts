@@ -35,11 +35,16 @@ export function useCodeJenga(): CodeJenga {
   const { players, me, room, isHost } = session;
   const isGenerating = room?.phase === "generating";
 
-  // 生成はホストの端末だけが1回だけ走らせる
+  // 生成はホストの端末だけが1回だけ走らせる。
+  // 生成中でなくなったら忘れて、次の一戦でまた走れるようにする。
   const generatingFor = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!room || room.phase !== "generating" || !isHost) return;
+    if (!room || room.phase !== "generating") {
+      generatingFor.current = null;
+      return;
+    }
+    if (!isHost) return;
     if (generatingFor.current === room.id) return;
     generatingFor.current = room.id;
 
@@ -60,11 +65,6 @@ export function useCodeJenga(): CodeJenga {
       });
     })();
   }, [room, isHost, players.length, gemini, tower, session]);
-
-  // 部屋を出たら次の生成に備えて忘れる
-  useEffect(() => {
-    if (!room) generatingFor.current = null;
-  }, [room]);
 
   const currentPlayer = useMemo(() => {
     if (players.length === 0) return null;

@@ -88,6 +88,7 @@ export function useJengaTower(roomId: string | null): JengaTower {
 
       // 前のゲームの残りを消してから並べ直す
       await supabase.from("jenga_blocks").delete().eq("room_id", roomId);
+      setOutput("");
 
       const { error } = await supabase.from("jenga_blocks").insert(
         lines.map((code_snippet, i) => ({
