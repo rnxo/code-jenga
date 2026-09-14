@@ -129,7 +129,7 @@ export function GameScreen({ game }: { game: CodeJenga }) {
             >
               <TowerStack
                 blocks={tower.blocks}
-                mode={isCollapsing ? "fallen" : "play"}
+                mode={isCollapsing ? "collapsing" : "play"}
                 canPull={canPull}
                 wobbly={verdict === "wobbly"}
                 onPull={pullBlock}

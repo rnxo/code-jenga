@@ -22,7 +22,8 @@ export function TowerStack({
   onPull,
 }: {
   blocks: Block[];
-  mode?: "play" | "fallen";
+  /** play=対戦中 / collapsing=いま崩れている / fallen=崩れたあとの山 */
+  mode?: "play" | "collapsing" | "fallen";
   canPull?: boolean;
   /** Gemini が「グラグラ」と判定したら小刻みに揺らす */
   wobbly?: boolean;
@@ -75,7 +76,7 @@ export function TowerStack({
   if (blocks.length === 0) {
     return (
       <p className="p-6 text-center text-sm text-neutral-500">
-        {mode === "fallen" ? "すべて抜き切りました。" : "タワーは空になりました"}
+        {mode === "play" ? "タワーは空になりました" : "すべて抜き切りました。"}
       </p>
     );
   }
@@ -83,8 +84,8 @@ export function TowerStack({
   return (
     <div
       className={`jenga-scene select-none pt-6 ${
-        // 崩れたあとの山が枠に収まるよう、落ちる分の高さを確保する
-        mode === "fallen" ? "pb-44" : "pb-6"
+        // 崩れる分の高さを確保する。終了画面は山を詰めて見せるので浅くてよい
+        mode === "collapsing" ? "pb-44" : mode === "fallen" ? "pb-14" : "pb-6"
       }`}
     >
       <div
@@ -102,6 +103,8 @@ export function TowerStack({
       >
         {blocks.map((block, idx) => {
           const face = FACE[idx % FACE.length];
+          // 崩れる最中は派手に散らし、終了画面では山として詰める
+          const spread = mode === "fallen" ? 0.34 : 1;
           const pulling = block.id === pullingId;
           const pullable = canPull && !pullingId;
 
@@ -113,9 +116,9 @@ export function TowerStack({
                   "--jenga-face": face,
                   // 崩れ方は段ごとに散らす（見た目だけなので index から決める）。
                   // 高い段＝上にあるほど遠くまで落ちる
-                  "--fall-x": `${((idx % 3) - 1) * 46}px`,
-                  "--fall-y": `${40 + (blocks.length - idx) * 16}px`,
-                  "--fall-z": `${((idx % 4) - 1) * 44}px`,
+                  "--fall-x": `${((idx % 3) - 1) * 46 * spread}px`,
+                  "--fall-y": `${(40 + (blocks.length - idx) * 16) * spread}px`,
+                  "--fall-z": `${((idx % 4) - 1) * 44 * spread}px`,
                   "--fall-rx": `${26 + (idx % 3) * 22}deg`,
                   "--fall-rz": `${((idx % 5) - 2) * 14}deg`,
                   // 上から崩れていく
@@ -124,7 +127,7 @@ export function TowerStack({
               }
               className={`jenga-piece ${pulling ? "is-pulling" : ""} ${
                 pullable ? "is-pullable" : ""
-              } ${mode === "fallen" ? "is-falling" : ""} ${
+              } ${mode === "play" ? "" : "is-falling"} ${
                 !canPull && mode === "play" ? "opacity-70" : ""
               }`}
             >
