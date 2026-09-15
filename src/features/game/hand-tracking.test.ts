@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { isPinching, toScreenRatio } from "./hand-tracking";
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  advancePinch,
+  consumePinch,
+  isPinching,
+  PINCH_HOLD_MS,
+  resetPinch,
+  toScreenRatio,
+} from "./hand-tracking";
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 
 // カメラを繋がないと確かめられない部分なので、座標の計算だけここで固めておく。
@@ -99,5 +106,59 @@ describe("isPinching", () => {
     expect(
       isPinching(hand({ ...open, wrist: [0.5, 0.7], middleMcp: [0.5, 0.7] })),
     ).toBe(false);
+  });
+});
+
+describe("advancePinch", () => {
+  // モジュールに状態を持つので、毎回まっさらから始める
+  beforeEach(() => {
+    resetPinch();
+  });
+
+  it("つまんでいなければ 0 のまま", () => {
+    expect(advancePinch(false, 0)).toBe(0);
+    expect(advancePinch(false, 5_000)).toBe(0);
+  });
+
+  it("つまみ始めてから時間に応じて 1 まで満ちる", () => {
+    expect(advancePinch(true, 1_000)).toBe(0);
+    expect(advancePinch(true, 1_000 + PINCH_HOLD_MS / 2)).toBeCloseTo(0.5, 5);
+    expect(advancePinch(true, 1_000 + PINCH_HOLD_MS)).toBe(1);
+  });
+
+  it("満ちても 1 を超えない", () => {
+    advancePinch(true, 0);
+    expect(advancePinch(true, PINCH_HOLD_MS * 10)).toBe(1);
+  });
+
+  it("確定したら、つまんだままでは二度と溜まらない（#49 レビュー 2）", () => {
+    advancePinch(true, 0);
+    expect(advancePinch(true, PINCH_HOLD_MS)).toBe(1);
+    consumePinch();
+
+    // 指を離さずに別の行へ流れても、勝手にもう一度確定しない
+    expect(advancePinch(true, PINCH_HOLD_MS * 2)).toBe(0);
+    expect(advancePinch(true, PINCH_HOLD_MS * 5)).toBe(0);
+  });
+
+  it("指を一度離せば、次のつまみは数え直せる", () => {
+    advancePinch(true, 0);
+    advancePinch(true, PINCH_HOLD_MS);
+    consumePinch();
+
+    expect(advancePinch(false, PINCH_HOLD_MS + 10)).toBe(0);
+    expect(advancePinch(true, PINCH_HOLD_MS + 20)).toBe(0);
+    expect(advancePinch(true, PINCH_HOLD_MS * 2 + 20)).toBe(1);
+  });
+
+  it("ねらわせない間にリセットすれば、溜めた時間は持ち越さない（#49 レビュー 3）", () => {
+    advancePinch(true, 0);
+    expect(advancePinch(true, PINCH_HOLD_MS * 0.9)).toBeCloseTo(0.9, 5);
+
+    // 相手の手番のあいだは毎フレームここを通す
+    resetPinch();
+
+    // 手番が戻った最初のフレームで、いきなり確定しない
+    expect(advancePinch(true, PINCH_HOLD_MS * 0.95)).toBe(0);
   });
 });

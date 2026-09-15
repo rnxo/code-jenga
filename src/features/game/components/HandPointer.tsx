@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import styles from "./HandPointer.module.css";
 import {
   consumePinch,
+  resetPinch,
   getServerStatusSnapshot,
   getStatusSnapshot,
   isHandTrackingSupported,
@@ -73,6 +74,9 @@ export function HandPointer({ onAim, onCommit, disabled = false }: HandPointerPr
       if (cursor) {
         cursor.dataset.visible = "false";
       }
+      // ねらわせない間につまみ時間を溜めない。溜めたままだと、手番が戻った
+      // 最初のフレームで、たまたま指が乗っている行が猶予なしに選ばれる
+      resetPinch();
       report(aimedRef, onAimRef, null);
       return;
     }

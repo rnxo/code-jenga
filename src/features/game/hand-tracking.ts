@@ -76,6 +76,17 @@ let lastVideoTime = -1;
 let smoothed: { x: number; y: number } | null = null;
 /** つまみ始めた時刻。離したら null に戻す */
 let pinchStartedAt: number | null = null;
+/**
+ * 一度確定したつまみ。指を離すまで次を数えない。
+ * これが無いと、つまんだまま別の行へ流れたときに 0.7 秒ごとに選び直してしまう。
+ */
+let pinchConsumed = false;
+/**
+ * start の世代。初回は読み込みに10秒ほどかかるので、その間に止められる
+ * （＝盤面が結果画面に切り替わる）ことが普通に起きる。await のたびにこれを
+ * 見て、古い呼び出しなら掴んだカメラを手放して抜ける。
+ */
+let generation = 0;
 
 function setSnapshot(status: HandTrackerStatus, message: string | null = null) {
   if (snapshot.status === status && snapshot.message === message) {
@@ -133,6 +144,10 @@ export async function startHandTracking(video: HTMLVideoElement): Promise<void> 
     return;
   }
 
+  const myGeneration = ++generation;
+  /** この呼び出しがまだ有効か。止められていたら false */
+  const isStale = () => myGeneration !== generation;
+
   setSnapshot("loading");
 
   try {
@@ -140,6 +155,10 @@ export async function startHandTracking(video: HTMLVideoElement): Promise<void> 
     const { FilesetResolver, HandLandmarker: HandLandmarkerClass } = await import(
       "@mediapipe/tasks-vision"
     );
+
+    if (isStale()) {
+      return;
+    }
 
     if (!landmarker) {
       const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
@@ -151,27 +170,47 @@ export async function startHandTracking(video: HTMLVideoElement): Promise<void> 
       });
     }
 
-    stream = await navigator.mediaDevices.getUserMedia({
+    if (isStale()) {
+      return;
+    }
+
+    const opened = await navigator.mediaDevices.getUserMedia({
       video: { width: 640, height: 480, facingMode: "user" },
       audio: false,
     });
 
+    // ここに来るまでに止められていたら、掴んだカメラは自分で閉じる。
+    // 手放し忘れると、止めるボタンが消えたあとも録画ランプが点いたままになる。
+    if (isStale()) {
+      for (const track of opened.getTracks()) {
+        track.stop();
+      }
+      return;
+    }
+
+    stream = opened;
     videoEl = video;
     video.srcObject = stream;
     await video.play();
 
     lastVideoTime = -1;
     smoothed = null;
-    pinchStartedAt = null;
+    resetPinch();
     setSnapshot("running");
     rafId = requestAnimationFrame(tick);
   } catch (error) {
+    if (isStale()) {
+      return;
+    }
     stopHandTracking();
     setSnapshot("error", describeError(error));
   }
 }
 
 export function stopHandTracking(): void {
+  // 走っている start があれば、そちらに「もう要らない」と伝える
+  generation += 1;
+
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;
@@ -187,12 +226,13 @@ export function stopHandTracking(): void {
     videoEl = null;
   }
   smoothed = null;
-  pinchStartedAt = null;
+  resetPinch();
   emit({ visible: false, x: 0, y: 0, pinching: false, holdProgress: 0 });
   // landmarker は作り直しが重いので残す（次に開くときが速い）
-  if (snapshot.status !== "error") {
-    setSnapshot("idle");
-  }
+  //
+  // エラー表示もここで消す。モジュールに状態が残ると、カメラを拒否したあと
+  // 別のルームを開いたときに、何も押していないのに前回の文言が出る。
+  setSnapshot("idle");
 }
 
 function tick() {
@@ -227,14 +267,7 @@ function tick() {
     : target;
 
   const pinching = isPinching(hand);
-  const now = performance.now();
-  if (pinching) {
-    pinchStartedAt ??= now;
-  } else {
-    pinchStartedAt = null;
-  }
-  const holdProgress =
-    pinchStartedAt === null ? 0 : Math.min(1, (now - pinchStartedAt) / PINCH_HOLD_MS);
+  const holdProgress = advancePinch(pinching, performance.now());
 
   emit({
     visible: true,
@@ -245,9 +278,43 @@ function tick() {
   });
 }
 
-/** 決定が通ったら呼ぶ。つまんだままでも二度目が走らないようにする */
+/**
+ * つまみ続けている割合を1フレーム進める。0〜1 を返し、1 で確定。
+ *
+ * 一度確定したら、指を離すまで 0 のまま。つまんだまま別の行へ流れても
+ * 0.7 秒ごとに選び直さないための決まりごと（#49 のレビュー）。
+ *
+ * カメラを繋がないと確かめられない部分なので、ここだけ切り出して export している。
+ */
+export function advancePinch(pinching: boolean, now: number): number {
+  if (!pinching) {
+    // 指を離した。ここで初めて、次のつまみを数えられるようになる
+    resetPinch();
+    return 0;
+  }
+  if (pinchConsumed) {
+    return 0;
+  }
+  pinchStartedAt ??= now;
+  return Math.min(1, (now - pinchStartedAt) / PINCH_HOLD_MS);
+}
+
+/**
+ * 決定が通ったら呼ぶ。つまんだまま別の行へ流れても、指を離すまでは
+ * 二度目が走らない。
+ */
 export function consumePinch(): void {
   pinchStartedAt = null;
+  pinchConsumed = true;
+}
+
+/**
+ * つまみの計測をやり直す。相手の手番など、ねらわせない間に呼んでおく。
+ * 溜めたままにすると、自分の手番に戻った最初のフレームで猶予なしに確定してしまう。
+ */
+export function resetPinch(): void {
+  pinchStartedAt = null;
+  pinchConsumed = false;
 }
 
 /**
