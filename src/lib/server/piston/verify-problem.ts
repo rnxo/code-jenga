@@ -60,7 +60,7 @@ export async function verifyProblem(input: VerifyProblemInput): Promise<VerifyPr
   }
 
   const summary = parseVitestOutput(result.stdout);
-  const status = result.exitCode === null ? "error" : result.exitCode === 0 ? "passed" : "failed";
+  const status = result.outcome;
   const testRun = await createTestRun({
     kind: "problem_verification",
     problemId: input.problemId,

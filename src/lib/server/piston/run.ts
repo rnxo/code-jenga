@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getServerEnv } from "@/lib/server/env";
-import { classifyPistonRun, isPistonExecuteResponse } from "./classify";
+import { classifyPistonRun, isPistonExecuteResponse, type PistonOutcome } from "./classify";
 import { composeFromConcatenated, composeProgram } from "./compose";
 import { PistonError } from "./errors";
 
@@ -25,6 +25,11 @@ export interface PistonRunInput {
 }
 
 export interface PistonRunResult {
+  /**
+   * passed / failed / error の分類結果（classify.ts）。test_runs.status にそのまま入れられる。
+   * 呼び出し側は exitCode から再判定せず、この値を使うこと（backend-todo 4-3）。
+   */
+  outcome: PistonOutcome;
   /** null は「Piston は実行したが判定不能」（ハーネス障害など）。呼び出し不能は throw で表す。 */
   exitCode: number | null;
   stdout: string;
@@ -40,8 +45,14 @@ export interface PistonRunResult {
   errorMessage: string | null;
 }
 
-const REQUEST_TIMEOUT_MS = 10_000;
-const TOTAL_BUDGET_MS = 20_000;
+// Piston 側のジョブ制限（backend-todo 4-1）。
+// piston/docker-compose.yml の PISTON_RUN_TIMEOUT / PISTON_COMPILE_TIMEOUT が上限で、
+// リクエストの run_timeout / compile_timeout はそれ以下でなければ Piston が 400 を返す。
+const DEFAULT_RUN_TIMEOUT_MS = 3_000;
+const DEFAULT_COMPILE_TIMEOUT_MS = 10_000;
+// HTTP 1回あたりの待ち時間。Piston の実行上限（compile + run）にキュー待ち・転送分の余裕を足す。
+const REQUEST_TIMEOUT_MARGIN_MS = 5_000;
+const MIN_REQUEST_TIMEOUT_MS = 10_000;
 const RETRY_DELAYS_MS = [300, 900] as const;
 const MAX_ERROR_BODY_CHARS = 500;
 
@@ -49,6 +60,26 @@ interface PistonConfig {
   executeUrl: string;
   language: string;
   version: string;
+  /** Piston に渡す run ステージの制限時間（ms） */
+  runTimeoutMs: number;
+  /** Piston に渡す compile ステージの制限時間（ms） */
+  compileTimeoutMs: number;
+  /** クライアント側（fetch）の1リクエストのタイムアウト（ms） */
+  requestTimeoutMs: number;
+  /** リトライを含めた総予算（ms） */
+  totalBudgetMs: number;
+}
+
+/** 環境変数から正の整数（ms）を読む。未設定・不正値は既定値を使い、不正値は警告を出す。 */
+function readTimeoutEnv(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    console.warn(`[piston] ${name}="${raw}" は正の整数ではないため既定値 ${fallback} を使います。`);
+    return fallback;
+  }
+  return value;
 }
 
 /** 環境変数から Piston 設定を解決する。languageVersion の "latest" は Piston では無効なので "*" に正規化する。 */
@@ -59,23 +90,36 @@ function resolveConfig(input: PistonRunInput): PistonConfig {
   const requested = input.languageVersion.trim();
   const version =
     process.env.PISTON_LANGUAGE_VERSION?.trim() || (requested === "" || requested === "latest" ? "*" : requested);
-  return { executeUrl: `${base}/execute`, language, version };
+  const runTimeoutMs = readTimeoutEnv("PISTON_RUN_TIMEOUT_MS", DEFAULT_RUN_TIMEOUT_MS);
+  const compileTimeoutMs = readTimeoutEnv("PISTON_COMPILE_TIMEOUT_MS", DEFAULT_COMPILE_TIMEOUT_MS);
+  const requestTimeoutMs = Math.max(MIN_REQUEST_TIMEOUT_MS, runTimeoutMs + compileTimeoutMs + REQUEST_TIMEOUT_MARGIN_MS);
+  return {
+    executeUrl: `${base}/execute`,
+    language,
+    version,
+    runTimeoutMs,
+    compileTimeoutMs,
+    requestTimeoutMs,
+    totalBudgetMs: requestTimeoutMs * 2,
+  };
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function toPistonError(error: unknown, executeUrl: string): PistonError {
+function toPistonError(error: unknown, config: PistonConfig): PistonError {
   if (error instanceof PistonError) return error;
   if (error instanceof Error && error.name === "TimeoutError") {
-    return new PistonError("timeout", `Piston の応答が ${REQUEST_TIMEOUT_MS}ms 以内に返りませんでした（${executeUrl}）。`, {
-      cause: error,
-    });
+    return new PistonError(
+      "timeout",
+      `Piston の応答が ${config.requestTimeoutMs}ms 以内に返りませんでした（${config.executeUrl}）。同時実行が多くキューイングされている可能性があります。`,
+      { cause: error },
+    );
   }
   return new PistonError(
     "network",
-    `Piston へ接続できません（${executeUrl}）。piston/docker-compose.yml のコンテナが起動しているか確認してください。`,
+    `Piston へ接続できません（${config.executeUrl}）。piston/docker-compose.yml のコンテナが起動しているか確認してください（scripts/setup-piston.sh）。`,
     { cause: error },
   );
 }
@@ -98,7 +142,7 @@ async function httpErrorToPistonError(response: Response, config: PistonConfig):
   }
   return new PistonError(
     "bad_request",
-    `Piston がリクエストを拒否しました（HTTP ${status}）。PISTON_LANGUAGE=${config.language} / PISTON_LANGUAGE_VERSION=${config.version} がインストール済みか確認してください（GET ${config.executeUrl.replace(/\/execute$/, "/runtimes")}）: ${body}`,
+    `Piston がリクエストを拒否しました（HTTP ${status}）。PISTON_LANGUAGE=${config.language} / PISTON_LANGUAGE_VERSION=${config.version} がインストール済みか（GET ${config.executeUrl.replace(/\/execute$/, "/runtimes")}）、run_timeout=${config.runTimeoutMs} / compile_timeout=${config.compileTimeoutMs} が docker-compose.yml の PISTON_RUN_TIMEOUT / PISTON_COMPILE_TIMEOUT 以下かを確認してください: ${body}`,
     { status },
   );
 }
@@ -115,12 +159,15 @@ async function executeOnce(config: PistonConfig, program: string): Promise<unkno
         files: [{ name: "main.ts", content: program }],
         stdin: "",
         args: [],
+        // backend-todo 4-1: Piston 既定（run 3秒・compile 10秒）に任せず明示する。
+        run_timeout: config.runTimeoutMs,
+        compile_timeout: config.compileTimeoutMs,
       }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(config.requestTimeoutMs),
       cache: "no-store",
     });
   } catch (error) {
-    throw toPistonError(error, config.executeUrl);
+    throw toPistonError(error, config);
   }
   if (!response.ok) {
     throw await httpErrorToPistonError(response, config);
@@ -140,10 +187,10 @@ async function executeWithRetry(config: PistonConfig, program: string): Promise<
     try {
       return await executeOnce(config, program);
     } catch (error) {
-      const pistonError = toPistonError(error, config.executeUrl);
+      const pistonError = toPistonError(error, config);
       const delay = RETRY_DELAYS_MS[attempt];
-      const remaining = TOTAL_BUDGET_MS - (Date.now() - startedAt);
-      if (!pistonError.retryable || delay === undefined || remaining < delay + REQUEST_TIMEOUT_MS) {
+      const remaining = config.totalBudgetMs - (Date.now() - startedAt);
+      if (!pistonError.retryable || delay === undefined || remaining < delay + config.requestTimeoutMs) {
         throw pistonError;
       }
       attempt += 1;
@@ -168,6 +215,7 @@ export async function runOnPiston(input: PistonRunInput): Promise<PistonRunResul
   const compileFailed = raw.compile !== undefined && typeof raw.compile.code === "number" && raw.compile.code !== 0;
   const stderr = classified.stderrNote ? `${raw.run.stderr}\n${classified.stderrNote}`.trim() : raw.run.stderr;
   return {
+    outcome: classified.outcome,
     exitCode: classified.exitCode,
     stdout: raw.run.stdout,
     stderr,
