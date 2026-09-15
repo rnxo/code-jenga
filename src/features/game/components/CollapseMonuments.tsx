@@ -29,17 +29,19 @@ function LibertySvg() {
         <path d="M40 22 h9 l-4.5 -13 Z" />
         {/* もう一方の腕（銘板） */}
         <path d="M27 52 L20 62 L24 66 L30 57 Z" />
-        {/* 頭と冠 */}
-        <circle cx="32" cy="35" r="8" />
-        <path d="M32 21 l2.5 7 h-5 Z" />
-        <path d="M24 24 l4 6 -5.5 -1.5 Z" />
-        <path d="M40 24 l-4 6 5.5 -1.5 Z" />
-        <path d="M19 30 l5 4 -6 0.5 Z" />
-        <path d="M45 30 l-5 4 6 0.5 Z" />
       </g>
 
-      {/* 顔。勝ち側なので誇らしげに。ゆっくり横に揺れる */}
-      <g className={styles.monumentFace}>
+      {/* 頭ごと振る。冠・顔・舌・吐瀉物をひとまとめにして、首のあたりを軸に回す */}
+      <g className={styles.monumentHead}>
+        <g fill="currentColor">
+          {/* 頭と冠 */}
+          <circle cx="32" cy="35" r="8" />
+          <path d="M32 21 l2.5 7 h-5 Z" />
+          <path d="M24 24 l4 6 -5.5 -1.5 Z" />
+          <path d="M40 24 l-4 6 5.5 -1.5 Z" />
+          <path d="M19 30 l5 4 -6 0.5 Z" />
+          <path d="M45 30 l-5 4 6 0.5 Z" />
+        </g>
         {/* 顔の面。シルエットより明るくして目鼻立ちが乗るようにする */}
         <ellipse cx="32" cy="35.5" rx="6.3" ry="6.9" fill="#9ec9bb" />
         {/* 生え際 */}
@@ -117,14 +119,16 @@ function DaibutsuSvg() {
         <path d="M30 90 q-2 -34 18 -34 q20 0 18 34 Z" />
         {/* 手（印を結ぶ） */}
         <ellipse cx="48" cy="80" rx="9" ry="4" />
-        {/* 頭 */}
-        <circle cx="48" cy="44" r="15" />
-        {/* 肉髻 */}
-        <circle cx="48" cy="28" r="5" />
       </g>
 
-      {/* 顔。負け側なので、伏し目でいたわる表情に。女神とずらして揺らす */}
-      <g className={`${styles.monumentFace} ${styles.monumentFaceSlow}`}>
+      {/* 頭ごと振る。顔・舌・吐瀉物をひとまとめにして、首のあたりを軸に回す */}
+      <g className={`${styles.monumentHead} ${styles.monumentHeadSlow}`}>
+        <g fill="currentColor">
+          {/* 頭 */}
+          <circle cx="48" cy="44" r="15" />
+          {/* 肉髻 */}
+          <circle cx="48" cy="28" r="5" />
+        </g>
         {/* 長い耳 */}
         <ellipse cx="34" cy="46" rx="2.6" ry="5.2" fill="#5c4d34" />
         <ellipse cx="62" cy="46" rx="2.6" ry="5.2" fill="#5c4d34" />

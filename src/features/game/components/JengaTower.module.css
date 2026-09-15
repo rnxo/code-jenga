@@ -658,19 +658,22 @@
   transform: translateX(-50%) rotate(3deg);
 }
 
-/* 像の顔。首のあたりを軸に、ゆっくり横に揺れる */
-.monumentFace {
+/*
+ * 頭ごと振る。冠・顔・舌・吐瀉物をまとめた .monumentHead を首のあたりで回す。
+ * 2体が立ち上がってから数秒おいて始まる（FINALE_DELAY と合わせる）。
+ */
+.monumentHead {
   /* SVG の変形基準を自分の描画範囲にする（これが無いと SVG 全体が基準になる） */
   transform-box: fill-box;
-  transform-origin: 50% 88%;
-  /* 最大限速く振る。linear にしないと、この短さでは端で止まって見える */
-  animation: faceSway 0.12s linear infinite;
+  transform-origin: 50% 100%;
+  /* linear にしないと、この短さでは端で止まって見える */
+  animation: faceSway 0.12s linear 4s infinite;
 }
 
 /* 2体が完全に同期しないよう、大仏だけわずかにずらす */
-.monumentFaceSlow {
+.monumentHeadSlow {
   animation-duration: 0.15s;
-  animation-delay: -0.075s;
+  animation-delay: 4.15s;
 }
 
 @keyframes faceSway {
@@ -684,16 +687,26 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .monumentFace {
+  .monumentHead {
     animation: none;
   }
 }
 
-/* 虹色の吐瀉物。顔と同じグループにあるので、首を振ると一緒に振れる */
+/* 虹色の吐瀉物。頭と同じグループにあるので、首を振ると一緒に振れる。
+   立ち上がってしばらくしてから出す */
 .puke {
   transform-box: fill-box;
   transform-origin: 50% 0%;
-  animation: pukePulse 0.45s ease-in-out infinite alternate;
+  opacity: 0;
+  animation:
+    pukeAppear 0.18s linear 4s forwards,
+    pukePulse 0.45s ease-in-out 4s infinite alternate;
+}
+
+@keyframes pukeAppear {
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes pukePulse {
@@ -709,17 +722,17 @@
 .pukeDrop,
 .pukeDropB,
 .pukeDropC {
-  animation: pukeDrop 0.6s linear infinite;
+  animation: pukeDrop 0.6s linear 4s infinite;
 }
 
 .pukeDropB {
   animation-duration: 0.75s;
-  animation-delay: -0.25s;
+  animation-delay: 3.75s;
 }
 
 .pukeDropC {
   animation-duration: 0.9s;
-  animation-delay: -0.5s;
+  animation-delay: 3.5s;
 }
 
 @keyframes pukeDrop {
@@ -750,7 +763,8 @@
   transform-box: fill-box;
   transform-origin: 50% 50%;
   animation: rollEyesUp 0.35s ease-in forwards;
-  animation-delay: 1.35s;
+  /* 吐き始める直前に裏返る */
+  animation-delay: 3.8s;
 }
 
 @keyframes rollEyesUp {
@@ -771,7 +785,7 @@
 .eyeRolled {
   opacity: 0;
   animation: rollEyesReveal 0.35s ease-in forwards;
-  animation-delay: 1.45s;
+  animation-delay: 3.9s;
 }
 
 @keyframes rollEyesReveal {
