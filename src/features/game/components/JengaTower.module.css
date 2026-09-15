@@ -569,12 +569,15 @@
 /* ------------------------------------------------------------------
    勝敗表示。自由の女神が勝ち側、奈良の大仏が負け側を持つ。
    ------------------------------------------------------------------ */
+.monumentBody {
+  position: relative;
+  display: block;
+  line-height: 0;
+}
+
+/* 札は像の中に重ねる。像の外に積むと、背の高い像では画面の外にはみ出す */
 .verdictBadge {
-  /* 像の上に重ねる。像の外に積むと、背の高い像では画面の外にはみ出す */
   position: absolute;
-  top: 8%;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 1;
   display: flex;
   flex-direction: column;
@@ -625,7 +628,6 @@
 }
 
 .monumentsCompact .verdictBadge {
-  top: 4%;
   padding: 0.1rem 0.4rem 0.15rem;
   border-width: 1px;
   border-radius: 0.35rem;
@@ -637,4 +639,18 @@
 
 .monumentsCompact .verdictText {
   font-size: 0.75rem;
+}
+
+/* 像が持っているように見える位置。女神は掲げた銘板、大仏は印を結んだ手のあたり */
+.verdictOnLiberty {
+  left: 2%;
+  top: 40%;
+  transform: rotate(-9deg);
+  transform-origin: 100% 50%;
+}
+
+.verdictOnBuddha {
+  left: 50%;
+  top: 60%;
+  transform: translateX(-50%) rotate(3deg);
 }

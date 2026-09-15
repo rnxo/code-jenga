@@ -92,11 +92,16 @@ export function CollapseMonuments({
           .filter(Boolean)
           .join(" ")}
       >
-        <span className={`${styles.verdictBadge} ${styles.verdictWin}`}>
-          <span className={styles.verdictLabel}>win</span>
-          <span className={styles.verdictText}>勝ち</span>
+        {/* 掲げた銘板の位置に札を重ねて、女神が持っているように見せる */}
+        <span className={styles.monumentBody}>
+          <LibertySvg />
+          <span
+            className={`${styles.verdictBadge} ${styles.verdictWin} ${styles.verdictOnLiberty}`}
+          >
+            <span className={styles.verdictLabel}>win</span>
+            <span className={styles.verdictText}>勝ち</span>
+          </span>
         </span>
-        <LibertySvg />
         <figcaption className={styles.monumentCaption}>自由の女神</figcaption>
       </figure>
 
@@ -109,11 +114,16 @@ export function CollapseMonuments({
           .filter(Boolean)
           .join(" ")}
       >
-        <span className={`${styles.verdictBadge} ${styles.verdictLose}`}>
-          <span className={styles.verdictLabel}>lose</span>
-          <span className={styles.verdictText}>負け</span>
+        {/* 印を結んだ手のあたりに札を重ねて、大仏が掲げているように見せる */}
+        <span className={styles.monumentBody}>
+          <DaibutsuSvg />
+          <span
+            className={`${styles.verdictBadge} ${styles.verdictLose} ${styles.verdictOnBuddha}`}
+          >
+            <span className={styles.verdictLabel}>lose</span>
+            <span className={styles.verdictText}>負け</span>
+          </span>
         </span>
-        <DaibutsuSvg />
         <figcaption className={styles.monumentCaption}>奈良の大仏</figcaption>
       </figure>
     </div>
