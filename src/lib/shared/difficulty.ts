@@ -69,7 +69,7 @@ export function classifyLine(lineText: string): LineKind {
 /** 難易度ごとに削除を許可する行種別（EASY ⊇ NORMAL ⊇ HARD の単調な包含関係）。 */
 const DELETABLE_KINDS: Record<TurnDifficulty, readonly LineKind[]> = {
   easy: ["blank", "comment", "symbol-only", "declaration", "expression"],
-  normal: ["declaration", "expression"],
+  normal: ["comment", "symbol-only", "declaration", "expression"],
   hard: ["declaration"],
 };
 
@@ -125,6 +125,6 @@ export const DIFFICULTY_LABEL: Record<TurnDifficulty, string> = {
 /** UI 表示用の縛りの説明文（日本語）。 */
 export const DIFFICULTY_RULE_TEXT: Record<TurnDifficulty, string> = {
   easy: "どの行でも削除できます。",
-  normal: "空行・コメント行・記号だけの行は削除できません。",
+  normal: "空行だけは削除できません。",
   hard: "宣言・制御（function / const / if / return など）を含む行しか削除できません。",
 };
