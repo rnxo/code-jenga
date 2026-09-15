@@ -5,17 +5,18 @@ import type { MascotMood } from "../mascot-lines";
 
 // カイル風マスコットの見た目。担当: 見た目（Nezumi / ようた）
 // 渡されたセリフを吹き出しで出すだけ。何を喋るかは GameBoard 側（mascot-lines.ts）で決める。
-// キャラの絵はいまは絵文字。GIF / スプライトに差し替えるときは FACE の部分だけ変えればよい。
+// キャラの絵は public/images/mascot/{mood}.png（#42）。画像がまだ無い（404）間は絵文字で代用する。
+// GIF に差し替えるときは FACE の src の拡張子を変えるだけでよい。
 
 export interface MascotProps {
   message: string | null;
   mood: MascotMood;
 }
 
-const FACE: Record<MascotMood, string> = {
-  idle: "🐭",
-  smug: "😏",
-  panic: "😱",
+const FACE: Record<MascotMood, { src: string; emoji: string }> = {
+  idle: { src: "/images/mascot/idle.png", emoji: "🐭" },
+  smug: { src: "/images/mascot/smug.png", emoji: "😏" },
+  panic: { src: "/images/mascot/panic.png", emoji: "😱" },
 };
 
 const BUBBLE_CLASS: Record<MascotMood, string> = {
@@ -26,6 +27,10 @@ const BUBBLE_CLASS: Record<MascotMood, string> = {
 
 export function Mascot({ message, mood }: MascotProps) {
   const [isMuted, setIsMuted] = useState(false);
+  /** 読み込みに失敗した表情。その表情だけ絵文字に戻す */
+  const [failedMoods, setFailedMoods] = useState<Partial<Record<MascotMood, true>>>({});
+  const face = FACE[mood];
+  const motionClass = mood === "panic" ? "animate-bounce" : "animate-pulse";
 
   if (isMuted) {
     return (
@@ -57,13 +62,24 @@ export function Mascot({ message, mood }: MascotProps) {
           />
         </div>
       ) : null}
-      <div className="pointer-events-auto flex flex-col items-center gap-1">
-        <span
-          aria-hidden
-          className={`select-none text-5xl drop-shadow ${mood === "panic" ? "animate-bounce" : "animate-pulse"}`}
-        >
-          {FACE[mood]}
-        </span>
+      <div className="pointer-events-auto flex shrink-0 flex-col items-center gap-1">
+        {failedMoods[mood] ? (
+          <span aria-hidden className={`select-none text-5xl drop-shadow ${motionClass}`}>
+            {face.emoji}
+          </span>
+        ) : (
+          // 小さな固定画像で、後で GIF にする予定なので next/image の最適化は使わない
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            aria-hidden
+            src={face.src}
+            alt=""
+            width={64}
+            height={64}
+            className={`h-16 w-16 select-none object-contain drop-shadow ${motionClass}`}
+            onError={() => setFailedMoods((prev) => ({ ...prev, [mood]: true }))}
+          />
+        )}
         <button
           type="button"
           onClick={() => setIsMuted(true)}
