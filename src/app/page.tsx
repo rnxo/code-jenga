@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { OsekkaikunBackground } from "@/components/ui/OsekkaikunBackground";
 import { Stack } from "@/components/ui/Stack";
+import { TitleMascot } from "@/features/game";
 
 // トップページ。担当: FE-A
 
@@ -36,6 +37,9 @@ export default function HomePage() {
           始める
         </Link>
       </div>
+
+      {/* 右下に常駐するマスコット（#42） */}
+      <TitleMascot />
     </main>
   );
 }
