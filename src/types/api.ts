@@ -96,6 +96,31 @@ export interface GetGameResponse {
   turns: Turn[];
 }
 
+// ---- POST /api/games/[gameId]/timeout（制限時間切れの確定） ---------------
+
+/** リクエストボディは不要。参加者なら誰が叩いてもよく、サーバーが turn_deadline_at を検証する。 */
+export interface TimeoutTurnResponse {
+  game: Game;
+  /** この呼び出しで試合を終了させたか。false なら既に手が確定していた／別の呼び出しで終了済み。 */
+  applied: boolean;
+}
+
+// ---- POST /api/games/[gameId]/leave（離脱） ------------------------------
+
+/** リクエストボディは不要（離脱者は認証ユーザー自身）。 */
+export interface LeaveGameResponse {
+  game: Game;
+}
+
+// ---- POST /api/games/[gameId]/rematch（再戦） ----------------------------
+
+/** リクエストボディは不要。決着済みの前局の gameId を指定する。 */
+export interface RematchGameResponse {
+  /** 新しく作られた（または既に存在した）次局。status = 'waiting' */
+  game: Game;
+  players: GamePlayer[];
+}
+
 // ---- POST /api/problems（お題生成＋Piston事前検証） ----------------------
 
 export interface CreateProblemRequest {

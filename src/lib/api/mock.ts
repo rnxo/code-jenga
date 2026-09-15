@@ -18,8 +18,11 @@ import type {
   GetGameResponse,
   JoinRoomRequest,
   JoinRoomResponse,
+  LeaveGameResponse,
+  RematchGameResponse,
   StartGameRequest,
   StartGameResponse,
+  TimeoutTurnResponse,
 } from "@/types/api";
 import type { Game, GamePlayer, Problem, Room, Turn } from "@/types/game";
 import { rollTurnDifficulty } from "@/lib/shared/difficulty";
@@ -309,4 +312,53 @@ export async function createProblem(
   _req: CreateProblemRequest,
 ): Promise<ApiResult<CreateProblemResponse>> {
   return ok({ problem: mockProblem() });
+}
+
+export async function timeoutTurn(gameId: string): Promise<ApiResult<TimeoutTurnResponse>> {
+  return ok({
+    game: mockGame({
+      id: gameId,
+      status: "finished",
+      current_player_id: null,
+      turn_deadline_at: null,
+      loser_id: MOCK_HOST_ID,
+      finish_reason: "timeout",
+      finished_at: nowIso(),
+    }),
+    applied: true,
+  });
+}
+
+export async function leaveGame(gameId: string): Promise<ApiResult<LeaveGameResponse>> {
+  // モックは2人対戦のため、離脱すると残り1人になり中断（aborted）扱いになる。
+  return ok({
+    game: mockGame({
+      id: gameId,
+      status: "aborted",
+      current_player_id: null,
+      turn_deadline_at: null,
+      finish_reason: "aborted",
+      finished_at: nowIso(),
+    }),
+  });
+}
+
+export async function rematchGame(_gameId: string): Promise<ApiResult<RematchGameResponse>> {
+  const nextGameId = "20000000-0000-4000-8000-000000000002";
+  return ok({
+    game: mockGame({
+      id: nextGameId,
+      round_no: 2,
+      status: "waiting",
+      problem_id: null,
+      turn_no: 0,
+      current_player_id: null,
+      current_turn_difficulty: null,
+      turn_deadline_at: null,
+      current_code: null,
+      current_line_count: null,
+      started_at: null,
+    }),
+    players: mockPlayers().map((player) => ({ ...player, game_id: nextGameId, is_ready: false })),
+  });
 }

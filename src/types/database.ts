@@ -7,6 +7,7 @@
 //   - supabase/migrations/20260914061141_init_schema.sql
 //   - supabase/migrations/20260914061323_tune_indexes_and_rls.sql
 //   - supabase/migrations/20260914093123_add_turn_difficulty.sql
+//   - supabase/migrations/20260915120000_apply_turn_rpc.sql
 // ============================================================================
 
 export type Json =
@@ -425,6 +426,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_turn: {
+        Args: {
+          p_game_id: string
+          p_player_id: string
+          p_expected_turn_no: number
+          p_deleted_line_no: number
+          p_deleted_line_text: string
+          p_code_after: string
+          p_turn_result: Database["public"]["Enums"]["turn_result"]
+          p_next_player_id: string | null
+          p_next_turn_difficulty:
+            | Database["public"]["Enums"]["turn_difficulty"]
+            | null
+          p_finish_reason:
+            | Database["public"]["Enums"]["game_finish_reason"]
+            | null
+          p_duration_ms: number | null
+          p_test_run: Json
+        }
+        Returns: Json
+      }
       is_game_participant: { Args: { p_game_id: string }; Returns: boolean }
       join_room: { Args: { p_code: string }; Returns: string }
     }

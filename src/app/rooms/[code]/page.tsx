@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GameBoard } from "@/features/game";
 import { ResultDialog } from "@/features/result";
-import { PlayerList, type LobbyPlayer } from "@/features/lobby";
+import { LobbyPanel, type LobbyPlayer } from "@/features/lobby";
 import { Spinner } from "@/components/ui/Spinner";
 import * as mock from "@/lib/api/mock";
 import type { Game, Room } from "@/types/game";
@@ -149,8 +149,13 @@ export default async function RoomPage({ params }: RoomPageProps) {
     return (
       <main className="mx-auto flex max-w-md flex-col gap-4 px-4 py-12">
         <h1 className="text-xl font-bold">ロビー（{code}）</h1>
-        <PlayerList players={lobbyPlayers} hostId={room.host_id} />
-        {/* TODO(FE-A): 準備完了トグル・ホストの「試合開始」ボタン（POST /api/games/[gameId]/start）。 */}
+        <LobbyPanel
+          game={game}
+          players={lobbyPlayers}
+          roomCode={code}
+          hostId={room.host_id}
+          currentUserId={userId}
+        />
       </main>
     );
   }
