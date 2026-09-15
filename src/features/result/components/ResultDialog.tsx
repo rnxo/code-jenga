@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { JengaTower } from "@/features/game";
+import { JengaTower, type CollapseVerdict } from "@/features/game";
 import type { Game, GameFinishReason } from "@/types/game";
 
 // 敗者表示＋再戦ボタン。担当: ようた（#21 で FE-B から移管）
@@ -33,6 +33,11 @@ export interface ResultDialogProps {
   onBackToTop?: () => void;
   /** 退出リクエストの送信中。ボタンを押せなくする */
   isLeaving?: boolean;
+  /**
+   * 見ている人の profile id。渡すと崩れたタワーの像に「勝ち」「負け」を出し分ける。
+   * 渡さないと両方が同じ明るさで立つ（配線は FE-B / page.tsx が userId を持っている）。
+   */
+  currentUserId?: string | null;
 }
 
 /** games.finish_reason（database.ts の game_finish_reason）の日本語表示。 */
@@ -72,6 +77,7 @@ export function ResultDialog({
   rematchBlockedMessage = null,
   onBackToTop,
   isLeaving = false,
+  currentUserId = null,
 }: ResultDialogProps) {
   const router = useRouter();
   const finishReason = game.finish_reason;
@@ -83,6 +89,14 @@ export function ResultDialog({
     }
     router.push("/");
   }
+
+  // 敗者が分かっていて、かつ見ている人が誰か分かるときだけ勝敗を出す
+  const verdict: CollapseVerdict | null =
+    game.loser_id === null || currentUserId === null
+      ? null
+      : game.loser_id === currentUserId
+        ? "lose"
+        : "win";
 
   const showCollapsedTower =
     finishReason !== null &&
@@ -117,6 +131,7 @@ export function ResultDialog({
             collapsed
             compact
             silent
+            verdict={verdict}
           />
         </div>
       ) : (

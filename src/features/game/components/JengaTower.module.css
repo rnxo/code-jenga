@@ -545,13 +545,18 @@
 .burstFullscreen {
   position: fixed;
   inset: 0;
+  /* 光は 3.6 秒で消えるので前面でよい */
   z-index: 30;
 }
 
 .monumentsFullscreen {
   position: fixed;
   inset: 0;
-  z-index: 31;
+  /*
+   * 像は崩壊後もずっと立っているので、盤面の前に置くとコードと削除ボタンを
+   * 覆ってしまう。負の z-index で本文の後ろに回し、画面の左右に大きく見せる。
+   */
+  z-index: -1;
   padding: 0 1vw;
 }
 
