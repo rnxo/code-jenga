@@ -41,7 +41,9 @@ export function Mascot({ message, mood }: MascotProps) {
   }
 
   return (
-    <div className="pointer-events-none fixed right-4 bottom-4 z-40 flex max-w-xs items-end gap-2">
+    // スマホ幅では吹き出しが画面いっぱいに広がり、盤面の下（判定・退出ボタン）に
+    // 重なる。狭いときだけ幅を絞る
+    <div className="pointer-events-none fixed right-4 bottom-4 z-40 flex max-w-[70vw] items-end gap-2 sm:max-w-xs">
       {message ? (
         <div
           className={`pointer-events-auto relative rounded-xl border-2 px-3 py-2 text-sm shadow-md ${BUBBLE_CLASS[mood]}`}
