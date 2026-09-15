@@ -63,7 +63,7 @@ function findMarkerLine(stdout: string, marker: string): string | undefined {
  * Piston の実行結果を分類する。
  * 「Piston がジョブを実行したうえでの結果」だけを扱い、呼び出し自体の失敗は PistonError（throw）が担う。
  */
-export function classifyPistonRun(response: PistonExecuteResponse): ClassifiedRun {
+export function classifyPistonRun(response: PistonExecuteResponse, expectedOutput?: string): ClassifiedRun {
   const { run, compile } = response;
 
   if (compile && typeof compile.code === "number" && compile.code !== 0) {
@@ -73,6 +73,13 @@ export function classifyPistonRun(response: PistonExecuteResponse): ClassifiedRu
   if (typeof run.code === "number") {
     if (run.code !== 0) {
       return { outcome: "failed", exitCode: run.code, errorMessage: null, stderrNote: null };
+    }
+    if (expectedOutput !== undefined) {
+      const actual = run.stdout.replace(/\r\n/g, "\n");
+      const expected = expectedOutput.replace(/\r\n/g, "\n");
+      return actual === expected
+        ? { outcome: "passed", exitCode: 0, errorMessage: null, stderrNote: null }
+        : { outcome: "failed", exitCode: 1, errorMessage: null, stderrNote: "標準出力が期待値と一致しませんでした。" };
     }
     if (findMarkerLine(run.stdout, CJ_SUMMARY_MARKER) !== undefined) {
       return { outcome: "passed", exitCode: 0, errorMessage: null, stderrNote: null };

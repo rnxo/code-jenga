@@ -18,6 +18,7 @@ export const PYTHON_LANGUAGE: LanguageDefinition = {
   defaultVersion: "*",
   fileName: "main.py",
   envSuffix: "PYTHON",
+  testStrategy: "harness",
   compose: composePythonProgram,
   prompt: {
     roleLine: "あなたはPythonの教材コードを作る専門家です。",

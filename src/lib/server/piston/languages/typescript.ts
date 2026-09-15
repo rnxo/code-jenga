@@ -17,6 +17,7 @@ export const TYPESCRIPT_LANGUAGE: LanguageDefinition = {
   defaultVersion: "*",
   fileName: "main.ts",
   envSuffix: "TYPESCRIPT",
+  testStrategy: "harness",
   compose: composeProgram,
   prompt: {
     roleLine: "あなたはTypeScriptの教材コードを作る専門家です。",

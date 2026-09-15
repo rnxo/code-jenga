@@ -24,6 +24,20 @@ describe("classifyPistonRun", () => {
     expect(c).toMatchObject({ outcome: "passed", exitCode: 0 });
   });
 
+  it("期待標準出力が一致する実行 → passed", () => {
+    expect(classifyPistonRun(response({ code: 0, stdout: "Hello\\n" }), "Hello\\n")).toMatchObject({
+      outcome: "passed",
+      exitCode: 0,
+    });
+  });
+
+  it("期待標準出力が不一致の実行 → failed", () => {
+    expect(classifyPistonRun(response({ code: 0, stdout: "Hello" }), "World")).toMatchObject({
+      outcome: "failed",
+      exitCode: 1,
+    });
+  });
+
   it("exit 非ゼロ → failed（終了コードを保持）", () => {
     expect(classifyPistonRun(response({ code: 1 }))).toMatchObject({ outcome: "failed", exitCode: 1 });
   });

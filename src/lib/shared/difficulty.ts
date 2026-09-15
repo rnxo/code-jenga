@@ -97,6 +97,11 @@ const LINE_RULES: Record<CodeLanguage, LanguageLineRules> = {
     // Python では閉じ括弧だけの行はほとんど出ないが、複数行リテラルの終端で現れる。
     symbolOnlyPattern: /^[)\]},]+$/,
   },
+  brainfuck: {
+    commentPrefixes: ["//", ";"],
+    declarationPattern: /[+\-<>[\].,]/,
+    symbolOnlyPattern: /^[+\-<>[\].,]+$/,
+  },
 };
 
 /** 行テキストを分類する（行単位のパターンマッチのみ）。 */

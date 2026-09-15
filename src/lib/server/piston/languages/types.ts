@@ -23,6 +23,8 @@ export interface LanguageDefinition {
   readonly fileName: string;
   /** 環境変数の接尾辞（PISTON_LANGUAGE_PYTHON など）。大文字。 */
   readonly envSuffix: string;
+  /** テストハーネスを使うか、testCode を期待標準出力として比較するか。 */
+  readonly testStrategy: "harness" | "stdout";
   /** 対象コードとテストコードを1ファイルに合成する。 */
   readonly compose: (input: ComposeInput) => ComposedProgram;
   readonly prompt: LanguagePromptSection;

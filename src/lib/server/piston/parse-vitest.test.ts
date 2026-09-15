@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseVitestOutput } from "./parse-vitest";
+import { parseTestOutput, parseVitestOutput } from "./parse-vitest";
 
 describe("parseVitestOutput", () => {
   it("マーカー行をパースする", () => {
@@ -33,5 +33,16 @@ describe("parseVitestOutput", () => {
       failedTests: 1,
     });
     expect(parseVitestOutput("      Tests  2 passed (2)")).toEqual({ totalTests: 2, passedTests: 2, failedTests: 0 });
+  });
+});
+
+describe("parseTestOutput", () => {
+  it("Brainfuckは期待標準出力の一致を1件の成功として集計する", () => {
+    expect(parseTestOutput("Hello\n", "brainfuck", "Hello\n")).toEqual({
+      totalTests: 1,
+      passedTests: 1,
+      failedTests: 0,
+    });
+    expect(parseTestOutput("Bye\n", "brainfuck", "Hello\n")?.failedTests).toBe(1);
   });
 });
