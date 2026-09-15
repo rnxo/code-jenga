@@ -13,6 +13,21 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false 
 type CodeEditor = Parameters<OnMount>[0];
 type DecorationsCollection = ReturnType<CodeEditor["createDecorationsCollection"]>;
 
+/** 選択行を行全体の背景色でハイライトする。未選択なら装飾を消す。 */
+function applySelection(decorations: DecorationsCollection, lineNo: number | null): void {
+  if (lineNo === null) {
+    decorations.clear();
+    return;
+  }
+  decorations.set([
+    {
+      range: { startLineNumber: lineNo, startColumn: 1, endLineNumber: lineNo, endColumn: 1 },
+      // クラス名はリテラルのままにする（組み立てると Tailwind のスキャンに乗らない）。
+      options: { isWholeLine: true, className: "bg-yellow-200" },
+    },
+  ]);
+}
+
 export interface CodeViewerProps {
   code: string;
   language: string;
@@ -26,6 +41,8 @@ export function CodeViewer({ code, language, selectedLineNo, onSelectLine }: Cod
 
   const handleMount: OnMount = (editor) => {
     decorationsRef.current = editor.createDecorationsCollection();
+    // Monaco は遅延ロードなので、選択済みの状態でマウントされることがある。その場合もここで反映する。
+    applySelection(decorationsRef.current, selectedLineNo);
     editor.onMouseDown((event) => {
       const lineNo = event.target.position?.lineNumber;
       if (lineNo) {
@@ -34,25 +51,10 @@ export function CodeViewer({ code, language, selectedLineNo, onSelectLine }: Cod
     });
   };
 
-  // 選択行を行全体の背景色でハイライトする。未選択なら装飾を消す。
   useEffect(() => {
-    const decorations = decorationsRef.current;
-    if (!decorations) return;
-    if (selectedLineNo === null) {
-      decorations.clear();
-      return;
+    if (decorationsRef.current) {
+      applySelection(decorationsRef.current, selectedLineNo);
     }
-    decorations.set([
-      {
-        range: {
-          startLineNumber: selectedLineNo,
-          startColumn: 1,
-          endLineNumber: selectedLineNo,
-          endColumn: 1,
-        },
-        options: { isWholeLine: true, className: "bg-yellow-200" },
-      },
-    ]);
   }, [selectedLineNo]);
 
   return (
