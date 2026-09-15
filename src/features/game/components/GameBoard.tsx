@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/Spinner";
+import { LeaveButton } from "@/components/ui/LeaveButton";
 import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder } from "@/lib/shared/difficulty";
 import { useGameRealtime } from "../hooks/useGameRealtime";
 import { CodeViewer } from "./CodeViewer";
@@ -62,6 +63,8 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const [selection, setSelection] = useState<{ code: string; lineNo: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
 
   if (isLoading) {
     return <Spinner label="盤面を読み込み中..." />;
@@ -101,6 +104,19 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
     setIsSubmitting(false);
   }
 
+  // 手番中に抜けると次のプレイヤーへ回り、残り1人なら中断になる（サーバー側で処理）。
+  async function handleLeave() {
+    setIsLeaving(true);
+    setLeaveError(null);
+    const result = await apiClient.leaveGame(gameId);
+    if (!result.ok) {
+      setLeaveError(result.error.message);
+      setIsLeaving(false);
+      return;
+    }
+    router.push("/");
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <TurnIndicator game={game} isMyTurn={isMyTurn} />
@@ -120,6 +136,13 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
         />
       ) : null}
       <TestResultPanel turn={latestTurn} />
+      {/* 誤爆しにくいよう一番下に小さく置く */}
+      {leaveError ? (
+        <p className="rounded-md border border-red-300 bg-red-50/60 px-3 py-2 text-center text-sm text-red-700">
+          {leaveError}
+        </p>
+      ) : null}
+      <LeaveButton onLeave={handleLeave} isLeaving={isLeaving} size="quiet" />
     </div>
   );
 }
