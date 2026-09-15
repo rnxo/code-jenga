@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api/client";
 import type { Game } from "@/types/game";
 import { useRematchRealtime } from "../hooks/useRematchRealtime";
+import { DogezaPopup } from "./DogezaPopup";
 import { ResultDialog } from "./ResultDialog";
 
 // 結果画面の配線。担当: FE-B
@@ -23,7 +24,13 @@ export interface ResultPanelProps {
   currentUserId: string | null;
 }
 
-export function ResultPanel({ game, loserNickname, roomCode, hostId, currentUserId }: ResultPanelProps) {
+export function ResultPanel({
+  game,
+  loserNickname,
+  roomCode,
+  hostId,
+  currentUserId,
+}: ResultPanelProps) {
   const router = useRouter();
   const [isRematching, setIsRematching] = useState(false);
   const [rematchError, setRematchError] = useState<string | null>(null);
@@ -50,14 +57,20 @@ export function ResultPanel({ game, loserNickname, roomCode, hostId, currentUser
   }
 
   return (
-    <ResultDialog
-      game={game}
-      loserNickname={loserNickname}
-      roomCode={roomCode}
-      onRematch={isHost ? handleRematch : undefined}
-      rematchUnavailableMessage={isHost ? null : "ホストが再戦を始めると、自動でロビーに移動します。"}
-      isRematching={isRematching}
-      rematchErrorMessage={rematchError}
-    />
+    <>
+      {/* 決着直後に土下座動画をポップアップで見せる。閉じれば下の結果画面が操作できる */}
+      <DogezaPopup />
+      <ResultDialog
+        game={game}
+        loserNickname={loserNickname}
+        roomCode={roomCode}
+        onRematch={isHost ? handleRematch : undefined}
+        rematchUnavailableMessage={
+          isHost ? null : "ホストが再戦を始めると、自動でロビーに移動します。"
+        }
+        isRematching={isRematching}
+        rematchErrorMessage={rematchError}
+      />
+    </>
   );
 }
