@@ -80,6 +80,7 @@ export function ResultPanel({
         isRematching={isRematching}
         rematchErrorMessage={rematchError}
         onReplayDogeza={() => setIsDogezaOpen(true)}
+        currentUserId={currentUserId}
       />
     </>
   );
