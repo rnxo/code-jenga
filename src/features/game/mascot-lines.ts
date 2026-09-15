@@ -9,7 +9,8 @@ export type MascotSituation =
   | "waiting" // 相手の手番を待っている
   | "safe_mine" // 自分の手がセーフだった（相手の手番に移った直後）
   | "safe_opponent" // 相手の手がセーフだった（自分の手番が来た直後）
-  | "idle"; // しばらく何も起きていない
+  | "idle" // しばらく何も起きていない
+  | "title"; // タイトル画面（試合の外）
 
 export type MascotMood = "idle" | "smug" | "panic";
 
@@ -50,6 +51,11 @@ const LINES: Record<MascotSituation, MascotLine[]> = {
   safe_opponent: [
     { message: "相手はセーフだったよ。残念でした。", mood: "smug" },
     { message: "相手、うまいね。君は大丈夫？", mood: "idle" },
+  ],
+  title: [
+    { message: "やあ、ボクはおせっかいくん。今日は誰のコードが崩れるかな？", mood: "idle" },
+    { message: "ルールは簡単。1行抜いて、テストが通ればセーフ。通らなかったら…ね。", mood: "smug" },
+    { message: "友だち呼んできた？ひとりだと遊べないよ。", mood: "idle" },
   ],
   idle: [
     { message: "ボクの名前？まだ無いんだ。付けてよ。", mood: "idle" },
