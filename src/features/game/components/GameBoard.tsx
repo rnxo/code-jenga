@@ -21,6 +21,8 @@ export interface GameBoardProps {
 
 /** 締切を過ぎてからタイムアウト確定を叩くまでの猶予。端末の時計ズレで「まだ過ぎていない」と弾かれるのを避ける。 */
 const TIMEOUT_GRACE_MS = 1500;
+/** それでも弾かれたとき（時計が大きく遅れている端末）に1回だけ叩き直すまでの間隔。 */
+const TIMEOUT_RETRY_MS = 3000;
 
 export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const router = useRouter();
@@ -42,14 +44,19 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
       return;
     }
     const delayMs = new Date(turnDeadlineAt).getTime() - Date.now() + TIMEOUT_GRACE_MS;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const timer = setTimeout(() => {
       void apiClient.timeoutTurn(gameId).then((result) => {
         if (!result.ok) {
           console.error(`タイムアウトの確定に失敗しました: ${result.error.message}`);
+          retryTimer = setTimeout(() => void apiClient.timeoutTurn(gameId), TIMEOUT_RETRY_MS);
         }
       });
     }, Math.max(0, delayMs));
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [gameId, gameStatus, turnDeadlineAt]);
   // 選択は「どのコードに対する選択か」と一緒に持ち、相手の手で current_code が変わったら自動的に無効になる。
   const [selection, setSelection] = useState<{ code: string; lineNo: number } | null>(null);

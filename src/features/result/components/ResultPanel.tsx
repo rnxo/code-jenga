@@ -58,7 +58,9 @@ export function ResultPanel({ game, loserNickname, roomCode }: ResultPanelProps)
       return;
     }
     // 次局が waiting で作られたので、page.tsx に読み直させてロビーに切り替える。
+    // 読み直しても結果画面のままだった場合に押し直せるよう、送信中フラグは戻しておく。
     router.refresh();
+    setIsRematching(false);
   }
 
   return (
