@@ -2,6 +2,7 @@ import { toErrorResponse, toSuccessResponse } from "@/lib/api/errors";
 import { requireUserId } from "@/lib/server/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyProblem } from "@/lib/server/piston/verify-problem";
+import { enforceUserRateLimit } from "@/lib/server/rate-limit";
 
 // POST /api/problems/verify — 未検証のお題（is_verified=false）をまとめて Piston で事前検証する。
 // シードお題（supabase/migrations/*_seed_problems.sql）の初回検証と、Gemini 障害時の手動リカバリに使う。
@@ -15,7 +16,8 @@ export interface VerifyProblemsResponse {
 
 export async function POST(): Promise<Response> {
   try {
-    await requireUserId();
+    const userId = await requireUserId();
+    enforceUserRateLimit(userId, "problem-verification");
     const { data, error } = await createAdminClient()
       .from("problems")
       .select("id, source_code, test_code, language")

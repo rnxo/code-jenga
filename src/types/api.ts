@@ -23,6 +23,8 @@ export type ApiErrorCode =
   | "NOT_YOUR_TURN"
   | "ROOM_NOT_FOUND"
   | "ROOM_FULL"
+  | "ROOM_CLOSED"
+  | "GAME_NOT_READY"
   | "GAME_NOT_FOUND"
   | "GAME_NOT_PLAYING"
   | "INVALID_LINE"
@@ -30,6 +32,7 @@ export type ApiErrorCode =
   | "TEST_RUN_ERROR"
   | "PROBLEM_GENERATION_FAILED"
   | "UNAUTHENTICATED"
+  | "FORBIDDEN"
   | "VALIDATION_ERROR"
   | "INTERNAL_ERROR";
 
