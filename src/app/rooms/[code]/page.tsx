@@ -28,6 +28,8 @@ interface RoomPageData {
   game: Game;
   /** ロビー表示のときだけ埋まる（それ以外は空配列） */
   lobbyPlayers: LobbyPlayer[];
+  /** 決着後に loser_id を profiles.nickname に解決したもの。敗者なし・未解決なら null */
+  loserNickname: string | null;
 }
 
 async function loadFromSupabase(code: string): Promise<RoomPageData | null> {
@@ -93,7 +95,23 @@ async function loadFromSupabase(code: string): Promise<RoomPageData | null> {
     }));
   }
 
-  return { userId: user?.id ?? null, room, game, lobbyPlayers };
+  let loserNickname: string | null = null;
+  if (game.loser_id) {
+    const { data: loser, error: loserError } = await supabase
+      .from("profiles")
+      .select("nickname")
+      .eq("id", game.loser_id)
+      .maybeSingle();
+
+    // 名前は飾りに近いので、引けなくても結果画面は出す（null なら「対戦終了」表示に落ちる）。
+    if (loserError) {
+      console.error(`敗者情報の取得に失敗しました: ${loserError.message}`);
+    } else {
+      loserNickname = loser?.nickname ?? null;
+    }
+  }
+
+  return { userId: user?.id ?? null, room, game, lobbyPlayers, loserNickname };
 }
 
 function loadFromMock(code: string): RoomPageData | null {
@@ -109,6 +127,7 @@ function loadFromMock(code: string): RoomPageData | null {
       ...player,
       nickname: data.nicknameById.get(player.player_id) ?? "(不明なプレイヤー)",
     })),
+    loserNickname: data.game.loser_id ? (data.nicknameById.get(data.game.loser_id) ?? null) : null,
   };
 }
 
@@ -118,7 +137,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
   if (!data) {
     notFound();
   }
-  const { userId, room, game, lobbyPlayers } = data;
+  const { userId, room, game, lobbyPlayers, loserNickname } = data;
 
   if (game.status === "waiting" || game.status === "generating") {
     if (game.status === "generating") {
@@ -157,8 +176,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
   // status: 'finished' | 'aborted'
   return (
     <main className="mx-auto max-w-md px-4 py-12">
-      {/* TODO(共有): loser_id → nickname の解決（profiles 参照）。 */}
-      <ResultDialog game={game} loserNickname={null} roomCode={code} />
+      <ResultDialog game={game} loserNickname={loserNickname} roomCode={code} />
     </main>
   );
 }
