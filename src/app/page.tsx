@@ -12,19 +12,19 @@ const STACK = [
 
 export default function HomePage() {
   return (
-    <main className="mx-auto flex w-full min-h-full max-w-md flex-col gap-8 px-4 py-12">
+    <main className="mx-auto flex w-full min-h-full max-w-md flex-col gap-8 px-4 py-12 md:max-w-4xl md:gap-10 md:py-16">
       <header className="text-center">
         <p className="mb-1 font-mono text-[11px] tracking-[0.3em] text-amber-600/80 uppercase">
           pull one line
         </p>
-        <h1 className="text-3xl font-bold tracking-tight">コードジェンガ</h1>
+        <h1 className="text-3xl font-bold tracking-tight md:text-5xl">コードジェンガ</h1>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
           AI が書いたコードを1行ずつ削除し合う、スリル満点のコーディングゲーム。
         </p>
       </header>
 
-      {/* 何をするゲームかを、文章より先に絵で伝える */}
-      <div aria-hidden className="flex flex-col gap-1.5">
+      {/* 何をするゲームかを、文章より先に絵で伝える。PC でも積み木が間延びしないよう幅は据え置き */}
+      <div aria-hidden className="mx-auto flex w-full max-w-md flex-col gap-1.5">
         {STACK.map((block, index) => (
           <div
             key={block.label}
@@ -41,19 +41,23 @@ export default function HomePage() {
         <div className="mt-1 h-1 rounded-full bg-gradient-to-r from-transparent via-gray-300 to-transparent dark:via-gray-700" />
       </div>
 
-      <section className="flex flex-col gap-3 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-        <h2 className="font-mono text-[10px] tracking-[0.2em] text-gray-500 uppercase">
-          create room
-        </h2>
-        <CreateRoomForm />
-      </section>
+      {/* PC 幅では2カラム。スマホでは従来どおり縦積み */}
+      {/* items-start にすると入力欄の数の差でカードの高さが揃わないので、stretch のままにする */}
+      <div className="grid gap-6 md:grid-cols-2 md:gap-8">
+        <section className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white/60 p-4 dark:border-gray-800 dark:bg-black/20">
+          <h2 className="font-mono text-[10px] tracking-[0.2em] text-gray-500 uppercase">
+            create room
+          </h2>
+          <CreateRoomForm />
+        </section>
 
-      <section className="flex flex-col gap-3 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-        <h2 className="font-mono text-[10px] tracking-[0.2em] text-gray-500 uppercase">
-          join room
-        </h2>
-        <JoinRoomForm />
-      </section>
+        <section className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white/60 p-4 dark:border-gray-800 dark:bg-black/20">
+          <h2 className="font-mono text-[10px] tracking-[0.2em] text-gray-500 uppercase">
+            join room
+          </h2>
+          <JoinRoomForm />
+        </section>
+      </div>
     </main>
   );
 }
