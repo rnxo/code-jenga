@@ -88,11 +88,14 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
       )
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "turns", filter: `game_id=eq.${gameId}` },
+        { event: "INSERT", schema: "public", table: "turns" },
         (payload) => {
+          console.log("TURN REALTIME", payload);
           const turn = payload.new as Turn;
-          // 再接続時の再取得と重複した場合に二重追加しない
-          setTurns((prev) => (prev.some((t) => t.id === turn.id) ? prev : [...prev, turn]));
+          if (turn.game_id !== gameId) {
+            return;
+          }
+          setTurns((prev) => (prev.some((currentTurn) => currentTurn.id === turn.id) ? prev : [...prev, turn]));
         },
       );
 
