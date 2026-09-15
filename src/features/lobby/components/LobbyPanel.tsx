@@ -10,6 +10,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useLobbyRealtime } from "../hooks/useLobbyRealtime";
 import { PlayerList, type LobbyPlayer } from "./PlayerList";
 
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
+
 export interface LobbyPanelProps {
   game: Game;
   players: LobbyPlayer[];
@@ -49,6 +51,11 @@ export function LobbyPanel({
   const hasEnoughPlayers = players.length >= minPlayers;
 
   useEffect(() => {
+    // モック時は profiles を引かない（nicknameById は initialPlayers から seed 済み）。
+    if (USE_MOCK) {
+      return;
+    }
+
     const playerIds = livePlayers.map((player) => player.player_id);
     if (playerIds.length === 0) {
       return;
