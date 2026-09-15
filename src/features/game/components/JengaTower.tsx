@@ -1,8 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type PointerEvent,
+} from "react";
 import styles from "./JengaTower.module.css";
 import { playCollapseSound } from "../collapse-sound";
+import {
+  getServerSoundMuted,
+  isSoundMuted,
+  subscribeSoundMuted,
+  toggleSoundMuted,
+} from "../sound-settings";
 import { CollapseMonuments } from "./CollapseMonuments";
 
 // コードを 3D の積み木として見せる盤面。担当: FE-B
@@ -89,8 +102,11 @@ export function JengaTower({
   const drag = useRef<DragState | null>(null);
   /** 直前のポインタ操作がドラッグだったか。クリックを無視する判断に使う */
   const didDrag = useRef(false);
-  /** 効果音を切る。マスコットの「黙らせる」と同じく、その場かぎりの設定 */
-  const [isMuted, setIsMuted] = useState(false);
+  /**
+   * 効果音を切る。その場かぎりの設定なのは前と同じだが、置き場所は画面の外に出した。
+   * セクションを叩いたときの音（silly-sounds）も同じスイッチで黙る。
+   */
+  const isMuted = useSyncExternalStore(subscribeSoundMuted, isSoundMuted, getServerSoundMuted);
   /** 同じ崩壊で二度鳴らさないための記録 */
   const playedCollapse = useRef(false);
 
@@ -218,6 +234,8 @@ export function JengaTower({
 
   return (
     <div
+      // 叩いたら鳴る音（#全セクション）。積み木なので、ばね
+      data-silly-sound="boing"
       className={`${styles.scene} ${compact ? styles.sceneCompact : ""}`}
       style={{ paddingTop: compact ? 8 : 24, paddingBottom: collapsed && !compact ? 176 : 24 }}
     >
@@ -320,8 +338,9 @@ export function JengaTower({
           <button
             type="button"
             className={styles.resetButton}
+            data-no-silly
             aria-pressed={isMuted}
-            onClick={() => setIsMuted((current) => !current)}
+            onClick={toggleSoundMuted}
           >
             {isMuted ? "効果音オフ" : "効果音オン"}
           </button>

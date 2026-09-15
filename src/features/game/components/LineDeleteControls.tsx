@@ -26,6 +26,8 @@ export function LineDeleteControls({
 
   return (
     <section
+      // 覚悟を決める枠なので、がっかりのトロンボーン
+      data-silly-sound="womp"
       className={`flex flex-col gap-2 rounded-lg border-2 p-3 ${
         canConfirm ? "border-red-400 bg-red-50/50" : "border-amber-900/20 bg-amber-50/40"
       }`}

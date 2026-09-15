@@ -136,7 +136,7 @@ export function LobbyPanel({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div data-silly-sound="quack" className="flex flex-col gap-5">
       <header className="text-center">
         <p className="mb-1 font-mono text-[11px] tracking-[0.3em] text-amber-600/80 uppercase">
           lobby
