@@ -3,6 +3,7 @@
 import { MONACO_LANGUAGE_ID } from "@/lib/shared/language";
 import type { CodeLanguage, Turn } from "@/types/game";
 import { BoardStack } from "./BoardStack";
+import type { CollapseVerdict } from "./CollapseMonuments";
 import { CodeViewer } from "./CodeViewer";
 import { JengaTower } from "./JengaTower";
 import { LineDeleteControls } from "./LineDeleteControls";
@@ -20,6 +21,8 @@ interface GameBoardPlayfieldProps {
   latestTurn: Turn | null;
   onSelectLine: (lineNo: number) => void;
   onConfirmDelete: () => void;
+  /** 崩れたときに像へ出す勝敗。見ている人から見た結果（#39） */
+  verdict?: CollapseVerdict | null;
 }
 
 export function GameBoardPlayfield({
@@ -33,6 +36,7 @@ export function GameBoardPlayfield({
   latestTurn,
   onSelectLine,
   onConfirmDelete,
+  verdict = null,
 }: GameBoardPlayfieldProps) {
   return (
     <>
@@ -45,6 +49,7 @@ export function GameBoardPlayfield({
             onSelectLine={onSelectLine}
             interactive={isMyTurn && !isSubmitting}
             collapsed={latestTurn !== null && latestTurn.result !== "safe"}
+            verdict={verdict}
           />
         }
         code={

@@ -16,7 +16,7 @@ import {
   subscribeSoundMuted,
   toggleSoundMuted,
 } from "../sound-settings";
-import { CollapseMonuments } from "./CollapseMonuments";
+import { CollapseMonuments, type CollapseVerdict } from "./CollapseMonuments";
 import { HandPointer, LINE_NO_ATTRIBUTE } from "./HandPointer";
 
 // コードを 3D の積み木として見せる盤面。担当: FE-B
@@ -76,6 +76,8 @@ export interface JengaTowerProps {
   collapsed: boolean;
   /** 効果音を鳴らさない。盤面で既に鳴っている結果画面などで使う */
   silent?: boolean;
+  /** 見ている人の勝敗。崩壊後の像に勝ち／負けを持たせる */
+  verdict?: CollapseVerdict | null;
   /**
    * 崩れ方を詰める。盤面では派手に散らしたいが、終了画面では
    * 「崩れたあとの山」として枠に収めたいので、そちらで使う。
@@ -96,6 +98,7 @@ export function JengaTower({
   interactive,
   collapsed,
   silent = false,
+  verdict = null,
   compact = false,
   aimedLineNo,
 }: JengaTowerProps) {
@@ -249,17 +252,22 @@ export function JengaTower({
 
   return (
     <div
-      // 叩いたら鳴る音（#全セクション）。積み木なので、ばね
+      // 叩いたら鳴る音（#50）。積み木なので、ばね
       data-silly-sound="boing"
-      className={`${styles.scene} ${compact ? styles.sceneCompact : ""}`}
+      className={[styles.scene, compact ? styles.sceneCompact : ""].filter(Boolean).join(" ")}
       style={{ paddingTop: compact ? 8 : 24, paddingBottom: collapsed && !compact ? 176 : 24 }}
     >
       {/* 崩壊後のおまけ。瓦礫の奥からせり上がってくる */}
-      {collapsed ? <CollapseMonuments compact={compact} /> : null}
+      {collapsed ? <CollapseMonuments compact={compact} verdict={verdict} /> : null}
 
       {/* 崩壊の光。奥から差してくる演出で、崩れているあいだだけ出す */}
       {collapsed ? (
-        <div aria-hidden className={styles.burst}>
+        <div
+          aria-hidden
+          className={[styles.burst, compact ? "" : styles.burstFullscreen]
+            .filter(Boolean)
+            .join(" ")}
+        >
           <span className={styles.burstVeil} />
           <span className={styles.burstRays} />
           <span className={styles.burstGlow} />

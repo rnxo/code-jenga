@@ -109,6 +109,7 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
         latestTurn={latestTurn}
         onSelectLine={selectLine}
         onConfirmDelete={handleDeleteLine}
+        verdict={latestTurn === null ? null : latestTurn.player_id === currentUserId ? "lose" : "win"}
       />
       {/* 誤爆しにくいよう一番下に小さく置く */}
       {leaveError ? (
