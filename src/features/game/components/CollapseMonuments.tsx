@@ -62,7 +62,7 @@ export function CollapseMonuments({ compact = false }: CollapseMonumentsProps) {
   return (
     <div
       aria-hidden
-      className={`${styles.monuments} ${compact ? styles.monumentsCompact : ""}`}
+      className={[styles.monuments, compact ? styles.monumentsCompact : ""].filter(Boolean).join(" ")}
     >
       <figure className={`${styles.monument} ${styles.monumentLiberty}`}>
         <LibertySvg />

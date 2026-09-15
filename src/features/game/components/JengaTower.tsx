@@ -218,7 +218,7 @@ export function JengaTower({
 
   return (
     <div
-      className={`${styles.scene} ${compact ? styles.sceneCompact : ""}`}
+      className={[styles.scene, compact ? styles.sceneCompact : ""].filter(Boolean).join(" ")}
       style={{ paddingTop: compact ? 8 : 24, paddingBottom: collapsed && !compact ? 176 : 24 }}
     >
       {/* 崩壊後のおまけ。瓦礫の奥からせり上がってくる */}
