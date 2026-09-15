@@ -16,8 +16,11 @@ import type {
   GetGameResponse,
   JoinRoomRequest,
   JoinRoomResponse,
+  LeaveGameResponse,
+  RematchGameResponse,
   StartGameRequest,
   StartGameResponse,
+  TimeoutTurnResponse,
 } from "@/types/api";
 import * as mock from "./mock";
 
@@ -65,6 +68,15 @@ export const apiClient = {
 
   getGame: (gameId: string): Promise<ApiResult<GetGameResponse>> =>
     USE_MOCK ? mock.getGame(gameId) : get(`/api/games/${gameId}`),
+
+  timeoutTurn: (gameId: string): Promise<ApiResult<TimeoutTurnResponse>> =>
+    USE_MOCK ? mock.timeoutTurn(gameId) : post(`/api/games/${gameId}/timeout`, {}),
+
+  leaveGame: (gameId: string): Promise<ApiResult<LeaveGameResponse>> =>
+    USE_MOCK ? mock.leaveGame(gameId) : post(`/api/games/${gameId}/leave`, {}),
+
+  rematchGame: (gameId: string): Promise<ApiResult<RematchGameResponse>> =>
+    USE_MOCK ? mock.rematchGame(gameId) : post(`/api/games/${gameId}/rematch`, {}),
 
   createProblem: (req: CreateProblemRequest): Promise<ApiResult<CreateProblemResponse>> =>
     USE_MOCK ? mock.createProblem(req) : post("/api/problems", req),
