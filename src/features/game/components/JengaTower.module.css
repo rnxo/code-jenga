@@ -452,6 +452,7 @@
 }
 
 .monument {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -563,4 +564,77 @@
 .monumentsFullscreen .monumentCaption {
   font-size: 12px;
   padding-bottom: 0.5rem;
+}
+
+/* ------------------------------------------------------------------
+   勝敗表示。自由の女神が勝ち側、奈良の大仏が負け側を持つ。
+   ------------------------------------------------------------------ */
+.verdictBadge {
+  /* 像の上に重ねる。像の外に積むと、背の高い像では画面の外にはみ出す */
+  position: absolute;
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.35rem 1rem 0.45rem;
+  border: 2px solid currentColor;
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: 0 6px 16px rgb(28 25 23 / 0.25);
+  white-space: nowrap;
+}
+
+.verdictLabel {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.verdictText {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.verdictWin {
+  color: #15803d;
+}
+
+.verdictLose {
+  color: #b91c1c;
+}
+
+/* 自分の側でないほうは引っ込める */
+.monumentDimmed {
+  opacity: 0.4;
+  filter: grayscale(0.55);
+}
+
+.monumentsFullscreen .verdictText {
+  font-size: 2.5rem;
+}
+
+.monumentsFullscreen .verdictLabel {
+  font-size: 12px;
+}
+
+.monumentsCompact .verdictBadge {
+  top: 4%;
+  padding: 0.1rem 0.4rem 0.15rem;
+  border-width: 1px;
+  border-radius: 0.35rem;
+}
+
+.monumentsCompact .verdictLabel {
+  display: none;
+}
+
+.monumentsCompact .verdictText {
+  font-size: 0.75rem;
 }

@@ -167,6 +167,7 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
         onSelectLine={(lineNo) => setSelection({ code: currentCode, lineNo })}
         interactive={isMyTurn && !isSubmitting}
         collapsed={latestTurn !== null && latestTurn.result !== "safe"}
+        verdict={latestTurn === null ? null : latestTurn.player_id === currentUserId ? "lose" : "win"}
       />
       <CodeViewer
         code={currentCode}

@@ -53,12 +53,26 @@ function DaibutsuSvg() {
   );
 }
 
+/** 見ている人の勝敗。null なら勝敗を出さず、像だけ立てる */
+export type CollapseVerdict = "win" | "lose";
+
 export interface CollapseMonumentsProps {
   /** 結果画面の小さいタワーに重ねるとき。像も小さくして枠に収める */
   compact?: boolean;
+  /**
+   * 見ている人の勝敗。自由の女神が勝ち側、奈良の大仏が負け側を持ち、
+   * 自分の側だけが明るく立つ。渡さなければ両方が同じ明るさで並ぶ。
+   */
+  verdict?: CollapseVerdict | null;
 }
 
-export function CollapseMonuments({ compact = false }: CollapseMonumentsProps) {
+export function CollapseMonuments({
+  compact = false,
+  verdict = null,
+}: CollapseMonumentsProps) {
+  // 自分の側だけを立たせる。勝敗が分からないときは両方そのまま出す
+  const libertyDimmed = verdict === "lose";
+  const buddhaDimmed = verdict === "win";
   return (
     <div
       aria-hidden
@@ -69,11 +83,36 @@ export function CollapseMonuments({ compact = false }: CollapseMonumentsProps) {
         .filter(Boolean)
         .join(" ")}
     >
-      <figure className={`${styles.monument} ${styles.monumentLiberty}`}>
+      <figure
+        className={[
+          styles.monument,
+          styles.monumentLiberty,
+          libertyDimmed ? styles.monumentDimmed : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <span className={`${styles.verdictBadge} ${styles.verdictWin}`}>
+          <span className={styles.verdictLabel}>win</span>
+          <span className={styles.verdictText}>勝ち</span>
+        </span>
         <LibertySvg />
         <figcaption className={styles.monumentCaption}>自由の女神</figcaption>
       </figure>
-      <figure className={`${styles.monument} ${styles.monumentBuddha}`}>
+
+      <figure
+        className={[
+          styles.monument,
+          styles.monumentBuddha,
+          buddhaDimmed ? styles.monumentDimmed : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <span className={`${styles.verdictBadge} ${styles.verdictLose}`}>
+          <span className={styles.verdictLabel}>lose</span>
+          <span className={styles.verdictText}>負け</span>
+        </span>
         <DaibutsuSvg />
         <figcaption className={styles.monumentCaption}>奈良の大仏</figcaption>
       </figure>

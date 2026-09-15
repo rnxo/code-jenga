@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import styles from "./JengaTower.module.css";
 import { playCollapseSound } from "../collapse-sound";
-import { CollapseMonuments } from "./CollapseMonuments";
+import { CollapseMonuments, type CollapseVerdict } from "./CollapseMonuments";
 
 // コードを 3D の積み木として見せる盤面。担当: FE-B
 //
@@ -62,6 +62,8 @@ export interface JengaTowerProps {
   collapsed: boolean;
   /** 効果音を鳴らさない。盤面で既に鳴っている結果画面などで使う */
   silent?: boolean;
+  /** 見ている人の勝敗。崩壊後の像に勝ち／負けを持たせる */
+  verdict?: CollapseVerdict | null;
   /**
    * 崩れ方を詰める。盤面では派手に散らしたいが、終了画面では
    * 「崩れたあとの山」として枠に収めたいので、そちらで使う。
@@ -76,6 +78,7 @@ export function JengaTower({
   interactive,
   collapsed,
   silent = false,
+  verdict = null,
   compact = false,
 }: JengaTowerProps) {
   const lines = code.length > 0 ? code.split("\n") : [];
@@ -222,7 +225,7 @@ export function JengaTower({
       style={{ paddingTop: compact ? 8 : 24, paddingBottom: collapsed && !compact ? 176 : 24 }}
     >
       {/* 崩壊後のおまけ。瓦礫の奥からせり上がってくる */}
-      {collapsed ? <CollapseMonuments compact={compact} /> : null}
+      {collapsed ? <CollapseMonuments compact={compact} verdict={verdict} /> : null}
 
       {/* 崩壊の光。奥から差してくる演出で、崩れているあいだだけ出す */}
       {collapsed ? (
