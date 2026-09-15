@@ -64,19 +64,13 @@ export function ResultPanel({ game, loserNickname, roomCode }: ResultPanelProps)
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <ResultDialog
-        game={game}
-        loserNickname={loserNickname}
-        roomCode={roomCode}
-        onRematch={handleRematch}
-        isRematching={isRematching}
-      />
-      {rematchError ? (
-        <p className="rounded-md border border-red-300 bg-red-50/60 px-3 py-2 text-center text-sm text-red-700">
-          {rematchError}
-        </p>
-      ) : null}
-    </div>
+    <ResultDialog
+      game={game}
+      loserNickname={loserNickname}
+      roomCode={roomCode}
+      onRematch={handleRematch}
+      isRematching={isRematching}
+      rematchErrorMessage={rematchError}
+    />
   );
 }

@@ -23,10 +23,6 @@ export interface LobbyPanelProps {
   maxPlayers?: number;
   /** 何人そろえば開始できるか */
   minPlayers?: number;
-  /** ルームからの退出。渡されたときだけ「ルームを出る」を出す（配線は FE-B） */
-  onLeave?: () => void;
-  /** 退出リクエストの送信中 */
-  isLeaving?: boolean;
 }
 
 export function LobbyPanel({
@@ -37,13 +33,13 @@ export function LobbyPanel({
   currentUserId,
   maxPlayers,
   minPlayers = 2,
-  onLeave,
-  isLeaving = false,
 }: LobbyPanelProps) {
   const router = useRouter();
   const { game: liveGame, players: livePlayers, isLoading, errorMessage } = useLobbyRealtime(initialGame.id);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
   const [isCodeCopied, setIsCodeCopied] = useState(false);
   const [nicknameById, setNicknameById] = useState(
     () => new Map(initialPlayers.map((player) => [player.player_id, player.nickname])),
@@ -96,6 +92,19 @@ export function LobbyPanel({
       router.refresh();
     }
   }, [game.status, router]);
+
+  // 退出は startGame と同じくこの中で API を呼ぶ（page.tsx からは関数を渡せないため）。
+  async function handleLeave() {
+    setIsLeaving(true);
+    setLeaveError(null);
+    const result = await apiClient.leaveGame(initialGame.id);
+    if (!result.ok) {
+      setLeaveError(result.error.message);
+      setIsLeaving(false);
+      return;
+    }
+    router.push("/");
+  }
 
   async function handleStart() {
     setIsStarting(true);
@@ -192,7 +201,12 @@ export function LobbyPanel({
       )}
 
       {/* 退出は主要な動線ではないので、開始ボタンより下に控えめに置く */}
-      {onLeave ? <LeaveButton onLeave={onLeave} isLeaving={isLeaving} /> : null}
+      {leaveError ? (
+        <p className="rounded-md border border-red-300 bg-red-50/60 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+          {leaveError}
+        </p>
+      ) : null}
+      <LeaveButton onLeave={handleLeave} isLeaving={isLeaving} />
     </div>
   );
 }
