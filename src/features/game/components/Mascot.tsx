@@ -22,8 +22,8 @@ export interface MascotProps {
 
 const FACE: Record<MascotMood, { src: string; emoji: string; animated: boolean }> = {
   idle: { src: "/images/mascot/idle.gif", emoji: "🐭", animated: true },
-  smug: { src: "/images/mascot/smug.png", emoji: "😏", animated: false },
-  panic: { src: "/images/mascot/panic.png", emoji: "😱", animated: false },
+  smug: { src: "/images/mascot/smug.gif", emoji: "😏", animated: true },
+  panic: { src: "/images/mascot/panic.gif", emoji: "😱", animated: true },
 };
 
 const BUBBLE_CLASS: Record<MascotMood, string> = {
