@@ -70,6 +70,10 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
     void loadState();
     let hasSubscribedOnce = false;
 
+    // RLS が効くテーブルの Realtime は、購読時に送った JWT でポリシーが評価される。
+    // セッション復元前に subscribe すると anon ロールで評価され、`to authenticated` の
+    // ポリシーに弾かれてイベントが一切届かない（購読自体は成功して見える）。
+    // そのため先にセッションを取得して Realtime に JWT を渡してから購読する。
     const channel = supabase
       .channel(`game:${gameId}`)
       .on(
@@ -90,8 +94,21 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
           // 再接続時の再取得と重複した場合に二重追加しない
           setTurns((prev) => (prev.some((t) => t.id === turn.id) ? prev : [...prev, turn]));
         },
-      )
-      .subscribe((status, err) => {
+      );
+
+    async function subscribeWithAuth() {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+      if (error) {
+        console.error(`Realtime 購読前のセッション取得に失敗しました: ${error.message}`);
+      }
+      if (!isMounted) {
+        return;
+      }
+      await supabase.realtime.setAuth(session?.access_token);
+      channel.subscribe((status, err) => {
         if (status === "SUBSCRIBED") {
           if (hasSubscribedOnce) {
             // 再接続: 切断中に取りこぼした手を補完する
@@ -104,6 +121,9 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
           console.error(`Realtime 購読でエラーが発生しました (${status})`, err);
         }
       });
+    }
+
+    void subscribeWithAuth();
 
     return () => {
       isMounted = false;
