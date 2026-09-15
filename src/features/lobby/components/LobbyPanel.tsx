@@ -10,12 +10,18 @@ import { createClient } from "@/lib/supabase/client";
 import { useLobbyRealtime } from "../hooks/useLobbyRealtime";
 import { PlayerList, type LobbyPlayer } from "./PlayerList";
 
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
+
 export interface LobbyPanelProps {
   game: Game;
   players: LobbyPlayer[];
   roomCode: string;
   hostId: string;
   currentUserId: string | null;
+  /** rooms.max_players。渡すと空き枠も段として見せる */
+  maxPlayers?: number;
+  /** 何人そろえば開始できるか */
+  minPlayers?: number;
 }
 
 export function LobbyPanel({
@@ -24,11 +30,14 @@ export function LobbyPanel({
   roomCode,
   hostId,
   currentUserId,
+  maxPlayers,
+  minPlayers = 2,
 }: LobbyPanelProps) {
   const router = useRouter();
   const { game: liveGame, players: livePlayers, isLoading, errorMessage } = useLobbyRealtime(initialGame.id);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [isCodeCopied, setIsCodeCopied] = useState(false);
   const [nicknameById, setNicknameById] = useState(
     () => new Map(initialPlayers.map((player) => [player.player_id, player.nickname])),
   );
@@ -38,8 +47,15 @@ export function LobbyPanel({
     nickname: nicknameById.get(player.player_id) ?? "(参加者)",
   }));
   const isHost = currentUserId === hostId;
+  // サーバー側の人数チェックはまだ無いので、足りないうちは押せないようにする
+  const hasEnoughPlayers = players.length >= minPlayers;
 
   useEffect(() => {
+    // モック時は profiles を引かない（nicknameById は initialPlayers から seed 済み）。
+    if (USE_MOCK) {
+      return;
+    }
+
     const playerIds = livePlayers.map((player) => player.player_id);
     if (playerIds.length === 0) {
       return;
@@ -90,21 +106,83 @@ export function LobbyPanel({
     return <Spinner label="ロビーを読み込み中..." />;
   }
 
+  async function handleCopyCode() {
+    try {
+      await navigator.clipboard.writeText(roomCode);
+      setIsCodeCopied(true);
+      window.setTimeout(() => setIsCodeCopied(false), 1600);
+    } catch {
+      // 権限が無い環境では何もしない（画面に出ているコードを読み上げてもらう）
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-4">
-      {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
-      <PlayerList players={players} hostId={hostId} />
+    <div className="flex flex-col gap-5">
+      <header className="text-center">
+        <p className="mb-1 font-mono text-[11px] tracking-[0.3em] text-amber-600/80 uppercase">
+          lobby
+        </p>
+        <h2 className="text-xl font-bold">待機中</h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          このルームコードを伝えると入室できます。
+        </p>
+      </header>
+
+      {errorMessage ? (
+        <p className="rounded-md border border-red-300 bg-red-50/60 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+          {errorMessage}
+        </p>
+      ) : null}
+
+      {/* 口頭で伝えるものなので、一番大きく出して押すだけでコピーできるようにする */}
+      <div>
+        <p className="mb-2 font-mono text-[10px] tracking-[0.2em] text-gray-500 uppercase">
+          room code
+        </p>
+        <button
+          type="button"
+          onClick={handleCopyCode}
+          className="flex h-14 w-full cursor-pointer items-center gap-3 rounded-sm bg-amber-600 px-4 text-left shadow-sm transition hover:bg-amber-500"
+        >
+          <span className="flex-1 font-mono text-2xl tracking-[0.3em] text-black/85">
+            {roomCode}
+          </span>
+          <span className="shrink-0 font-mono text-[10px] tracking-[0.15em] text-black/50 uppercase">
+            {isCodeCopied ? "copied" : "copy"}
+          </span>
+        </button>
+      </div>
+
+      <PlayerList players={players} hostId={hostId} maxPlayers={maxPlayers} />
+
       {isHost ? (
         <div className="flex flex-col gap-2">
-          <Button type="button" onClick={handleStart} disabled={isStarting || game.status !== "waiting"}>
+          {startError ? (
+            <p className="rounded-md border border-red-300 bg-red-50/60 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+              {startError}
+            </p>
+          ) : null}
+
+          <Button
+            type="button"
+            className="w-full"
+            onClick={handleStart}
+            disabled={isStarting || game.status !== "waiting" || !hasEnoughPlayers}
+          >
             {isStarting ? "開始中..." : "試合を開始"}
           </Button>
-          {startError ? <p className="text-sm text-red-600">{startError}</p> : null}
+
+          <p className="text-center text-xs text-gray-500">
+            {hasEnoughPlayers
+              ? "全員そろいました。開始できます。"
+              : `あと ${minPlayers - players.length} 人そろうと開始できます。`}
+          </p>
         </div>
       ) : (
-        <p className="text-center text-sm text-gray-500">ホストが試合を開始するまでお待ちください。</p>
+        <p className="text-center text-sm text-gray-500">
+          ホストが試合を開始するまでお待ちください。
+        </p>
       )}
-      <p className="text-center text-xs text-gray-500">ルームコード: {roomCode}</p>
     </div>
   );
 }
