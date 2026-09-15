@@ -158,7 +158,13 @@ export default async function RoomPage({ params }: RoomPageProps) {
   return (
     <main className="mx-auto max-w-md px-4 py-12">
       {/* TODO(共有): loser_id → nickname の解決（profiles 参照）。 */}
-      <ResultDialog game={game} loserNickname={null} roomCode={code} />
+      <ResultDialog
+        game={game}
+        loserNickname={null}
+        roomCode={code}
+        hostId={room.host_id}
+        currentUserId={userId}
+      />
     </main>
   );
 }
