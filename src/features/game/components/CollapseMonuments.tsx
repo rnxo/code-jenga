@@ -32,7 +32,7 @@ function LibertySvg() {
       </g>
 
       {/* 頭ごと振る。冠・顔・舌・吐瀉物をひとまとめにして、首のあたりを軸に回す */}
-      <g className={styles.monumentHead}>
+      <g className={`${styles.monumentHead} ${styles.monumentHeadLiberty}`}>
         <g fill="currentColor">
           {/* 頭と冠 */}
           <circle cx="32" cy="35" r="8" />
@@ -100,6 +100,18 @@ function DaibutsuSvg() {
   return (
     <svg viewBox="0 0 96 112" className={styles.monumentSvg} role="img" aria-label="奈良の大仏">
       <defs>
+        <radialGradient id="beamLeftBuddha" gradientUnits="userSpaceOnUse" cx="43.6" cy="42.6" r="130">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+          <stop offset="12%" stopColor="#67e8f9" stopOpacity="0.95" />
+          <stop offset="55%" stopColor="#22d3ee" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="beamRightBuddha" gradientUnits="userSpaceOnUse" cx="52.4" cy="42.6" r="130">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+          <stop offset="12%" stopColor="#67e8f9" stopOpacity="0.95" />
+          <stop offset="55%" stopColor="#22d3ee" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+        </radialGradient>
         <linearGradient id="pukeGradientBuddha" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#ef4444" />
           <stop offset="20%" stopColor="#f97316" />
@@ -109,7 +121,7 @@ function DaibutsuSvg() {
           <stop offset="100%" stopColor="#a855f7" />
         </linearGradient>
       </defs>
-      <g fill="currentColor">
+      <g className={styles.torsoSpin} fill="currentColor">
         {/* 蓮華座 */}
         <ellipse cx="48" cy="100" rx="36" ry="8" />
         <path d="M14 100 q12 -12 34 -12 q22 0 34 12 Z" />
@@ -122,7 +134,7 @@ function DaibutsuSvg() {
       </g>
 
       {/* 頭ごと振る。顔・舌・吐瀉物をひとまとめにして、首のあたりを軸に回す */}
-      <g className={`${styles.monumentHead} ${styles.monumentHeadSlow}`}>
+      <g className={`${styles.monumentHead} ${styles.monumentHeadBuddha}`}>
         <g fill="currentColor">
           {/* 頭 */}
           <circle cx="48" cy="44" r="15" />
@@ -137,6 +149,11 @@ function DaibutsuSvg() {
         {/* 螺髪の生え際 */}
         <path d="M36.8 39 Q48 30.8 59.2 39 Q54 34.8 48 34.5 Q42 34.8 36.8 39 Z" fill="#584a33" />
         {/* 伏せたまぶた */}
+        {/* 目から出すビーム。白目を剥いたあとに撃ち始める */}
+        <g className={styles.eyeBeam}>
+          <path d="M43.6 42.6 L-90 22 L-90 63 Z" fill="url(#beamLeftBuddha)" />
+          <path d="M52.4 42.6 L186 22 L186 63 Z" fill="url(#beamRightBuddha)" />
+        </g>
         {/* 吐き始めたら剥く白目。まぶたの線より先に描いて、線が下まぶたに見えるようにする */}
         <ellipse className={styles.eyeRolled} cx="43.6" cy="42.6" rx="4.1" ry="3.2" fill="#f8f6f0" />
         <ellipse className={styles.eyeRolled} cx="52.4" cy="42.6" rx="4.1" ry="3.2" fill="#f8f6f0" />

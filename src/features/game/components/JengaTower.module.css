@@ -479,6 +479,8 @@
 }
 
 .monumentSvg {
+  /* 目のビームが viewBox の外まで伸びるので、切り取らない */
+  overflow: visible;
   /* 幅ではなく高さで揃える。viewBox の縦横比が違っても背丈が合う */
   width: auto;
   /* 親（figure）の高さが不定なので % は効かない。vh で確定させる */
@@ -663,26 +665,35 @@
  * 2体が立ち上がってから数秒おいて始まる（FINALE_DELAY と合わせる）。
  */
 .monumentHead {
-  /* SVG の変形基準を自分の描画範囲にする（これが無いと SVG 全体が基準になる） */
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
+  /*
+   * 変形の基準は viewBox 側に取る。fill-box にすると、ビームのような
+   * 大きく外へ伸びる子を含んだ途端に基準の箱が広がり、首の位置がずれる。
+   */
+  transform-box: view-box;
   /* linear にしないと、この短さでは端で止まって見える */
   animation: faceSway 0.12s linear 4s infinite;
 }
 
+/* 首の位置（viewBox のユーザー単位）。像ごとに違う */
+.monumentHeadLiberty {
+  transform-origin: 32px 43px;
+}
+
 /* 2体が完全に同期しないよう、大仏だけわずかにずらす */
-.monumentHeadSlow {
+.monumentHeadBuddha {
+  transform-origin: 48px 59px;
   animation-duration: 0.15s;
   animation-delay: 4.15s;
 }
 
+/* 首を軸に振るだけ。平行移動を混ぜると、基準の箱の大きさで振れ幅が変わってしまう */
 @keyframes faceSway {
   0%,
   100% {
-    transform: translateX(-7%) rotate(-15deg);
+    transform: rotate(-15deg);
   }
   50% {
-    transform: translateX(7%) rotate(15deg);
+    transform: rotate(15deg);
   }
 }
 
@@ -801,6 +812,66 @@
   }
 
   .eyeRolled {
+    opacity: 1;
+  }
+}
+
+/* 大仏の胴体。縦軸で回っているように見せる（scaleX を 1 → 0 → -1 → 0 → 1） */
+.torsoSpin {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: torsoSpin 0.9s linear 4.15s infinite;
+}
+
+@keyframes torsoSpin {
+  0% {
+    transform: scaleX(1);
+  }
+  25% {
+    transform: scaleX(0.08);
+  }
+  50% {
+    transform: scaleX(-1);
+  }
+  75% {
+    transform: scaleX(0.08);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+/* 目から出すビーム。白目を剥いた直後に撃ち始める */
+.eyeBeam {
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation:
+    beamOn 0.2s linear 4.2s forwards,
+    beamFlicker 0.16s ease-in-out 4.2s infinite alternate;
+}
+
+@keyframes beamOn {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes beamFlicker {
+  from {
+    filter: brightness(1);
+  }
+  to {
+    filter: brightness(1.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .torsoSpin,
+  .eyeBeam {
+    animation: none;
+  }
+
+  .eyeBeam {
     opacity: 1;
   }
 }
