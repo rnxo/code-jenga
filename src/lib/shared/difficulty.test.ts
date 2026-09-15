@@ -62,10 +62,10 @@ describe("isDeletableUnder", () => {
     expect(isDeletableUnder("easy", "")).toBe(true);
   });
 
-  it("NORMAL は空行・コメント・記号だけの行を削除できない", () => {
+  it("NORMAL は空行だけ削除できない", () => {
     expect(isDeletableUnder("normal", "")).toBe(false);
-    expect(isDeletableUnder("normal", "// comment")).toBe(false);
-    expect(isDeletableUnder("normal", "}")).toBe(false);
+    expect(isDeletableUnder("normal", "// comment")).toBe(true);
+    expect(isDeletableUnder("normal", "}")).toBe(true);
     expect(isDeletableUnder("normal", "total += n;")).toBe(true);
     expect(isDeletableUnder("normal", "let total = 0;")).toBe(true);
   });
@@ -83,7 +83,7 @@ describe("listDeletableLineNumbers（単調性: HARD ⊆ NORMAL ⊆ EASY）", ()
 
   it("サンプルコードで難易度ごとの削除可能行を正しく列挙する", () => {
     expect(listDeletableLineNumbers(SAMPLE_SOURCE, "easy")).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(listDeletableLineNumbers(SAMPLE_SOURCE, "normal")).toEqual([1, 2, 3, 4, 6]);
+    expect(listDeletableLineNumbers(SAMPLE_SOURCE, "normal")).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(listDeletableLineNumbers(SAMPLE_SOURCE, "hard")).toEqual([1, 2, 3, 6]);
   });
 
@@ -106,7 +106,7 @@ describe("hasDeletableLine", () => {
   it("宣言行が無いコードは HARD で削除可能行が0行", () => {
     const code = ["// comment", "}", "];"].join("\n");
     expect(hasDeletableLine(code, "hard")).toBe(false);
-    expect(hasDeletableLine(code, "normal")).toBe(false);
+    expect(hasDeletableLine(code, "normal")).toBe(true);
     expect(hasDeletableLine(code, "easy")).toBe(true);
   });
 });
@@ -125,6 +125,46 @@ describe("rollTurnDifficulty", () => {
   it("抽選結果で削除できる行が無い場合は EASY にフォールバックする", () => {
     const code = ["// comment", "}", "];"].join("\n");
     expect(rollTurnDifficulty(code, () => 0.9)).toBe("easy");
-    expect(rollTurnDifficulty(code, () => 0.4)).toBe("easy");
+    expect(rollTurnDifficulty(code, () => 0.4)).toBe("normal");
+  });
+});
+
+describe("classifyLine（Python）", () => {
+  it("# 始まりの行をコメントと判定する", () => {
+    expect(classifyLine("  # 合計を返す", "python")).toBe("comment");
+  });
+
+  it("// はコメントではない（Python には無い記法）", () => {
+    expect(classifyLine("// not a python comment", "python")).toBe("expression");
+  });
+
+  it("def / class / return を宣言と判定する", () => {
+    expect(classifyLine("def sum_all(numbers):", "python")).toBe("declaration");
+    expect(classifyLine("class TestSum(unittest.TestCase):", "python")).toBe("declaration");
+    expect(classifyLine("    return total", "python")).toBe("declaration");
+    expect(classifyLine("    elif n < 0:", "python")).toBe("declaration");
+  });
+
+  it("代入や式の行は expression と判定する", () => {
+    expect(classifyLine("    total += n", "python")).toBe("expression");
+    expect(classifyLine("    total = 0", "python")).toBe("expression");
+  });
+
+  it("言語を渡さない場合は TypeScript として扱う（後方互換）", () => {
+    expect(classifyLine("# python comment")).toBe("expression");
+    expect(classifyLine("// ts comment")).toBe("comment");
+  });
+});
+
+describe("isDeletableUnder（Python）", () => {
+  it("HARD では # コメント行を削除できない（NORMAL / EASY は削除できる）", () => {
+    expect(isDeletableUnder("hard", "# メモ", "python")).toBe(false);
+    expect(isDeletableUnder("normal", "# メモ", "python")).toBe(true);
+    expect(isDeletableUnder("easy", "# メモ", "python")).toBe(true);
+  });
+
+  it("HARD では def 行を削除できる", () => {
+    expect(isDeletableUnder("hard", "def sum_all(numbers):", "python")).toBe(true);
+    expect(isDeletableUnder("hard", "    total += n", "python")).toBe(false);
   });
 });

@@ -13,6 +13,7 @@ import { judgeTurnResult } from "./judge";
 import { runOnPiston } from "@/lib/server/piston/run";
 import { parseVitestOutput } from "@/lib/server/piston/parse-vitest";
 import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder, rollTurnDifficulty } from "@/lib/shared/difficulty";
+import { toCodeLanguage } from "@/lib/shared/language";
 
 // 担当: BE-A
 // DB_DESIGN.md 5章-5: 1手の確定（この関数が全体の中核）。
@@ -64,6 +65,13 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
   }
   const currentDifficulty = game.current_turn_difficulty;
 
+  // 難易度の行判定は言語ごとにコメント記法・キーワードが違うため、お題の言語で判定する。
+  const problemForRules = await findProblemById(game.problem_id);
+  if (!problemForRules) {
+    throw new ApplicationError("INTERNAL_ERROR", `試合に紐づくお題が見つかりません（problem_id=${game.problem_id}）。`);
+  }
+  const language = toCodeLanguage(problemForRules.language);
+
   let deletedLine: { codeAfter: string; deletedLineText: string };
   try {
     deletedLine = deleteLine(game.current_code, input.lineNo);
@@ -71,7 +79,7 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
     throw new ApplicationError("INVALID_LINE", error instanceof Error ? error.message : "削除行が不正です。");
   }
 
-  if (!isDeletableUnder(currentDifficulty, deletedLine.deletedLineText)) {
+  if (!isDeletableUnder(currentDifficulty, deletedLine.deletedLineText, language)) {
     throw new ApplicationError(
       "LINE_NOT_DELETABLE",
       `現在の難易度「${DIFFICULTY_LABEL[currentDifficulty]}」ではこの行を削除できません。${DIFFICULTY_RULE_TEXT[currentDifficulty]}`,
@@ -79,10 +87,7 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
   }
 
   const startedAt = Date.now();
-  const problem = await findProblemById(game.problem_id);
-  if (!problem) {
-    throw new ApplicationError("INTERNAL_ERROR", `試合に紐づくお題が見つかりません（problem_id=${game.problem_id}）。`);
-  }
+  const problem = problemForRules;
   let pistonResult;
   try {
     pistonResult = await runOnPiston({
@@ -120,7 +125,7 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
       codeAfter: deletedLine.codeAfter,
       turnResult: judgement.result,
       nextPlayerId,
-      nextTurnDifficulty: isFinished ? null : rollTurnDifficulty(deletedLine.codeAfter),
+      nextTurnDifficulty: isFinished ? null : rollTurnDifficulty(deletedLine.codeAfter, Math.random, language),
       finishReason: isOut ? "test_failed" : noLinesLeft ? "no_lines_left" : null,
       durationMs: Date.now() - startedAt,
       testRun: {

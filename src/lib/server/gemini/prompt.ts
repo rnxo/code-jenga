@@ -1,23 +1,19 @@
 import "server-only";
 
-import { CJ_SUPPORTED_MATCHERS } from "@/lib/server/piston/harness";
+import type { CodeLanguage } from "@/types/game";
+import { DEFAULT_LANGUAGE } from "@/lib/shared/language";
+import { getLanguageDefinition } from "@/lib/server/piston/languages";
 
 // 担当: BE-B
 // Gemini へ渡すお題生成プロンプトを組み立てる。
+//
+// 言語ごとに変わる文面（役割の宣言と各種制約）は
+// src/lib/server/piston/languages/ の言語定義が持つ。ここは難易度の行を挟んで結合するだけにして、
+// 言語を増やしてもこのファイルを触らずに済むようにしている。
 
-/** difficulty（例: "easy"）に応じたお題生成プロンプトを組み立てる。 */
-export function buildProblemGenerationPrompt(difficulty?: string): string {
+/** difficulty（例: "easy"）と言語に応じたお題生成プロンプトを組み立てる。 */
+export function buildProblemGenerationPrompt(difficulty?: string, language: CodeLanguage = DEFAULT_LANGUAGE): string {
   const requestedDifficulty = difficulty?.trim() || "easy";
-  return [
-    "あなたはTypeScriptの教材コードを作る専門家です。",
-    `難易度は ${requestedDifficulty} です。`,
-    "短いTypeScript関数と、その関数を検証するVitestテストを1組生成してください。",
-    "コードは最初は全テストが通り、1行を削除すると失敗し得る構造にしてください。",
-    "sourceCodeは15〜40行程度にしてください。テストは同期的な describe / it のみを使ってください。",
-    `expectで使えるマッチャーは次のものだけです: ${CJ_SUPPORTED_MATCHERS.join(", ")}`,
-    "vi.mock、test.each、非同期テスト、ネットワークアクセス、外部パッケージ依存は使わないでください。",
-    "対象コードとテストコードのトップレベル宣言名を重複させないでください。",
-    "説明文、Markdownフェンスは含めないでください。importはVitestと対象コードの参照だけにしてください。",
-    'JSONのみで返し、キーは "sourceCode", "testCode", "language" としてください。language は "typescript" 固定です。',
-  ].join("\n");
+  const { prompt } = getLanguageDefinition(language);
+  return [prompt.roleLine, `難易度は ${requestedDifficulty} です。`, ...prompt.rules].join("\n");
 }

@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Game, GameFinishReason, GameStatus, Turn, TurnDifficulty, TurnResult } from "@/types/game";
+import type { CodeLanguage, Game, GameFinishReason, GameStatus, Turn, TurnDifficulty, TurnResult } from "@/types/game";
 import type { Database, Json } from "@/types/database";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -9,13 +9,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export interface CreateGameInput {
   roomId: string;
   roundNo: number;
+  /** 再戦で前局の言語を引き継ぐ。未指定なら DB の既定値（typescript）。 */
+  language?: CodeLanguage;
 }
 
 /** ルームに紐づくゲームを作成する。 */
 export async function createGame(input: CreateGameInput): Promise<Game> {
   const { data, error } = await createAdminClient()
     .from("games")
-    .insert({ room_id: input.roomId, round_no: input.roundNo })
+    .insert({ room_id: input.roomId, round_no: input.roundNo, language: input.language })
     .select()
     .single();
   if (error) {
@@ -60,6 +62,8 @@ export interface UpdateGameInput {
   /** 1手あたりの制限時間（秒）。試合開始時に確定させ、以降の手番の deadline 計算に使う。 */
   turnTimeLimitSeconds?: number;
   turnDeadlineAt?: string | null;
+  /** 実行言語。ロビー（status=waiting）でホストだけが変更できる。 */
+  language?: CodeLanguage;
   loserId?: string | null;
   finishReason?: GameFinishReason | null;
   startedAt?: string;
@@ -77,6 +81,7 @@ function toGameUpdate(input: UpdateGameInput): Database["public"]["Tables"]["gam
   if (input.turnNo !== undefined) update.turn_no = input.turnNo;
   if (input.turnTimeLimitSeconds !== undefined) update.turn_time_limit_seconds = input.turnTimeLimitSeconds;
   if (input.turnDeadlineAt !== undefined) update.turn_deadline_at = input.turnDeadlineAt;
+  if (input.language !== undefined) update.language = input.language;
   if (input.loserId !== undefined) update.loser_id = input.loserId;
   if (input.finishReason !== undefined) update.finish_reason = input.finishReason;
   if (input.startedAt !== undefined) update.started_at = input.startedAt;

@@ -3,10 +3,16 @@
 export { GameBoard } from "./components/GameBoard";
 export { CodeViewer } from "./components/CodeViewer";
 export { JengaTower } from "./components/JengaTower";
+export { SillyTapSounds } from "./components/SillyTapSounds";
 export type { CollapseVerdict } from "./components/CollapseMonuments";
 export { LineDeleteControls } from "./components/LineDeleteControls";
 export { TurnIndicator } from "./components/TurnIndicator";
 export { TestResultPanel } from "./components/TestResultPanel";
+export {
+  GenerationPipeline,
+  type GenerationStep,
+  type GenerationRunSummary,
+} from "./components/GenerationPipeline";
 export { TitleMascot } from "./components/TitleMascot";
 export { useGameRealtime, type UseGameRealtimeResult } from "./hooks/useGameRealtime";
 export { useTurnTimer } from "./hooks/useTurnTimer";

@@ -17,6 +17,11 @@ export interface ResultDialogProps {
    * 渡さなければ従来どおり「トップに戻る」だけ（#26 / 配線は FE-B）。
    */
   onRematch?: () => void;
+  /**
+   * 再戦ボタンを出さないときに代わりに見せる案内（例: 非ホストへ「ホストの開始待ち」）。
+   * 渡さなければ「再戦は準備中です」を出す。
+   */
+  rematchUnavailableMessage?: string | null;
   /** 再戦リクエストの送信中。ボタンを押せなくする */
   isRematching?: boolean;
   /** 再戦リクエストが失敗したときのメッセージ。null なら何も出さない */
@@ -72,6 +77,7 @@ export function ResultDialog({
   loserNickname,
   roomCode,
   onRematch,
+  rematchUnavailableMessage = null,
   isRematching = false,
   rematchErrorMessage = null,
   rematchBlockedMessage = null,
@@ -104,7 +110,11 @@ export function ResultDialog({
     (game.current_code ?? "").trim().length > 0;
 
   return (
-    <section className="flex flex-col items-center gap-5 rounded-xl border-2 border-amber-900/25 bg-amber-50 p-6 text-center shadow-sm">
+    <section
+      // 決着の枠なので、宇宙人みたいなテルミン
+      data-silly-sound="theremin"
+      className="flex flex-col items-center gap-5 rounded-xl border-2 border-amber-900/25 bg-amber-50 p-6 text-center shadow-sm"
+    >
       <div className="flex flex-col items-center gap-0.5">
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber-900/60">
           game over
@@ -208,7 +218,7 @@ export function ResultDialog({
             <Button onClick={handleBackToTop} disabled={isLeaving}>
               {isLeaving ? "退出中..." : "トップに戻る"}
             </Button>
-            <p className="text-xs text-amber-900/50">再戦は準備中です</p>
+            <p className="text-sm text-amber-900/70">{rematchUnavailableMessage ?? "再戦は準備中です"}</p>
           </>
         )}
       </div>

@@ -8,6 +8,7 @@ import { findVerifiedProblem } from "@/lib/server/repositories/problems";
 import { updateRoomStatus } from "@/lib/server/repositories/rooms";
 import { generateVerifiedProblem } from "@/lib/server/problems/prepare-problem";
 import { rollTurnDifficulty } from "@/lib/shared/difficulty";
+import { LANGUAGE_LABEL, toCodeLanguage } from "@/lib/shared/language";
 import { getActivePlayers, MIN_PLAYERS } from "./turn-order";
 
 // 担当: BE-A
@@ -55,23 +56,39 @@ export async function startGame(input: StartGameInput): Promise<Game> {
   // お題確保中は 'generating' にして Realtime 経由で待機画面を出せるようにする。
   // 選択順: 同一ルームで未使用の検証済みお題 → Gemini 生成＋検証 → seed お題（DB_DESIGN.md 5章-2）。
   await updateGame(input.gameId, { status: "generating" });
+  // ロビーでホストが選んだ言語。3段のフォールバック全てで必ず絞り込む
+  // （言語が食い違うお題を配ると、削除した行と無関係に初手で全員がアウトになる）。
+  const language = game.language;
   let problemId: string;
   let sourceCode: string;
   let initialLineCount: number;
   try {
-    let problem = await findVerifiedProblem({ roomId: game.room_id });
+    let problem = await findVerifiedProblem({ roomId: game.room_id, language });
     if (!problem) {
       try {
-        problem = await generateVerifiedProblem("easy");
-      } catch {
+        problem = await generateVerifiedProblem("easy", language);
+      } catch (error) {
+        console.warn(
+          `[start-game] お題生成に失敗したため seed へフォールバックします: ${error instanceof Error ? error.message : "原因不明"}`,
+        );
         problem = null;
       }
     }
     if (!problem) {
-      problem = await findVerifiedProblem({ generatedBy: "seed" });
+      problem = await findVerifiedProblem({ generatedBy: "seed", language });
     }
     if (!problem) {
-      throw new ApplicationError("PROBLEM_GENERATION_FAILED", "利用可能なお題を生成・検証できませんでした。");
+      throw new ApplicationError(
+        "PROBLEM_GENERATION_FAILED",
+        `${LANGUAGE_LABEL[language]} のお題を生成・検証できませんでした。`,
+      );
+    }
+    // problems.language は CHECK 制約の無い text なので、最後にアプリ層で食い違いを止める。
+    if (toCodeLanguage(problem.language) !== language) {
+      throw new ApplicationError(
+        "PROBLEM_GENERATION_FAILED",
+        `選ばれたお題の言語（${problem.language}）が試合の言語（${language}）と一致しません。`,
+      );
     }
     problemId = problem.id;
     sourceCode = problem.source_code;
@@ -88,7 +105,7 @@ export async function startGame(input: StartGameInput): Promise<Game> {
     currentCode: sourceCode,
     currentLineCount: initialLineCount,
     currentPlayerId: firstPlayer.player_id,
-    currentTurnDifficulty: rollTurnDifficulty(sourceCode),
+    currentTurnDifficulty: rollTurnDifficulty(sourceCode, Math.random, language),
     turnNo: 1,
     turnTimeLimitSeconds: input.turnTimeLimitSeconds,
     turnDeadlineAt: new Date(startedAt.getTime() + input.turnTimeLimitSeconds * 1000).toISOString(),

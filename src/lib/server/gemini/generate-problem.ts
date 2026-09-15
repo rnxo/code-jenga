@@ -1,6 +1,8 @@
 import "server-only";
 
+import type { CodeLanguage } from "@/types/game";
 import { getServerEnv } from "@/lib/server/env";
+import { DEFAULT_LANGUAGE, normalizeLanguageId } from "@/lib/shared/language";
 import { buildProblemGenerationPrompt } from "./prompt";
 
 // 担当: BE-B
@@ -11,15 +13,19 @@ import { buildProblemGenerationPrompt } from "./prompt";
 export interface GeneratedProblem {
   sourceCode: string;
   testCode: string;
-  language: string;
+  language: CodeLanguage;
   prompt: string;
 }
 
 // Gemini にお題生成プロンプトを投げて、コード＋テストコードを取得する。
-export async function generateProblem(difficulty?: string): Promise<GeneratedProblem> {
-  const prompt = buildProblemGenerationPrompt(difficulty);
+export async function generateProblem(
+  difficulty?: string,
+  language: CodeLanguage = DEFAULT_LANGUAGE,
+): Promise<GeneratedProblem> {
+  const prompt = buildProblemGenerationPrompt(difficulty, language);
   const { GEMINI_API_KEY } = getServerEnv();
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  // gemini-2.5-flash は 2026/9 時点で新規ユーザーへの提供が終了し 404 を返すため、後継の 3.6-flash を既定にする。
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.6-flash";
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   let response: Response | null = null;
   let lastError: unknown = null;
@@ -61,10 +67,13 @@ export async function generateProblem(difficulty?: string): Promise<GeneratedPro
   } catch {
     throw new Error("Gemini の応答を JSON として解析できませんでした。");
   }
-  if (!isGeneratedProblem(parsed)) {
-    throw new Error("Gemini の応答に sourceCode、testCode、language が正しく含まれていません。");
+  if (!isGeneratedProblem(parsed, language)) {
+    throw new Error(
+      `Gemini の応答に sourceCode、testCode、language が ${language} として正しく含まれていません。`,
+    );
   }
-  return { ...parsed, prompt };
+  // language は要求値で確定させる（型ガードで一致を確認済み）。Gemini の表記ゆれを DB に持ち込まない。
+  return { sourceCode: parsed.sourceCode, testCode: parsed.testCode, language, prompt };
 }
 
 /** Geminiレスポンスから生成本文を取り出す。 */
@@ -92,8 +101,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-/** Geminiが返した問題データの最小形式を検証する。 */
-function isGeneratedProblem(value: unknown): value is GeneratedProblem {
+/**
+ * Geminiが返した問題データの最小形式を検証する。
+ * language は要求した言語と一致していることまで確かめる（"Python" / "python3" の表記ゆれは吸収する）。
+ * 別言語が返ってきた場合は、そのままお題にすると実行時に必ず壊れるので不合格にする。
+ */
+function isGeneratedProblem(
+  value: unknown,
+  expected: CodeLanguage,
+): value is { sourceCode: string; testCode: string; language: string } {
   if (!isRecord(value)) {
     return false;
   }
@@ -102,7 +118,6 @@ function isGeneratedProblem(value: unknown): value is GeneratedProblem {
     value.sourceCode.trim().length > 0 &&
     typeof value.testCode === "string" &&
     value.testCode.trim().length > 0 &&
-    typeof value.language === "string" &&
-    value.language === "typescript"
+    normalizeLanguageId(value.language) === expected
   );
 }

@@ -11,6 +11,10 @@ import { parseCreateProblemRequest, parseJsonBody } from "@/lib/server/validatio
 // 検証に失敗したら再生成を試み、上限まで失敗したら PROBLEM_GENERATION_FAILED を返す。
 // 担当: BE-B
 
+// Piston の実行（run 3秒 + compile 10秒 + 余裕）はリトライ込みで最大 36 秒程度かかるため、
+// Vercel 関数の既定タイムアウトでは足りない。60 秒に延長する。
+export const maxDuration = 60;
+
 export async function POST(request: Request): Promise<Response> {
   try {
     const req = parseCreateProblemRequest(await parseJsonBody(request));

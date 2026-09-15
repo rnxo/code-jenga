@@ -23,6 +23,8 @@ import type {
   StartGameRequest,
   StartGameResponse,
   TimeoutTurnResponse,
+  UpdateGameLanguageRequest,
+  UpdateGameLanguageResponse,
 } from "@/types/api";
 import type { Game, GamePlayer, Problem, Room, Turn } from "@/types/game";
 import { rollTurnDifficulty } from "@/lib/shared/difficulty";
@@ -99,6 +101,7 @@ function mockGame(overrides: Partial<Game> = {}): Game {
     round_no: 1,
     problem_id: problem.id,
     status: "playing",
+    language: "typescript",
     turn_no: 1,
     current_player_id: MOCK_HOST_ID,
     current_turn_difficulty: rollTurnDifficulty(problem.source_code),
@@ -264,6 +267,14 @@ export async function startGame(
   _req: StartGameRequest,
 ): Promise<ApiResult<StartGameResponse>> {
   return ok({ game: mockGame() });
+}
+
+// モックは Realtime が無いので、返した game を LobbyPanel 側で state に反映して見た目を切り替える。
+export async function updateGameLanguage(
+  gameId: string,
+  req: UpdateGameLanguageRequest,
+): Promise<ApiResult<UpdateGameLanguageResponse>> {
+  return ok({ game: mockGame({ id: gameId, status: "waiting", language: req.language }) });
 }
 
 export async function createTurn(

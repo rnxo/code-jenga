@@ -34,6 +34,8 @@ export function TurnIndicator({ game, isMyTurn }: TurnIndicatorProps) {
 
   return (
     <section
+      // 手番を告げる枠なので、自転車のラッパ
+      data-silly-sound="horn"
       className={`flex flex-col gap-3 rounded-lg border-2 p-3 ${
         isMyTurn ? "border-amber-600 bg-amber-50" : "border-amber-900/20 bg-amber-50/40"
       }`}

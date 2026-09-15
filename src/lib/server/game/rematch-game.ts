@@ -40,7 +40,12 @@ export async function rematchGame(input: RematchGameInput): Promise<RematchGameR
     return { game: latest, players: await listGamePlayers(latest.id) };
   }
 
-  const next = await createGame({ roomId: previous.room_id, roundNo: previous.round_no + 1 });
+  // 前局の言語を引き継ぐ（新しいロビーでホストが変更することはできる）。
+  const next = await createGame({
+    roomId: previous.room_id,
+    roundNo: previous.round_no + 1,
+    language: previous.language,
+  });
   const players = await copyGamePlayers(previous.id, next.id);
   await updateRoomStatus(previous.room_id, "waiting");
   return { game: next, players };

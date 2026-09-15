@@ -9,6 +9,10 @@ import { enforceUserRateLimit } from "@/lib/server/rate-limit";
 //   curl -X POST http://localhost:3000/api/problems/verify -b <認証 Cookie>
 // 担当: BE-B
 
+// Piston の実行（run 3秒 + compile 10秒 + 余裕）はリトライ込みで最大 36 秒程度かかるため、
+// Vercel 関数の既定タイムアウトでは足りない。60 秒に延長する。
+export const maxDuration = 60;
+
 export interface VerifyProblemsResponse {
   verified: string[];
   rejected: { problemId: string; reason: string }[];

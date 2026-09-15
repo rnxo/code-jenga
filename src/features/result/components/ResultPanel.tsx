@@ -1,50 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api/client";
-import { createClient } from "@/lib/supabase/client";
 import type { Game } from "@/types/game";
+import { useRematchRealtime } from "../hooks/useRematchRealtime";
 import { ResultDialog } from "./ResultDialog";
 
 // 結果画面の配線。担当: FE-B
 // page.tsx（Server Component）からは関数を渡せないため、再戦の呼び出しはここで持つ。
 // 見た目は ResultDialog（ようた担当）に任せる。
-
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
+// 再戦を始められるのはホストだけ。他の参加者は、ホストの再戦で自分が次局に
+// コピーされたのを Realtime で検知してロビーへ移る（useRematchRealtime）。
 
 export interface ResultPanelProps {
   game: Game;
   loserNickname: string | null;
   roomCode: string;
+  /** rooms.host_id。再戦ボタンはホストにだけ出す。 */
+  hostId: string;
+  /** 自分の profile id。未サインインなら null。 */
+  currentUserId: string | null;
 }
 
-export function ResultPanel({ game, loserNickname, roomCode }: ResultPanelProps) {
+export function ResultPanel({ game, loserNickname, roomCode, hostId, currentUserId }: ResultPanelProps) {
   const router = useRouter();
   const [isRematching, setIsRematching] = useState(false);
   const [rematchError, setRematchError] = useState<string | null>(null);
+  const isHost = currentUserId !== null && currentUserId === hostId;
 
-  // 相手が再戦を押したら同じルームに次局（waiting）が INSERT されるので、それを合図に画面を読み直す。
-  useEffect(() => {
-    if (USE_MOCK) {
-      return;
-    }
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`room-next-game:${game.room_id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "games", filter: `room_id=eq.${game.room_id}` },
-        () => {
-          router.refresh();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [game.room_id, router]);
+  // 次局の games INSERT は参加者コピー前で RLS に弾かれるため、自分の game_players INSERT を合図にする。
+  useRematchRealtime(currentUserId);
 
   async function handleRematch() {
     setIsRematching(true);
@@ -68,7 +54,8 @@ export function ResultPanel({ game, loserNickname, roomCode }: ResultPanelProps)
       game={game}
       loserNickname={loserNickname}
       roomCode={roomCode}
-      onRematch={handleRematch}
+      onRematch={isHost ? handleRematch : undefined}
+      rematchUnavailableMessage={isHost ? null : "ホストが再戦を始めると、自動でロビーに移動します。"}
       isRematching={isRematching}
       rematchErrorMessage={rematchError}
     />

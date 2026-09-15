@@ -11,10 +11,9 @@
 // - process.exit() は呼ばない（パイプが flush される前に落ちるとマーカー行が消える）。
 // 純粋モジュール（"server-only" を付けない）。
 
-/** stdout の最終行に出す結果マーカー。以降は JSON `{ total, passed, failed, failures }`。 */
-export const CJ_SUMMARY_MARKER = "__CJ_SUMMARY__";
-/** ハーネス自身の障害（未対応マッチャーなど）。プレイヤーのアウトにしてはいけないので exit 0 で出す。 */
-export const CJ_ERROR_MARKER = "__CJ_ERROR__";
+// マーカー定数の実体は markers.ts に置いている（Python ハーネスと共有するため）。
+// classify.ts / parse-vitest.ts の既存 import パスを壊さないよう、ここから re-export する。
+export { CJ_ERROR_MARKER, CJ_SUMMARY_MARKER } from "./markers";
 
 /** ハーネスが対応しているマッチャー（Gemini プロンプトの制約にも使う）。 */
 export const CJ_SUPPORTED_MATCHERS = [
