@@ -7,7 +7,10 @@ import { Spinner } from "@/components/ui/Spinner";
 import { LeaveButton } from "@/components/ui/LeaveButton";
 import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder } from "@/lib/shared/difficulty";
 import { useGameRealtime } from "../hooks/useGameRealtime";
+import { useTurnTimer } from "../hooks/useTurnTimer";
+import { pickMascotLine, type MascotLine, type MascotSituation } from "../mascot-lines";
 import { CodeViewer } from "./CodeViewer";
+import { Mascot } from "./Mascot";
 import { LineDeleteControls } from "./LineDeleteControls";
 import { TestResultPanel } from "./TestResultPanel";
 import { TurnIndicator } from "./TurnIndicator";
@@ -24,6 +27,10 @@ export interface GameBoardProps {
 const TIMEOUT_GRACE_MS = 1500;
 /** それでも弾かれたとき（時計が大きく遅れている端末）に1回だけ叩き直すまでの間隔。 */
 const TIMEOUT_RETRY_MS = 3000;
+/** マスコットが「急げ」と言い出す残り秒数。 */
+const MASCOT_HURRY_SECONDS = 10;
+/** マスコットが雑談を挟む間隔。 */
+const MASCOT_IDLE_MS = 25_000;
 
 export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const router = useRouter();
@@ -66,6 +73,48 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const [isLeaving, setIsLeaving] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
 
+  const isMyTurn = game?.current_player_id === currentUserId;
+  const latestTurn = turns.at(-1) ?? null;
+  const currentCode = game?.current_code ?? "";
+  const selectedLineNo = selection !== null && selection.code === currentCode ? selection.lineNo : null;
+
+  const selectedLineText =
+    selectedLineNo === null ? null : currentCode.split("\n")[selectedLineNo - 1] ?? null;
+  const difficulty = game?.current_turn_difficulty ?? null;
+  const blockedReason =
+    difficulty && selectedLineText !== null && !isDeletableUnder(difficulty, selectedLineText)
+      ? `${DIFFICULTY_LABEL[difficulty]} ではこの行は削除できません。${DIFFICULTY_RULE_TEXT[difficulty]}`
+      : null;
+
+
+  // ---- マスコット（演出のみ。ゲーム進行には関与しない） ----
+  const remainingSeconds = useTurnTimer(turnDeadlineAt);
+  const [idleTick, setIdleTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setIdleTick((tick) => tick + 1), MASCOT_IDLE_MS);
+    return () => clearInterval(id);
+  }, []);
+  const mascotSituation = resolveMascotSituation({
+    isMyTurn,
+    isSelected: selectedLineNo !== null,
+    isBlocked: blockedReason !== null,
+    isHurrying: remainingSeconds <= MASCOT_HURRY_SECONDS && turnDeadlineAt !== null,
+    latestTurnResult: latestTurn?.result ?? null,
+    latestTurnByMe: latestTurn?.player_id === currentUserId,
+    idleTick,
+  });
+  // 状況（と手番・雑談のタイミング）が変わったときだけセリフを引き直す。
+  const mascotKey = `${mascotSituation}:${game?.turn_no ?? 0}:${idleTick}`;
+  const [mascot, setMascot] = useState<{ key: string; line: MascotLine } | null>(null);
+  if (mascot === null || mascot.key !== mascotKey) {
+    // key が変わったときだけ描画中に state を調整する（直前のセリフと被らないように選ぶ）。
+    setMascot({
+      key: mascotKey,
+      line: pickMascotLine(mascotSituation, mascot?.line.message ?? null),
+    });
+  }
+  const mascotLine = mascot?.line ?? pickMascotLine(mascotSituation);
+
   if (isLoading) {
     return <Spinner label="盤面を読み込み中..." />;
   }
@@ -73,19 +122,6 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   if (errorMessage || !game) {
     return <p className="text-sm text-red-600">{errorMessage ?? "試合が見つかりません。"}</p>;
   }
-
-  const isMyTurn = game.current_player_id === currentUserId;
-  const latestTurn = turns.at(-1) ?? null;
-  const currentCode = game.current_code ?? "";
-  const selectedLineNo = selection !== null && selection.code === currentCode ? selection.lineNo : null;
-
-  const selectedLineText =
-    selectedLineNo === null ? null : currentCode.split("\n")[selectedLineNo - 1] ?? null;
-  const difficulty = game.current_turn_difficulty;
-  const blockedReason =
-    difficulty && selectedLineText !== null && !isDeletableUnder(difficulty, selectedLineText)
-      ? `${DIFFICULTY_LABEL[difficulty]} ではこの行は削除できません。${DIFFICULTY_RULE_TEXT[difficulty]}`
-      : null;
 
   async function handleDeleteLine() {
     if (selectedLineNo === null || blockedReason !== null) {
@@ -143,6 +179,30 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
         </p>
       ) : null}
       <LeaveButton onLeave={handleLeave} isLeaving={isLeaving} size="quiet" />
+      <Mascot message={mascotLine.message} mood={mascotLine.mood} />
     </div>
   );
+}
+
+interface MascotContext {
+  isMyTurn: boolean;
+  isSelected: boolean;
+  isBlocked: boolean;
+  isHurrying: boolean;
+  latestTurnResult: "safe" | "out" | "timeout" | null;
+  latestTurnByMe: boolean;
+  idleTick: number;
+}
+
+/** 盤面の状態からマスコットの状況を決める。上にあるものほど優先。 */
+function resolveMascotSituation(ctx: MascotContext): MascotSituation {
+  if (ctx.isMyTurn && ctx.isHurrying) return "hurry";
+  if (ctx.isMyTurn && ctx.isBlocked) return "blocked";
+  if (ctx.isMyTurn && ctx.isSelected) return "selected";
+  // 雑談は2回に1回挟む（最初のティックは状況に合ったセリフ）。
+  if (ctx.idleTick > 0 && ctx.idleTick % 2 === 1) return "idle";
+  if (ctx.latestTurnResult === "safe") {
+    return ctx.latestTurnByMe ? "safe_mine" : "safe_opponent";
+  }
+  return ctx.isMyTurn ? "my_turn" : "waiting";
 }
