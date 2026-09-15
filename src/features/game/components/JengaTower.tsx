@@ -77,9 +77,9 @@ export function JengaTower({
     };
     didDrag.current = false;
 
-    // 閾値を待たずにここで捕捉する。待つと、閾値を超える前に pointerup を
-    // 取りこぼしたとき（右クリックや要素外への離脱）に掴んだままになる
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // ここでは捕捉しない。捕捉すると click がこの要素に付け替えられてしまい、
+    // 積み木（button）の onClick が実マウスで一切呼ばれなくなる。
+    // 捕捉は「回転が始まった」と判断できた時点（閾値超え）で行う。
   }
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
@@ -100,6 +100,8 @@ export function JengaTower({
       didDrag.current = true;
       setIsDragging(true);
       window.getSelection()?.removeAllRanges();
+      // ここから先はドラッグ。要素外で指を離しても pointerup を取りこぼさないよう捕捉する
+      event.currentTarget.setPointerCapture(event.pointerId);
     }
 
     setAngle({
@@ -124,6 +126,21 @@ export function JengaTower({
   function handleLostPointerCapture() {
     drag.current = null;
     setIsDragging(false);
+  }
+
+  /**
+   * まだ捕捉していない（＝回転が始まっていない）うちに外へ出た場合の保険。
+   * そのまま外で指を離すと pointerup を取りこぼし、drag.current が残って
+   * 次の操作を受け付けなくなる。
+   */
+  function handlePointerLeave(event: PointerEvent<HTMLDivElement>) {
+    if (didDrag.current) {
+      return;
+    }
+    const origin = drag.current;
+    if (origin && origin.pointerId === event.pointerId) {
+      drag.current = null;
+    }
   }
 
   function handleSelectLine(lineNo: number, isFromPointer: boolean) {
@@ -162,6 +179,7 @@ export function JengaTower({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
         onLostPointerCapture={handleLostPointerCapture}
       >
         {lines.map((line, index) => {
