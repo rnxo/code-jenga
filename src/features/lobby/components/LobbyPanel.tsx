@@ -31,13 +31,19 @@ export function LobbyPanel({
   game: initialGame,
   players: initialPlayers,
   roomCode,
-  hostId,
+  hostId: initialHostId,
   currentUserId,
   maxPlayers,
   minPlayers = 2,
 }: LobbyPanelProps) {
   const router = useRouter();
-  const { game: liveGame, players: livePlayers, isLoading, errorMessage } = useLobbyRealtime(initialGame.id);
+  const {
+    game: liveGame,
+    players: livePlayers,
+    hostId: liveHostId,
+    isLoading,
+    errorMessage,
+  } = useLobbyRealtime(initialGame.id, initialGame.room_id);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -55,6 +61,8 @@ export function LobbyPanel({
     ...player,
     nickname: nicknameById.get(player.player_id) ?? "(参加者)",
   }));
+  // ホストが退出すると leaveGame が rooms.host_id を次の参加者へ移す。Realtime で受け取った値を優先する。
+  const hostId = liveHostId ?? initialHostId;
   const isHost = currentUserId === hostId;
   // サーバー側の人数チェックはまだ無いので、足りないうちは押せないようにする
   const hasEnoughPlayers = players.length >= minPlayers;

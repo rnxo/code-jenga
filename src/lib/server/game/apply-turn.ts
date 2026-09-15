@@ -11,7 +11,7 @@ import { PistonError } from "@/lib/server/piston/errors";
 import { getNextPlayerId } from "./turn-order";
 import { judgeTurnResult } from "./judge";
 import { runOnPiston } from "@/lib/server/piston/run";
-import { parseVitestOutput } from "@/lib/server/piston/parse-vitest";
+import { parseTestOutput } from "@/lib/server/piston/parse-vitest";
 import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder, rollTurnDifficulty } from "@/lib/shared/difficulty";
 import { toCodeLanguage } from "@/lib/shared/language";
 
@@ -101,7 +101,7 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
     throw toTestRunError(input, error);
   }
 
-  const summary = parseVitestOutput(pistonResult.stdout);
+  const summary = parseTestOutput(pistonResult.stdout, problem.language, problem.test_code);
   const testStatus = pistonResult.outcome;
   const judgement = judgeTurnResult(testStatus);
   if (!judgement.judged) {
@@ -125,7 +125,9 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
       codeAfter: deletedLine.codeAfter,
       turnResult: judgement.result,
       nextPlayerId,
-      nextTurnDifficulty: isFinished ? null : rollTurnDifficulty(deletedLine.codeAfter, Math.random, language),
+      nextTurnDifficulty: isFinished
+        ? null
+        : rollTurnDifficulty(deletedLine.codeAfter, Math.random, language, problemForRules.safe_line_texts),
       finishReason: isOut ? "test_failed" : noLinesLeft ? "no_lines_left" : null,
       durationMs: Date.now() - startedAt,
       testRun: {

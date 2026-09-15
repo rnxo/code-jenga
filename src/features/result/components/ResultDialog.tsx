@@ -22,6 +22,11 @@ export interface ResultDialogProps {
    * 渡さなければ「再戦は準備中です」を出す。
    */
   rematchUnavailableMessage?: string | null;
+  /**
+   * 「もう一度あそぶ」の下に添える案内（例: ホストへ「ロビーで開始を押して」、
+   * 他の参加者へ「ホストの開始待ち」）。null なら出さない。
+   */
+  rematchHintMessage?: string | null;
   /** 再戦リクエストの送信中。ボタンを押せなくする */
   isRematching?: boolean;
   /** 再戦リクエストが失敗したときのメッセージ。null なら何も出さない */
@@ -38,6 +43,8 @@ export interface ResultDialogProps {
   onBackToTop?: () => void;
   /** 退出リクエストの送信中。ボタンを押せなくする */
   isLeaving?: boolean;
+  /** 土下座動画のポップアップを開き直す。渡されたときだけ「もう一度見る」ボタンを出す（配線は FE-B） */
+  onReplayDogeza?: () => void;
 }
 
 /** games.finish_reason（database.ts の game_finish_reason）の日本語表示。 */
@@ -57,14 +64,37 @@ const FINISH_REASON_TEXT: Record<GameFinishReason, string> = {
 };
 
 /** 崩壊で終わった試合。タワーを崩れた姿で見せる価値があるのはこの2つだけ。 */
-const COLLAPSED_REASONS: ReadonlySet<GameFinishReason> = new Set(["test_failed", "timeout"]);
+const COLLAPSED_REASONS: ReadonlySet<GameFinishReason> = new Set([
+  "test_failed",
+  "timeout",
+]);
 
 /** 実際のコードが無いとき（中断・完走）に出す、崩れたタワーの略図。 */
 const RUBBLE = [
-  { rotate: "-rotate-12", offset: "-translate-x-6", width: "w-24", tone: "bg-amber-700" },
-  { rotate: "rotate-6", offset: "translate-x-8", width: "w-20", tone: "bg-amber-600" },
-  { rotate: "-rotate-3", offset: "translate-x-1", width: "w-28", tone: "bg-amber-800" },
-  { rotate: "rotate-12", offset: "-translate-x-9", width: "w-16", tone: "bg-amber-600" },
+  {
+    rotate: "-rotate-12",
+    offset: "-translate-x-6",
+    width: "w-24",
+    tone: "bg-amber-700",
+  },
+  {
+    rotate: "rotate-6",
+    offset: "translate-x-8",
+    width: "w-20",
+    tone: "bg-amber-600",
+  },
+  {
+    rotate: "-rotate-3",
+    offset: "translate-x-1",
+    width: "w-28",
+    tone: "bg-amber-800",
+  },
+  {
+    rotate: "rotate-12",
+    offset: "-translate-x-9",
+    width: "w-16",
+    tone: "bg-amber-600",
+  },
 ] as const;
 
 export function ResultDialog({
@@ -73,11 +103,13 @@ export function ResultDialog({
   roomCode,
   onRematch,
   rematchUnavailableMessage = null,
+  rematchHintMessage = null,
   isRematching = false,
   rematchErrorMessage = null,
   rematchBlockedMessage = null,
   onBackToTop,
   isLeaving = false,
+  onReplayDogeza,
 }: ResultDialogProps) {
   const router = useRouter();
   const finishReason = game.finish_reason;
@@ -130,7 +162,10 @@ export function ResultDialog({
           />
         </div>
       ) : (
-        <div aria-hidden className="flex w-full flex-col items-center gap-1 py-1">
+        <div
+          aria-hidden
+          className="flex w-full flex-col items-center gap-1 py-1"
+        >
           {RUBBLE.map((block) => (
             <span
               key={block.rotate + block.offset}
@@ -146,7 +181,9 @@ export function ResultDialog({
           {loserNickname ? `${loserNickname} の負け！` : "対戦終了"}
         </h2>
         {loserNickname ? (
-          <p className="text-sm text-amber-900/70">タワーを崩したのはこの人です</p>
+          <p className="text-sm text-amber-900/70">
+            タワーを崩したのはこの人です
+          </p>
         ) : null}
       </div>
 
@@ -163,6 +200,16 @@ export function ResultDialog({
           {game.turn_no} 手目で終了 / 残り {game.current_line_count ?? "-"} 行
         </p>
       </div>
+
+      {onReplayDogeza ? (
+        <button
+          type="button"
+          onClick={onReplayDogeza}
+          className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100"
+        >
+          🙇 土下座をもう一度見る
+        </button>
+      ) : null}
 
       <div className="flex w-full flex-col items-center gap-2">
         {/*
@@ -189,7 +236,15 @@ export function ResultDialog({
                 {rematchErrorMessage}
               </p>
             ) : null}
-            <Button variant="secondary" className="w-full" onClick={handleBackToTop} disabled={isLeaving}>
+            {rematchHintMessage ? (
+              <p className="text-center text-xs text-amber-900/70">{rematchHintMessage}</p>
+            ) : null}
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={handleBackToTop}
+              disabled={isLeaving}
+            >
               {isLeaving ? "退出中..." : "トップに戻る"}
             </Button>
           </>
@@ -203,7 +258,9 @@ export function ResultDialog({
             <Button onClick={handleBackToTop} disabled={isLeaving}>
               {isLeaving ? "退出中..." : "トップに戻る"}
             </Button>
-            <p className="text-sm text-amber-900/70">{rematchUnavailableMessage ?? "再戦は準備中です"}</p>
+            <p className="text-sm text-amber-900/70">
+              {rematchUnavailableMessage ?? "再戦は準備中です"}
+            </p>
           </>
         )}
       </div>

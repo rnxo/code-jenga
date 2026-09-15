@@ -77,6 +77,7 @@ function mockProblem(): Problem {
     generation_prompt: null,
     difficulty: "easy",
     is_verified: true,
+    safe_line_texts: null,
     created_at: nowIso(),
   };
 }

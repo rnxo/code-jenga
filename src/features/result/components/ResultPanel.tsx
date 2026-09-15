@@ -4,33 +4,41 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api/client";
 import type { Game } from "@/types/game";
-import { useRematchRealtime } from "../hooks/useRematchRealtime";
+import { DogezaPopup } from "./DogezaPopup";
 import { ResultDialog } from "./ResultDialog";
 
 // 結果画面の配線。担当: FE-B
 // page.tsx（Server Component）からは関数を渡せないため、再戦の呼び出しはここで持つ。
 // 見た目は ResultDialog（ようた担当）に任せる。
-// 再戦を始められるのはホストだけ。他の参加者は、ホストの再戦で自分が次局に
-// コピーされたのを Realtime で検知してロビーへ移る（useRematchRealtime）。
+//
+// 再戦の流れ:
+//   参加者が「もう一度あそぶ」を押す → 自分だけ次局（waiting）に登録されてロビーへ移る
+//   → ロビーでホストを待つ → ホストも同じボタンでロビーへ来て「試合を開始」を押す → 再戦。
+// 押していない参加者は結果画面に残ったままなので、勝手にロビーへ引きずり込まれない。
 
 export interface ResultPanelProps {
   game: Game;
   loserNickname: string | null;
   roomCode: string;
-  /** rooms.host_id。再戦ボタンはホストにだけ出す。 */
+  /** rooms.host_id。ホストには「開始はロビーで」の案内を添える。 */
   hostId: string;
   /** 自分の profile id。未サインインなら null。 */
   currentUserId: string | null;
 }
 
-export function ResultPanel({ game, loserNickname, roomCode, hostId, currentUserId }: ResultPanelProps) {
+export function ResultPanel({
+  game,
+  loserNickname,
+  roomCode,
+  hostId,
+  currentUserId,
+}: ResultPanelProps) {
   const router = useRouter();
   const [isRematching, setIsRematching] = useState(false);
   const [rematchError, setRematchError] = useState<string | null>(null);
+  // 決着直後は自動で開く。閉じたあとも「もう一度見る」で何度でも開ける
+  const [isDogezaOpen, setIsDogezaOpen] = useState(true);
   const isHost = currentUserId !== null && currentUserId === hostId;
-
-  // 次局の games INSERT は参加者コピー前で RLS に弾かれるため、自分の game_players INSERT を合図にする。
-  useRematchRealtime(currentUserId);
 
   async function handleRematch() {
     setIsRematching(true);
@@ -43,21 +51,36 @@ export function ResultPanel({ game, loserNickname, roomCode, hostId, currentUser
       setIsRematching(false);
       return;
     }
-    // 次局が waiting で作られたので、page.tsx に読み直させてロビーに切り替える。
+    // 次局に自分が登録されたので、page.tsx に読み直させてロビーに切り替える。
     // 読み直しても結果画面のままだった場合に押し直せるよう、送信中フラグは戻しておく。
     router.refresh();
     setIsRematching(false);
   }
 
   return (
-    <ResultDialog
-      game={game}
-      loserNickname={loserNickname}
-      roomCode={roomCode}
-      onRematch={isHost ? handleRematch : undefined}
-      rematchUnavailableMessage={isHost ? null : "ホストが再戦を始めると、自動でロビーに移動します。"}
-      isRematching={isRematching}
-      rematchErrorMessage={rematchError}
-    />
+    <>
+      {/* 決着直後に土下座動画をポップアップで見せる。閉じれば下の結果画面が操作できる */}
+      <DogezaPopup
+        isOpen={isDogezaOpen}
+        onClose={() => setIsDogezaOpen(false)}
+      />
+      <ResultDialog
+        game={game}
+        loserNickname={loserNickname}
+        roomCode={roomCode}
+        onRematch={currentUserId !== null ? handleRematch : undefined}
+        rematchUnavailableMessage={
+          currentUserId === null ? "サインインすると再戦できます。" : null
+        }
+        rematchHintMessage={
+          isHost
+            ? "ロビーで参加者がそろったら「試合を開始」を押してください。"
+            : "ロビーでホストが試合を開始するまでお待ちください。"
+        }
+        isRematching={isRematching}
+        rematchErrorMessage={rematchError}
+        onReplayDogeza={() => setIsDogezaOpen(true)}
+      />
+    </>
   );
 }

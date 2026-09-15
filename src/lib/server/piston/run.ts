@@ -236,7 +236,7 @@ export async function runOnPiston(input: PistonRunInput): Promise<PistonRunResul
     throw new PistonError("malformed_response", "Piston の応答に run ステージが含まれていません。");
   }
 
-  const classified = classifyPistonRun(raw);
+  const classified = classifyPistonRun(raw, definition.testStrategy === "stdout" ? (input.testCode ?? "") : undefined);
   const compileFailed = raw.compile !== undefined && typeof raw.compile.code === "number" && raw.compile.code !== 0;
   const stderr = classified.stderrNote ? `${raw.run.stderr}\n${classified.stderrNote}`.trim() : raw.run.stderr;
   return {

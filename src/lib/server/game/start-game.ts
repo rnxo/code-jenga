@@ -62,6 +62,7 @@ export async function startGame(input: StartGameInput): Promise<Game> {
   let problemId: string;
   let sourceCode: string;
   let initialLineCount: number;
+  let safeLineTexts: string[] | null;
   try {
     let problem = await findVerifiedProblem({ roomId: game.room_id, language });
     if (!problem) {
@@ -93,6 +94,7 @@ export async function startGame(input: StartGameInput): Promise<Game> {
     problemId = problem.id;
     sourceCode = problem.source_code;
     initialLineCount = problem.initial_line_count;
+    safeLineTexts = problem.safe_line_texts;
   } catch (error) {
     await updateGame(input.gameId, { status: "waiting" });
     throw error;
@@ -105,7 +107,7 @@ export async function startGame(input: StartGameInput): Promise<Game> {
     currentCode: sourceCode,
     currentLineCount: initialLineCount,
     currentPlayerId: firstPlayer.player_id,
-    currentTurnDifficulty: rollTurnDifficulty(sourceCode, Math.random, language),
+    currentTurnDifficulty: rollTurnDifficulty(sourceCode, Math.random, language, safeLineTexts),
     turnNo: 1,
     turnTimeLimitSeconds: input.turnTimeLimitSeconds,
     turnDeadlineAt: new Date(startedAt.getTime() + input.turnTimeLimitSeconds * 1000).toISOString(),

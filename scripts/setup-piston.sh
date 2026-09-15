@@ -18,7 +18,8 @@ DENO_VERSION="${DENO_VERSION:-1.32.3}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.12.0}"
 # 導入する言語の一覧（"言語:バージョン" のカンマ区切り）。
 # deno は TypeScript のお題、python は Python のお題の実行に使う。
-PISTON_PACKAGES="${PISTON_PACKAGES:-deno:${DENO_VERSION},python:${PYTHON_VERSION}}"
+BRAINFUCK_VERSION="${BRAINFUCK_VERSION:-2.7.3}"
+PISTON_PACKAGES="${PISTON_PACKAGES:-deno:${DENO_VERSION},python:${PYTHON_VERSION},brainfuck:${BRAINFUCK_VERSION}}"
 WAIT_SECONDS="${WAIT_SECONDS:-60}"
 
 if ! command -v docker >/dev/null 2>&1; then
