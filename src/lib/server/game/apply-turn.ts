@@ -125,7 +125,9 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
       codeAfter: deletedLine.codeAfter,
       turnResult: judgement.result,
       nextPlayerId,
-      nextTurnDifficulty: isFinished ? null : rollTurnDifficulty(deletedLine.codeAfter, Math.random, language),
+      nextTurnDifficulty: isFinished
+        ? null
+        : rollTurnDifficulty(deletedLine.codeAfter, Math.random, language, problemForRules.safe_line_texts),
       finishReason: isOut ? "test_failed" : noLinesLeft ? "no_lines_left" : null,
       durationMs: Date.now() - startedAt,
       testRun: {

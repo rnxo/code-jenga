@@ -185,6 +185,7 @@ export type Database = {
           initial_line_count: number
           is_verified: boolean
           language: string
+          safe_line_texts: string[] | null
           source_code: string
           test_code: string
         }
@@ -197,6 +198,7 @@ export type Database = {
           initial_line_count: number
           is_verified?: boolean
           language: string
+          safe_line_texts?: string[] | null
           source_code: string
           test_code: string
         }
@@ -209,6 +211,7 @@ export type Database = {
           initial_line_count?: number
           is_verified?: boolean
           language?: string
+          safe_line_texts?: string[] | null
           source_code?: string
           test_code?: string
         }

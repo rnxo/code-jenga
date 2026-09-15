@@ -122,10 +122,38 @@ describe("rollTurnDifficulty", () => {
     expect(rollTurnDifficulty(SAMPLE_SOURCE, () => 0.999999)).toBe("hard");
   });
 
-  it("抽選結果で削除できる行が無い場合は EASY にフォールバックする", () => {
+  it("抽選結果で削除できる行が無い場合は HARD → NORMAL → EASY の順に段階的に格下げする", () => {
+    // 宣言行が無いので HARD は成立しないが、コメント・記号行があるので NORMAL は成立する。
     const code = ["// comment", "}", "];"].join("\n");
-    expect(rollTurnDifficulty(code, () => 0.9)).toBe("easy");
+    expect(rollTurnDifficulty(code, () => 0.9)).toBe("normal");
     expect(rollTurnDifficulty(code, () => 0.4)).toBe("normal");
+    // 空行しか無ければ NORMAL も成立せず EASY まで落ちる。
+    const blankOnly = ["", "  "].join("\n");
+    expect(rollTurnDifficulty(blankOnly, () => 0.9)).toBe("easy");
+    expect(rollTurnDifficulty(blankOnly, () => 0.4)).toBe("easy");
+  });
+
+  it("safeLineTexts を渡すと、セーフな削除可能行が残っている難易度まで格下げする", () => {
+    const code = ["const a = 1;", "// comment", "a + 1;"].join("\n");
+    // 宣言行 `const a = 1;` はセーフでないので HARD は成立せず、コメント行がセーフなので NORMAL になる。
+    expect(rollTurnDifficulty(code, () => 0.9, "typescript", ["// comment"])).toBe("normal");
+    // 宣言行がセーフなら HARD のまま。
+    expect(rollTurnDifficulty(code, () => 0.9, "typescript", ["const a = 1;"])).toBe("hard");
+    // セーフ行が1つも無ければ EASY まで落ちる。
+    expect(rollTurnDifficulty(code, () => 0.9, "typescript", [])).toBe("easy");
+  });
+
+  it("safeLineTexts が null / undefined なら削除可能行の有無だけで判定する（後方互換）", () => {
+    expect(rollTurnDifficulty(SAMPLE_SOURCE, () => 0.9, "typescript", null)).toBe("hard");
+    expect(rollTurnDifficulty(SAMPLE_SOURCE, () => 0.9, "typescript", undefined)).toBe("hard");
+  });
+});
+
+describe("listDeletableLineNumbers（safeLineTexts 指定）", () => {
+  it("削除可能かつセーフな行だけを返す", () => {
+    const code = ["const a = 1;", "// comment", "a + 1;"].join("\n");
+    expect(listDeletableLineNumbers(code, "easy", "typescript", ["// comment", "a + 1;"])).toEqual([2, 3]);
+    expect(listDeletableLineNumbers(code, "hard", "typescript", ["// comment", "a + 1;"])).toEqual([]);
   });
 });
 

@@ -4,6 +4,7 @@ import type { Game } from "@/types/game";
 import { ApplicationError } from "@/lib/api/errors";
 import { findGameById, updateGameIfCurrent } from "@/lib/server/repositories/games";
 import { listGamePlayers, markGamePlayerLeft } from "@/lib/server/repositories/game-players";
+import { findProblemById } from "@/lib/server/repositories/problems";
 import { updateRoomStatus } from "@/lib/server/repositories/rooms";
 import { rollTurnDifficulty } from "@/lib/shared/difficulty";
 import { getActivePlayers, getNextPlayerIdAfterLeave, MIN_PLAYERS } from "./turn-order";
@@ -83,12 +84,22 @@ export async function leaveGame(input: LeaveGameInput): Promise<LeaveGameResult>
 
   // 手番中の離脱: 次のプレイヤーへ回し、締切と難易度を引き直す（コードは変わらないので turn_no は据え置く）。
   const nextPlayerId = getNextPlayerIdAfterLeave(players, input.playerId);
+  // 難易度の引き直しにはお題のセーフ行が要る。取れなければ従来通り削除可能行だけで抽選する（警告は残す）。
+  const problem = game.problem_id ? await findProblemById(game.problem_id) : null;
+  if (!problem) {
+    console.warn(`[leave-game] お題が取得できないためセーフ行なしで難易度を抽選します（game=${input.gameId}）`);
+  }
   const passed = await updateGameIfCurrent(
     input.gameId,
     { status: "playing", turnNo: game.turn_no },
     {
       currentPlayerId: nextPlayerId,
-      currentTurnDifficulty: rollTurnDifficulty(game.current_code, Math.random, game.language),
+      currentTurnDifficulty: rollTurnDifficulty(
+        game.current_code,
+        Math.random,
+        game.language,
+        problem?.safe_line_texts ?? null,
+      ),
       turnDeadlineAt: new Date(Date.now() + game.turn_time_limit_seconds * 1000).toISOString(),
     },
   );
