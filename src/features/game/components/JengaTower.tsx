@@ -17,6 +17,7 @@ import {
   toggleSoundMuted,
 } from "../sound-settings";
 import { CollapseMonuments } from "./CollapseMonuments";
+import { HandPointer, LINE_NO_ATTRIBUTE } from "./HandPointer";
 
 // コードを 3D の積み木として見せる盤面。担当: FE-B
 //
@@ -109,6 +110,11 @@ export function JengaTower({
   const isMuted = useSyncExternalStore(subscribeSoundMuted, isSoundMuted, getServerSoundMuted);
   /** 同じ崩壊で二度鳴らさないための記録 */
   const playedCollapse = useRef(false);
+  /**
+   * カメラの手でねらっている行。選択（selectedLineNo）とは別物で、
+   * 「いまここを指している」という下見の表示にだけ使う。
+   */
+  const [aimedLineNo, setAimedLineNo] = useState<number | null>(null);
 
   useEffect(() => {
     if (!collapsed) {
@@ -272,6 +278,7 @@ export function JengaTower({
           const lineNo = index + 1;
           const isBlank = line.trim().length === 0;
           const isSelected = selectedLineNo === lineNo;
+          const isAimed = aimedLineNo === lineNo && !isSelected;
           // 空行も正当な手なので選べる（DB_DESIGN.md 10章「空行の削除は禁止していない」）
           const canSelect = interactive && !collapsed;
 
@@ -280,6 +287,7 @@ export function JengaTower({
             isBlank ? styles.pieceBlank : "",
             canSelect ? styles.pieceSelectable : "",
             isSelected ? styles.pieceSelected : "",
+            isAimed ? styles.pieceAimed : "",
             collapsed ? styles.pieceFalling : "",
           ]
             .filter(Boolean)
@@ -290,6 +298,8 @@ export function JengaTower({
               key={lineNo}
               type="button"
               className={className}
+              // 手でねらう操作が、指先の下にある木片を引くのに使う
+              {...{ [LINE_NO_ATTRIBUTE]: lineNo }}
               // disabled にすると pointer イベントが出ず、相手の手番で回転も
               // 文字選択もできなくなる（#2）。押せないことは aria で伝える
               aria-disabled={!canSelect}
@@ -344,6 +354,12 @@ export function JengaTower({
           >
             {isMuted ? "効果音オフ" : "効果音オン"}
           </button>
+          {" · "}
+          <HandPointer
+            disabled={!interactive}
+            onAim={setAimedLineNo}
+            onCommit={onSelectLine}
+          />
         </p>
       ) : null}
     </div>

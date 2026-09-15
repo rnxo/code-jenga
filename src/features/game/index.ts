@@ -4,6 +4,7 @@ export { GameBoard } from "./components/GameBoard";
 export { CodeViewer } from "./components/CodeViewer";
 export { JengaTower } from "./components/JengaTower";
 export { SillyTapSounds } from "./components/SillyTapSounds";
+export { HandPointer } from "./components/HandPointer";
 export { LineDeleteControls } from "./components/LineDeleteControls";
 export { TurnIndicator } from "./components/TurnIndicator";
 export { TestResultPanel } from "./components/TestResultPanel";
