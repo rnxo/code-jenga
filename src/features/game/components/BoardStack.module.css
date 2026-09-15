@@ -1,0 +1,65 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pane {
+  min-width: 0;
+}
+
+/*
+ * 自動モード。画面の縦が足りないときは 2D のコードを畳んで、3D のタワーだけ残す。
+ * 高さで判断するので、要素の実測（＝レンダー中の DOM 参照）は要らない。
+ *
+ * 650px は「1366x768 のノート PC でブラウザの UI を引いた高さ」より少し下。
+ * 800px にしていたら普通のノート PC が最初から Monaco 非表示になってしまうので、
+ * 本当に狭いときだけ畳むようにしている（#48 のレビュー）。
+ * それより広くて畳みたいときは、下の view 切り替えで手動で選ぶ。
+ */
+@media (max-height: 650px) {
+  .autoHidden {
+    display: none;
+  }
+}
+
+.hidden {
+  display: none;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  align-self: flex-end;
+}
+
+.switchLabel {
+  margin-right: 0.25rem;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(120 53 15 / 0.5);
+}
+
+.switchButton {
+  border: 1px solid rgb(120 53 15 / 0.25);
+  border-radius: 0.375rem;
+  background: rgb(255 255 255 / 0.7);
+  padding: 0.125rem 0.5rem;
+  font-size: 11px;
+  color: rgb(120 53 15 / 0.75);
+  cursor: pointer;
+}
+
+.switchButton:hover {
+  background: #fffbeb;
+}
+
+.switchButtonActive {
+  border-color: #b45309;
+  background: #fef3c7;
+  color: #7c2d12;
+  font-weight: 700;
+}
