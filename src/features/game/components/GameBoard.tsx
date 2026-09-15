@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/Spinner";
 import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder } from "@/lib/shared/difficulty";
@@ -18,8 +19,38 @@ export interface GameBoardProps {
   currentUserId: string;
 }
 
+/** 締切を過ぎてからタイムアウト確定を叩くまでの猶予。端末の時計ズレで「まだ過ぎていない」と弾かれるのを避ける。 */
+const TIMEOUT_GRACE_MS = 1500;
+
 export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
+  const router = useRouter();
   const { game, turns, isLoading, errorMessage } = useGameRealtime(gameId);
+  const gameStatus = game?.status ?? null;
+  const turnDeadlineAt = game?.turn_deadline_at ?? null;
+
+  // 決着（finished / aborted）したら page.tsx に読み直させて結果画面へ切り替える。
+  useEffect(() => {
+    if (gameStatus !== null && gameStatus !== "playing") {
+      router.refresh();
+    }
+  }, [gameStatus, router]);
+
+  // 締切を過ぎたらタイムアウト確定を叩く。参加者なら誰が叩いてもよく、
+  // 先に手が確定していればサーバーが applied=false を返すだけなので二重に呼んでも害はない。
+  useEffect(() => {
+    if (gameStatus !== "playing" || !turnDeadlineAt) {
+      return;
+    }
+    const delayMs = new Date(turnDeadlineAt).getTime() - Date.now() + TIMEOUT_GRACE_MS;
+    const timer = setTimeout(() => {
+      void apiClient.timeoutTurn(gameId).then((result) => {
+        if (!result.ok) {
+          console.error(`タイムアウトの確定に失敗しました: ${result.error.message}`);
+        }
+      });
+    }, Math.max(0, delayMs));
+    return () => clearTimeout(timer);
+  }, [gameId, gameStatus, turnDeadlineAt]);
   // 選択は「どのコードに対する選択か」と一緒に持ち、相手の手で current_code が変わったら自動的に無効になる。
   const [selection, setSelection] = useState<{ code: string; lineNo: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
