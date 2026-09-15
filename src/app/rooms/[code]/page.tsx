@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GameBoard } from "@/features/game";
-import { ResultDialog } from "@/features/result";
+import { ResultPanel } from "@/features/result";
 import { LobbyPanel, type LobbyPlayer } from "@/features/lobby";
 import { Spinner } from "@/components/ui/Spinner";
 import * as mock from "@/lib/api/mock";
 import type { Game, Room } from "@/types/game";
 
-// games.status に応じて ロビー / GameBoard / ResultDialog を出し分けるだけの薄いコンテナ。
+// games.status に応じて ロビー / GameBoard / ResultPanel を出し分けるだけの薄いコンテナ。
 //
 // 読み込みは Route Handler を経由せず、DB_DESIGN.md 1章の方針どおり
 // user-scoped な Supabase クライアント（RLS が効く）で直接 SELECT する。
@@ -176,7 +176,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
   // status: 'finished' | 'aborted'
   return (
     <main className="mx-auto max-w-md px-4 py-12">
-      <ResultDialog game={game} loserNickname={loserNickname} roomCode={code} />
+      <ResultPanel game={game} loserNickname={loserNickname} roomCode={code} />
     </main>
   );
 }
