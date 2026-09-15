@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import * as mock from "@/lib/api/mock";
 import type { Game, Turn } from "@/types/game";
+
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
 
 export interface UseGameRealtimeResult {
   game: Game | null;
@@ -19,6 +22,16 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    // モック時は Supabase に繋がず固定データを返す（Realtime 更新は無い）。
+    // SSR と同じ「読み込み中」から始めてクライアントで埋めることで hydration のズレを避ける。
+    if (USE_MOCK) {
+      const timer = setTimeout(() => {
+        setGame(mock.getGameById(gameId));
+        setIsLoading(false);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+
     const supabase = createClient();
     let isMounted = true;
 
