@@ -166,8 +166,9 @@ export default async function RoomPage({ params }: RoomPageProps) {
     if (!userId) {
       notFound();
     }
+    // 盤面はコードの行幅に合わせて広がるので、他の画面より広めに取る。
     return (
-      <main className="mx-auto max-w-2xl px-4 py-12">
+      <main className="mx-auto max-w-4xl px-4 py-12">
         <GameBoard gameId={game.id} currentUserId={userId} />
       </main>
     );
