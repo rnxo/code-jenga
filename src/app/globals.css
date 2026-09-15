@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #fafaf9;
   --foreground: #171717;
+  /* 白一色だと寂しいので、積み木の琥珀色に合わせた淡いグラデーションを敷く。画像に差し替えるならここ。 */
+  --page-gradient: linear-gradient(to bottom, #fef3c7 0%, #fff7ed 45%, #f5f5f4 100%);
 }
 
 @theme inline {
@@ -16,11 +18,12 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --page-gradient: linear-gradient(to bottom, #1c1917 0%, #0a0a0a 100%);
   }
 }
 
 body {
-  background: var(--background);
+  background: var(--page-gradient) fixed, var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
