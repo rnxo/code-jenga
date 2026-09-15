@@ -22,6 +22,11 @@ export interface ResultDialogProps {
    * 渡さなければ「再戦は準備中です」を出す。
    */
   rematchUnavailableMessage?: string | null;
+  /**
+   * 「もう一度あそぶ」の下に添える案内（例: ホストへ「ロビーで開始を押して」、
+   * 他の参加者へ「ホストの開始待ち」）。null なら出さない。
+   */
+  rematchHintMessage?: string | null;
   /** 再戦リクエストの送信中。ボタンを押せなくする */
   isRematching?: boolean;
   /** 再戦リクエストが失敗したときのメッセージ。null なら何も出さない */
@@ -98,6 +103,7 @@ export function ResultDialog({
   roomCode,
   onRematch,
   rematchUnavailableMessage = null,
+  rematchHintMessage = null,
   isRematching = false,
   rematchErrorMessage = null,
   rematchBlockedMessage = null,
@@ -229,6 +235,9 @@ export function ResultDialog({
               <p className="w-full rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {rematchErrorMessage}
               </p>
+            ) : null}
+            {rematchHintMessage ? (
+              <p className="text-center text-xs text-amber-900/70">{rematchHintMessage}</p>
             ) : null}
             <Button
               variant="secondary"

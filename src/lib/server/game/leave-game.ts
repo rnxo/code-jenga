@@ -37,7 +37,7 @@ export async function leaveGame(input: LeaveGameInput): Promise<LeaveGameResult>
     throw new ApplicationError("UNAUTHENTICATED", "この試合の参加者ではありません。");
   }
   if (game.status === "finished" || game.status === "aborted") {
-    // 決着後の離脱は記録だけ残す（再戦時に copyGamePlayers から除外される）。
+    // 決着後の離脱は記録だけ残す（退出済みの参加者は再戦を申し出られない）。
     await markGamePlayerLeft(input.gameId, input.playerId);
     return { game };
   }
