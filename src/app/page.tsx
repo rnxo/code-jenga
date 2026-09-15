@@ -42,7 +42,8 @@ export default function HomePage() {
       </div>
 
       {/* PC 幅では2カラム。スマホでは従来どおり縦積み */}
-      <div className="grid gap-6 md:grid-cols-2 md:items-start md:gap-8">
+      {/* items-start にすると入力欄の数の差でカードの高さが揃わないので、stretch のままにする */}
+      <div className="grid gap-6 md:grid-cols-2 md:gap-8">
         <section className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white/60 p-4 dark:border-gray-800 dark:bg-black/20">
           <h2 className="font-mono text-[10px] tracking-[0.2em] text-gray-500 uppercase">
             create room
