@@ -47,7 +47,7 @@ function LibertySvg() {
         {/* 誇らしげな笑み */}
         <path d="M29.7 39.2 Q32 41.4 34.3 39.2" fill="none" stroke="#22352f" strokeWidth="0.9" strokeLinecap="round" />
         {/* 出した舌 */}
-        <path d="M30.3 39.8 Q32 44.6 33.9 39.8 Z" fill="#e2706a" stroke="#b9524c" strokeWidth="0.3" />
+        <path d="M30.2 39.7 Q30.1 47.2 32 49.4 Q33.9 47.2 34 39.7 Z" fill="#e2706a" stroke="#b9524c" strokeWidth="0.3" strokeLinejoin="round" />
         {/* ほお */}
         <ellipse cx="27.9" cy="37.7" rx="1.1" ry="0.7" fill="#e8907d" opacity="0.5" />
         <ellipse cx="36.1" cy="37.7" rx="1.1" ry="0.7" fill="#e8907d" opacity="0.5" />
@@ -96,7 +96,7 @@ function DaibutsuSvg() {
         <path d="M48 45.6 L48 48.4 L49.5 49" fill="none" stroke="#2c2519" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M44.8 51.8 Q48 53.9 51.2 51.8" fill="none" stroke="#2c2519" strokeWidth="1.1" strokeLinecap="round" />
         {/* 出した舌 */}
-        <path d="M45.9 52.6 Q48 58.4 50.1 52.6 Z" fill="#c96a63" stroke="#8f4740" strokeWidth="0.35" />
+        <path d="M45.6 52.4 Q45.2 64.4 48 67.6 Q50.8 64.4 50.4 52.4 Z" fill="#c96a63" stroke="#8f4740" strokeWidth="0.4" strokeLinejoin="round" />
       </g>
     </svg>
   );
