@@ -28,8 +28,8 @@ function LibertySvg() {
         <path d="M45 30 l-5 4 6 0.5 Z" />
       </g>
 
-      {/* 顔。勝ち側なので誇らしげに */}
-      <g>
+      {/* 顔。勝ち側なので誇らしげに。ゆっくり横に揺れる */}
+      <g className={styles.monumentFace}>
         {/* 顔の面。シルエットより明るくして目鼻立ちが乗るようにする */}
         <ellipse cx="32" cy="35.5" rx="6.3" ry="6.9" fill="#9ec9bb" />
         {/* 生え際 */}
@@ -73,8 +73,8 @@ function DaibutsuSvg() {
         <circle cx="48" cy="28" r="5" />
       </g>
 
-      {/* 顔。負け側なので、伏し目でいたわる表情に */}
-      <g>
+      {/* 顔。負け側なので、伏し目でいたわる表情に。女神とずらして揺らす */}
+      <g className={`${styles.monumentFace} ${styles.monumentFaceSlow}`}>
         {/* 長い耳 */}
         <ellipse cx="34" cy="46" rx="2.6" ry="5.2" fill="#5c4d34" />
         <ellipse cx="62" cy="46" rx="2.6" ry="5.2" fill="#5c4d34" />

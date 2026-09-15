@@ -655,9 +655,32 @@
   transform: translateX(-50%) rotate(3deg);
 }
 
-/* 像の顔。シルエットの上に乗せるので、明るい色で線だけ描く */
+/* 像の顔。首のあたりを軸に、ゆっくり横に揺れる */
 .monumentFace {
-  fill: rgb(255 255 255 / 0.9);
-  stroke: rgb(255 255 255 / 0.9);
-  stroke-linecap: round;
+  /* SVG の変形基準を自分の描画範囲にする（これが無いと SVG 全体が基準になる） */
+  transform-box: fill-box;
+  transform-origin: 50% 88%;
+  animation: faceSway 2.8s ease-in-out infinite;
+}
+
+/* 2体が同じ動きにならないよう、大仏はゆっくり・逆位相から始める */
+.monumentFaceSlow {
+  animation-duration: 3.6s;
+  animation-delay: -1.8s;
+}
+
+@keyframes faceSway {
+  0%,
+  100% {
+    transform: translateX(-2%) rotate(-3.5deg);
+  }
+  50% {
+    transform: translateX(2%) rotate(3.5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .monumentFace {
+    animation: none;
+  }
 }
