@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import styles from "./JengaTower.module.css";
+import { playCollapseSound } from "../collapse-sound";
 
 // コードを 3D の積み木として見せる盤面。担当: FE-B
 //
@@ -62,6 +63,22 @@ export function JengaTower({
   const drag = useRef<DragState | null>(null);
   /** 直前のポインタ操作がドラッグだったか。クリックを無視する判断に使う */
   const didDrag = useRef(false);
+  /** 効果音を切る。マスコットの「黙らせる」と同じく、その場かぎりの設定 */
+  const [isMuted, setIsMuted] = useState(false);
+  /** 同じ崩壊で二度鳴らさないための記録 */
+  const playedCollapse = useRef(false);
+
+  useEffect(() => {
+    if (!collapsed) {
+      playedCollapse.current = false;
+      return;
+    }
+    if (playedCollapse.current || isMuted) {
+      return;
+    }
+    playedCollapse.current = true;
+    playCollapseSound(lines.length);
+  }, [collapsed, isMuted, lines.length]);
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
     // すでに別の指で回している場合は、そちらを優先する
@@ -258,6 +275,15 @@ export function JengaTower({
               </button>
             </>
           ) : null}
+          {" · "}
+          <button
+            type="button"
+            className={styles.resetButton}
+            aria-pressed={isMuted}
+            onClick={() => setIsMuted((current) => !current)}
+          >
+            {isMuted ? "効果音オフ" : "効果音オン"}
+          </button>
         </p>
       ) : null}
     </div>
