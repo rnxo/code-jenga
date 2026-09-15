@@ -11,7 +11,8 @@ param(
   [string]$PistonUrl = "http://127.0.0.1:2000/api/v2",
   [string]$DenoVersion = "1.32.3",
   [string]$PythonVersion = "3.12.0",
-  # 導入する言語（"言語:バージョン"）。未指定なら deno と python の両方を入れる。
+  [string]$BrainfuckVersion = "2.7.3",
+  # 導入する言語（"言語:バージョン"）。未指定なら deno、python、brainfuckを入れる。
   [string[]]$Packages = @(),
   [int]$WaitSeconds = 60,
   [string]$ComposeFile = ""
@@ -21,7 +22,7 @@ $ErrorActionPreference = "Stop"
 $composeFile = if ($ComposeFile) { $ComposeFile } else { Join-Path $PSScriptRoot "..\piston\docker-compose.yml" }
 $base = $PistonUrl.TrimEnd('/')
 if ($Packages.Count -eq 0) {
-  $Packages = @("deno:$DenoVersion", "python:$PythonVersion")
+  $Packages = @("deno:$DenoVersion", "python:$PythonVersion", "brainfuck:$BrainfuckVersion")
 }
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {

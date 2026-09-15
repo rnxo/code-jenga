@@ -3,7 +3,7 @@ import "server-only";
 import { createTestRun } from "@/lib/server/repositories/test-runs";
 import { markProblemVerified } from "@/lib/server/repositories/problems";
 import { PistonError } from "./errors";
-import { parseVitestOutput, type VitestSummary } from "./parse-vitest";
+import { parseTestOutput, type VitestSummary } from "./parse-vitest";
 import { runOnPiston } from "./run";
 import { computeSafeLines } from "./safe-lines";
 
@@ -78,7 +78,7 @@ export async function verifyProblem(input: VerifyProblemInput): Promise<VerifyPr
     };
   }
 
-  const summary = parseVitestOutput(result.stdout);
+  const summary = parseTestOutput(result.stdout, input.language, input.testCode);
   const status = result.outcome;
   const testRun = await createTestRun({
     kind: "problem_verification",

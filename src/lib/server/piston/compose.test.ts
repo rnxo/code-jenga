@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { composeProgram, stripCodeFence, stripExports, stripImports } from "./compose";
+import { composeBrainfuckProgram } from "./compose-brainfuck";
 import { CJ_HARNESS_EPILOGUE, CJ_HARNESS_PRELUDE } from "./harness";
 
 describe("stripImports", () => {
@@ -47,5 +48,13 @@ describe("composeProgram", () => {
     expect(program.indexOf("const a = 1;")).toBeLessThan(program.indexOf('it("x"'));
     expect(program).not.toContain("vitest");
     expect(program.split("\n")[sourceStartLine - 1]).toBe("const a = 1;");
+  });
+});
+
+describe("composeBrainfuckProgram", () => {
+  it("sourceCodeだけを実行プログラムとして返す", () => {
+    const result = composeBrainfuckProgram({ sourceCode: "+++++.", testCode: "5" });
+    expect(result.program).toBe("+++++.");
+    expect(result.sourceStartLine).toBe(1);
   });
 });

@@ -7,7 +7,7 @@
 import type { CodeLanguage } from "@/types/game";
 
 /** 対応している実行言語。UI の選択肢の並び順もこの順に従う。 */
-export const SUPPORTED_LANGUAGES = ["typescript", "python"] as const satisfies readonly CodeLanguage[];
+export const SUPPORTED_LANGUAGES = ["typescript", "python", "brainfuck"] as const satisfies readonly CodeLanguage[];
 
 /** 未指定・不明な値のフォールバック先。既存の試合はすべてこの言語で動いていた。 */
 export const DEFAULT_LANGUAGE: CodeLanguage = "typescript";
@@ -24,6 +24,8 @@ const LANGUAGE_ALIASES: Readonly<Record<string, CodeLanguage>> = {
   python: "python",
   python3: "python",
   py: "python",
+  brainfuck: "brainfuck",
+  bf: "brainfuck",
 };
 
 /**
@@ -49,6 +51,7 @@ export function toCodeLanguage(value: unknown): CodeLanguage {
 export const LANGUAGE_LABEL: Record<CodeLanguage, string> = {
   typescript: "TypeScript",
   python: "Python",
+  brainfuck: "Brainfuck",
 };
 
 /**
@@ -58,4 +61,5 @@ export const LANGUAGE_LABEL: Record<CodeLanguage, string> = {
 export const MONACO_LANGUAGE_ID: Record<CodeLanguage, string> = {
   typescript: "typescript",
   python: "python",
+  brainfuck: "brainfuck",
 };

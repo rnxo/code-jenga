@@ -1,7 +1,7 @@
 import "server-only";
 
 import { deleteLine, isBlankLine } from "@/lib/shared/code";
-import { parseVitestOutput } from "./parse-vitest";
+import { parseTestOutput } from "./parse-vitest";
 import { runOnPiston } from "./run";
 
 // お題の「セーフ行」（削除しても全テストが通る行）を Piston で総当たりして算出する。
@@ -62,7 +62,7 @@ export async function computeSafeLines(input: ComputeSafeLinesInput): Promise<Co
         testCode: input.testCode,
       });
       pistonRuns += 1;
-      const summary = parseVitestOutput(result.stdout);
+      const summary = parseTestOutput(result.stdout, input.language, input.testCode);
       safeFlags[index] =
         result.outcome === "passed" && summary !== null && summary.totalTests > 0 && summary.failedTests === 0;
     }
