@@ -3,14 +3,17 @@
 #
 #   pwsh scripts/setup-piston.ps1
 #   pwsh scripts/setup-piston.ps1 -PistonUrl http://127.0.0.1:2000/api/v2 -DenoVersion 1.32.3
+#   # 公開版（Caddy + 共有キー）。Piston 本体は 127.0.0.1:2000 に束縛されるので PistonUrl は既定のままでよい。
+#   $env:PISTON_API_KEY = "..."; pwsh scripts/setup-piston.ps1 -ComposeFile piston/docker-compose.public.yml
 param(
   [string]$PistonUrl = "http://127.0.0.1:2000/api/v2",
   [string]$DenoVersion = "1.32.3",
-  [int]$WaitSeconds = 60
+  [int]$WaitSeconds = 60,
+  [string]$ComposeFile = ""
 )
 
 $ErrorActionPreference = "Stop"
-$composeFile = Join-Path $PSScriptRoot "..\piston\docker-compose.yml"
+$composeFile = if ($ComposeFile) { $ComposeFile } else { Join-Path $PSScriptRoot "..\piston\docker-compose.yml" }
 $base = $PistonUrl.TrimEnd('/')
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -56,4 +59,8 @@ $runtimes | ConvertTo-Json -Depth 5
 if (-not (Test-DenoRuntime $runtimes)) {
   throw "インストール後も deno が /runtimes に現れません。"
 }
-Write-Host "完了。PISTON_API_URL=$base を .env.local に設定してください。"
+if ($composeFile -like "*docker-compose.public.yml") {
+  Write-Host "完了。Vercel の環境変数に PISTON_API_URL=<公開URL>/api/v2 と PISTON_API_KEY（compose に渡した値）を設定してください。"
+} else {
+  Write-Host "完了。PISTON_API_URL=$base を .env.local に設定してください。"
+}

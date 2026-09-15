@@ -8,6 +8,10 @@ import { parseCreateTurnRequest, parseJsonBody } from "@/lib/server/validation";
 // 実装は @/lib/server/game/apply-turn の applyTurn に委譲する想定。
 // 担当: BE-A
 
+// Piston の実行（run 3秒 + compile 10秒 + 余裕）はリトライ込みで最大 36 秒程度かかるため、
+// Vercel 関数の既定タイムアウトでは足りない。60 秒に延長する。
+export const maxDuration = 60;
+
 interface RouteParams {
   params: Promise<{ gameId: string }>;
 }

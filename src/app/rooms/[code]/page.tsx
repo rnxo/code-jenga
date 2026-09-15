@@ -177,7 +177,13 @@ export default async function RoomPage({ params }: RoomPageProps) {
   // status: 'finished' | 'aborted'
   return (
     <main className="mx-auto max-w-md px-4 py-12">
-      <ResultPanel game={game} loserNickname={loserNickname} roomCode={code} />
+      <ResultPanel
+        game={game}
+        loserNickname={loserNickname}
+        roomCode={code}
+        hostId={room.host_id}
+        currentUserId={userId}
+      />
     </main>
   );
 }
