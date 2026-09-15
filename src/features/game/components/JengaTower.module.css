@@ -20,7 +20,8 @@
   transition: transform 0.12s linear;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  /* 行数が多いお題でも一目で見えるよう、段の高さと間隔は行数で詰める（--tower-* は JS 側で渡す） */
+  gap: var(--tower-gap, 0.75rem);
   margin: 0 auto;
   width: 100%;
   max-width: 30rem;
@@ -55,7 +56,7 @@
   position: relative;
   /* 高さは .front（唯一の in-flow な面）が決める。他の5面は inset 基準で追従する。
      6面すべてを absolute にすると、何行折り返しても木片が 44px のままになる */
-  min-height: 44px;
+  min-height: var(--piece-min-height, 44px);
   transform-style: preserve-3d;
   transition: transform 0.3s ease;
   border: 0;
@@ -101,7 +102,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
+  padding: var(--piece-padding, 0.5rem 0.75rem);
 }
 
 .back {
@@ -158,7 +159,7 @@
   overflow-wrap: anywhere;
   user-select: text;
   font-family: var(--font-geist-mono), monospace;
-  font-size: 13px;
+  font-size: var(--piece-font-size, 13px);
   line-height: 1.5;
   color: rgb(0 0 0 / 0.85);
 }

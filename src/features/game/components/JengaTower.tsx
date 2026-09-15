@@ -16,6 +16,28 @@ const FACE_COLORS = ["#d97706", "#b45309", "#c2620a", "#a8480a"] as const;
 const DEFAULT_RX = 4;
 const DEFAULT_RY = -14;
 
+/**
+ * 行数ごとの詰め方。行数が多いお題でもタワー全体が一目で見えるようにする。
+ * 縦スクロールにしないのは、ドラッグ回転と操作が競合するため。
+ * 読む用途は下の CodeViewer が担うので、こちらは全体像を優先する。
+ */
+const DENSITY_STEPS = [
+  { maxLines: 10, minHeight: "44px", padding: "0.5rem 0.75rem", fontSize: "13px", gap: "0.75rem" },
+  { maxLines: 16, minHeight: "36px", padding: "0.375rem 0.75rem", fontSize: "12px", gap: "0.5rem" },
+  { maxLines: 24, minHeight: "30px", padding: "0.25rem 0.625rem", fontSize: "11px", gap: "0.375rem" },
+  { maxLines: Infinity, minHeight: "24px", padding: "0.125rem 0.5rem", fontSize: "10px", gap: "0.25rem" },
+] as const;
+
+function densityStyle(lineCount: number): CSSProperties {
+  const step = DENSITY_STEPS.find((candidate) => lineCount <= candidate.maxLines) ?? DENSITY_STEPS[3];
+  return {
+    "--piece-min-height": step.minHeight,
+    "--piece-padding": step.padding,
+    "--piece-font-size": step.fontSize,
+    "--tower-gap": step.gap,
+  } as CSSProperties;
+}
+
 /** これ以上動いたらクリックではなくドラッグと見なす */
 const DRAG_THRESHOLD_PX = 4;
 
@@ -210,7 +232,13 @@ export function JengaTower({
 
       <div
         className={towerClassName}
-        style={{ "--rx": `${angle.rx}deg`, "--ry": `${angle.ry}deg` } as CSSProperties}
+        style={
+          {
+            "--rx": `${angle.rx}deg`,
+            "--ry": `${angle.ry}deg`,
+            ...densityStyle(lines.length),
+          } as CSSProperties
+        }
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
