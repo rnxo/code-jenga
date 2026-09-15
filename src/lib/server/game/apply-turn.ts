@@ -1,12 +1,11 @@
 import "server-only";
 
 import { ApplicationError } from "@/lib/api/errors";
+import type { ApiErrorCode } from "@/types/api";
 import { deleteLine } from "@/lib/shared/code";
 import type { Game, Turn } from "@/types/game";
-import { findGameById, updateGame } from "@/lib/server/repositories/games";
+import { applyTurnTransaction, findGameById, GameRpcError } from "@/lib/server/repositories/games";
 import { listGamePlayers } from "@/lib/server/repositories/game-players";
-import { createTestRun } from "@/lib/server/repositories/test-runs";
-import { createTurn } from "@/lib/server/repositories/turns";
 import { getNextPlayerId } from "./turn-order";
 import { judgeTurnResult } from "./judge";
 import { runOnPiston } from "@/lib/server/piston/run";
@@ -15,6 +14,8 @@ import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder, rollTurnDiffi
 
 // 担当: BE-A
 // DB_DESIGN.md 5章-5: 1手の確定（この関数が全体の中核）。
+// Piston 実行はこの関数内で行い、DB への書き込み（test_runs / turns / games / rooms）は
+// apply_turn RPC に委譲して1トランザクションで確定する（backend-todo 1-2）。
 
 export interface ApplyTurnInput {
   gameId: string;
@@ -27,6 +28,18 @@ export interface ApplyTurnResult {
   game: Game;
 }
 
+/** RPC が raise したコードのうち API エラーとして返せるもの。 */
+const RPC_CODE_TO_API_CODE: Partial<Record<string, ApiErrorCode>> = {
+  GAME_NOT_FOUND: "GAME_NOT_FOUND",
+  GAME_NOT_PLAYING: "GAME_NOT_PLAYING",
+  NOT_YOUR_TURN: "NOT_YOUR_TURN",
+  VALIDATION_ERROR: "VALIDATION_ERROR",
+};
+
+// 1手の確定処理を行う。
+// 1. 該当ゲームの状態を取得し、手番・難易度・コード状態を検証する。
+// 2. 指定行を削除し、難易度ルールに従って削除可能か判定する。
+// 3. Piston でテストを実行し、結果を apply_turn RPC で1トランザクション確定する。
 export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult> {
   const game = await findGameById(input.gameId);
   if (!game) {
@@ -77,58 +90,57 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
 
   const summary = parseVitestOutput(pistonResult.stdout);
   const testStatus = pistonResult.exitCode === null ? "error" : pistonResult.exitCode === 0 ? "passed" : "failed";
-  const testRun = await createTestRun({
-    kind: "turn_check",
-    gameId: input.gameId,
-    language: pistonResult.resolvedLanguage,
-    languageVersion: pistonResult.resolvedVersion,
-    executedCode: pistonResult.executedCode,
-    status: testStatus,
-    exitCode: pistonResult.exitCode ?? undefined,
-    stdout: pistonResult.stdout,
-    stderr: pistonResult.stderr,
-    compileOutput: pistonResult.compileOutput ?? undefined,
-    totalTests: summary?.totalTests,
-    passedTests: summary?.passedTests,
-    failedTests: summary?.failedTests,
-    durationMs: Date.now() - startedAt,
-    pistonRaw: pistonResult.raw,
-    errorMessage: pistonResult.errorMessage ?? undefined,
-  });
-  const judgement = judgeTurnResult(testRun.status);
+  const judgement = judgeTurnResult(testStatus);
   if (!judgement.judged) {
+    // Piston 自体の失敗（判定不能）は DB に残さず、同じ手を再送できるようにする（backend-todo 4-4）。
     throw new ApplicationError("TEST_RUN_ERROR", judgement.reason);
   }
 
   const players = await listGamePlayers(input.gameId);
-  const isFinished = judgement.result === "out" || deletedLine.codeAfter.length === 0;
+  const isOut = judgement.result === "out";
+  const noLinesLeft = deletedLine.codeAfter.length === 0;
+  const isFinished = isOut || noLinesLeft;
   const nextPlayerId = isFinished ? null : getNextPlayerId(players, input.playerId);
-  const turn = await createTurn({
-    gameId: input.gameId,
-    turnNo: game.turn_no + 1,
-    playerId: input.playerId,
-    deletedLineNo: input.lineNo,
-    deletedLineText: deletedLine.deletedLineText,
-    codeBefore: game.current_code,
-    codeAfter: deletedLine.codeAfter,
-    turnDifficulty: currentDifficulty,
-    result: judgement.result,
-    testRunId: testRun.id,
-    durationMs: Date.now() - startedAt,
-  });
-  const updatedGame = await updateGame(input.gameId, {
-    status: isFinished ? "finished" : "playing",
-    currentCode: deletedLine.codeAfter,
-    currentLineCount: deletedLine.codeAfter === "" ? 0 : deletedLine.codeAfter.split("\n").length,
-    currentPlayerId: nextPlayerId,
-    currentTurnDifficulty: isFinished ? null : rollTurnDifficulty(deletedLine.codeAfter),
-    turnNo: game.turn_no + 1,
-    turnDeadlineAt: nextPlayerId ? new Date(Date.now() + game.turn_time_limit_seconds * 1000).toISOString() : null,
-    loserId: judgement.result === "out" ? input.playerId : null,
-    finishReason: judgement.result === "out" ? "test_failed" : deletedLine.codeAfter.length === 0 ? "no_lines_left" : null,
-    finishedAt: isFinished ? new Date().toISOString() : undefined,
-  });
-  return { turn, game: updatedGame };
+
+  try {
+    return await applyTurnTransaction({
+      gameId: input.gameId,
+      playerId: input.playerId,
+      expectedTurnNo: game.turn_no,
+      deletedLineNo: input.lineNo,
+      deletedLineText: deletedLine.deletedLineText,
+      codeAfter: deletedLine.codeAfter,
+      turnResult: judgement.result,
+      nextPlayerId,
+      nextTurnDifficulty: isFinished ? null : rollTurnDifficulty(deletedLine.codeAfter),
+      finishReason: isOut ? "test_failed" : noLinesLeft ? "no_lines_left" : null,
+      durationMs: Date.now() - startedAt,
+      testRun: {
+        language: pistonResult.resolvedLanguage,
+        languageVersion: pistonResult.resolvedVersion,
+        executedCode: pistonResult.executedCode,
+        status: testStatus,
+        exitCode: pistonResult.exitCode,
+        stdout: pistonResult.stdout,
+        stderr: pistonResult.stderr,
+        compileOutput: pistonResult.compileOutput ?? null,
+        totalTests: summary?.totalTests ?? null,
+        passedTests: summary?.passedTests ?? null,
+        failedTests: summary?.failedTests ?? null,
+        durationMs: Date.now() - startedAt,
+        pistonRaw: pistonResult.raw,
+        errorMessage: pistonResult.errorMessage ?? null,
+      },
+    });
+  } catch (error) {
+    if (error instanceof GameRpcError) {
+      const apiCode = RPC_CODE_TO_API_CODE[error.rpcCode];
+      if (apiCode) {
+        throw new ApplicationError(apiCode, error.message);
+      }
+    }
+    throw error;
+  }
 }
 
 /** お題IDから現在のお題を取得する。 */

@@ -20,7 +20,8 @@ export interface GameBoardProps {
 
 export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const { game, turns, isLoading, errorMessage } = useGameRealtime(gameId);
-  const [selectedLineNo, setSelectedLineNo] = useState<number | null>(null);
+  // 選択は「どのコードに対する選択か」と一緒に持ち、相手の手で current_code が変わったら自動的に無効になる。
+  const [selection, setSelection] = useState<{ code: string; lineNo: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -34,9 +35,11 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
 
   const isMyTurn = game.current_player_id === currentUserId;
   const latestTurn = turns.at(-1) ?? null;
+  const currentCode = game.current_code ?? "";
+  const selectedLineNo = selection !== null && selection.code === currentCode ? selection.lineNo : null;
 
   const selectedLineText =
-    selectedLineNo === null ? null : (game.current_code ?? "").split("\n")[selectedLineNo - 1] ?? null;
+    selectedLineNo === null ? null : currentCode.split("\n")[selectedLineNo - 1] ?? null;
   const difficulty = game.current_turn_difficulty;
   const blockedReason =
     difficulty && selectedLineText !== null && !isDeletableUnder(difficulty, selectedLineText)
@@ -55,7 +58,7 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
     if (!result.ok) {
       setSubmitError(result.error.message);
     } else {
-      setSelectedLineNo(null);
+      setSelection(null);
     }
     setIsSubmitting(false);
   }
@@ -64,10 +67,10 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
     <div className="flex flex-col gap-4">
       <TurnIndicator game={game} isMyTurn={isMyTurn} />
       <CodeViewer
-        code={game.current_code ?? ""}
+        code={currentCode}
         language="typescript"
         selectedLineNo={selectedLineNo}
-        onSelectLine={setSelectedLineNo}
+        onSelectLine={(lineNo) => setSelection({ code: currentCode, lineNo })}
       />
       {isMyTurn ? (
         <LineDeleteControls
