@@ -43,9 +43,15 @@ export function ResultDialog({ game, loserNickname, roomCode }: ResultDialogProp
 
   return (
     <section className="flex flex-col items-center gap-5 rounded-xl border-2 border-amber-900/25 bg-amber-50 p-6 text-center shadow-sm">
-      <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber-900/60">
-        game over
-      </p>
+      <div className="flex flex-col items-center gap-0.5">
+        <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber-900/60">
+          game over
+        </p>
+        {/* 作り直すときに伝えるので、コードは結果画面にも残しておく */}
+        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-amber-900/40">
+          room {roomCode}
+        </p>
+      </div>
 
       {/* 崩れた積み木。装飾なので読み上げ対象から外す */}
       <div aria-hidden className="flex w-full flex-col items-center gap-1 py-1">
@@ -82,8 +88,12 @@ export function ResultDialog({ game, loserNickname, roomCode }: ResultDialogProp
       </div>
 
       <div className="flex flex-col items-center gap-1">
-        <Button onClick={() => router.push(`/rooms/${roomCode}`)}>ロビーに戻る</Button>
-        {/* 再戦 API はバック TODO 1-6 で未実装のため、いまはロビーに戻すだけ */}
+        {/*
+         * 再戦 API はバック TODO 1-6 で未実装。games が finished のままなので
+         * /rooms/{roomCode} に戻してもこの結果画面に戻ってくるだけになる。
+         * 新しいルームを作る導線が生きるよう、トップに戻す。
+         */}
+        <Button onClick={() => router.push("/")}>トップに戻る</Button>
         <p className="text-xs text-amber-900/50">再戦は準備中です</p>
       </div>
     </section>
