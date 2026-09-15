@@ -137,7 +137,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
           players={lobbyPlayers}
           roomCode={code}
           hostId={room.host_id}
-          currentUserId={user?.id ?? null}
+          currentUserId={userId}
         />
       </main>
     );
