@@ -103,10 +103,12 @@ async function loadFromSupabase(code: string): Promise<RoomPageData | null> {
       .eq("id", game.loser_id)
       .maybeSingle();
 
+    // 名前は飾りに近いので、引けなくても結果画面は出す（null なら「対戦終了」表示に落ちる）。
     if (loserError) {
-      throw new Error(`敗者情報の取得に失敗しました: ${loserError.message}`);
+      console.error(`敗者情報の取得に失敗しました: ${loserError.message}`);
+    } else {
+      loserNickname = loser?.nickname ?? null;
     }
-    loserNickname = loser?.nickname ?? null;
   }
 
   return { userId: user?.id ?? null, room, game, lobbyPlayers, loserNickname };
