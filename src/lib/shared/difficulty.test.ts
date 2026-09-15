@@ -128,3 +128,43 @@ describe("rollTurnDifficulty", () => {
     expect(rollTurnDifficulty(code, () => 0.4)).toBe("normal");
   });
 });
+
+describe("classifyLine（Python）", () => {
+  it("# 始まりの行をコメントと判定する", () => {
+    expect(classifyLine("  # 合計を返す", "python")).toBe("comment");
+  });
+
+  it("// はコメントではない（Python には無い記法）", () => {
+    expect(classifyLine("// not a python comment", "python")).toBe("expression");
+  });
+
+  it("def / class / return を宣言と判定する", () => {
+    expect(classifyLine("def sum_all(numbers):", "python")).toBe("declaration");
+    expect(classifyLine("class TestSum(unittest.TestCase):", "python")).toBe("declaration");
+    expect(classifyLine("    return total", "python")).toBe("declaration");
+    expect(classifyLine("    elif n < 0:", "python")).toBe("declaration");
+  });
+
+  it("代入や式の行は expression と判定する", () => {
+    expect(classifyLine("    total += n", "python")).toBe("expression");
+    expect(classifyLine("    total = 0", "python")).toBe("expression");
+  });
+
+  it("言語を渡さない場合は TypeScript として扱う（後方互換）", () => {
+    expect(classifyLine("# python comment")).toBe("expression");
+    expect(classifyLine("// ts comment")).toBe("comment");
+  });
+});
+
+describe("isDeletableUnder（Python）", () => {
+  it("HARD では # コメント行を削除できない（NORMAL / EASY は削除できる）", () => {
+    expect(isDeletableUnder("hard", "# メモ", "python")).toBe(false);
+    expect(isDeletableUnder("normal", "# メモ", "python")).toBe(true);
+    expect(isDeletableUnder("easy", "# メモ", "python")).toBe(true);
+  });
+
+  it("HARD では def 行を削除できる", () => {
+    expect(isDeletableUnder("hard", "def sum_all(numbers):", "python")).toBe(true);
+    expect(isDeletableUnder("hard", "    total += n", "python")).toBe(false);
+  });
+});

@@ -6,17 +6,21 @@
 // サーバー側の値に必ず上書きされる（DB_DESIGN.md 1章: 書き込みはサーバーに一元化）。
 //
 // 割り切り: 字句解析はせず、行単位の文字列パターンのみで分類する
-// （対象は Gemini が生成する小規模な TypeScript コードのため）。
+// （対象は Gemini が生成する小規模なコードのため）。
 // ブロックコメント（/* ... */）内部で `*` から始まらない継続行はコメントと
 // 判定できず expression 扱いになるが、削除してもテストは通る側に倒れるため
 // ゲームとしては安全側の誤判定になる（DB_DESIGN.md 10章参照）。
+//
+// 言語ごとにコメント記法と宣言キーワードが違うので、言語を任意の末尾引数で受け取る。
+// 既定は "typescript" なので、言語を渡さない既存の呼び出しは挙動が変わらない。
 
-import type { TurnDifficulty } from "@/types/game";
+import type { CodeLanguage, TurnDifficulty } from "@/types/game";
+import { DEFAULT_LANGUAGE } from "./language";
 import { isBlankLine } from "./code";
 
 export type LineKind = "blank" | "comment" | "symbol-only" | "declaration" | "expression";
 
-const DECLARATION_KEYWORDS = [
+const TYPESCRIPT_DECLARATION_KEYWORDS = [
   "import",
   "export",
   "function",
@@ -41,26 +45,75 @@ const DECLARATION_KEYWORDS = [
   "throw",
 ] as const;
 
-const DECLARATION_KEYWORD_PATTERN = new RegExp(
-  `\\b(${DECLARATION_KEYWORDS.join("|")})\\b`,
-);
+const PYTHON_DECLARATION_KEYWORDS = [
+  "import",
+  "from",
+  "def",
+  "class",
+  "lambda",
+  "return",
+  "yield",
+  "if",
+  "elif",
+  "else",
+  "for",
+  "while",
+  "with",
+  "try",
+  "except",
+  "finally",
+  "raise",
+  "assert",
+  "global",
+  "nonlocal",
+  "del",
+  "pass",
+  "break",
+  "continue",
+] as const;
 
-const SYMBOL_ONLY_PATTERN = /^[{}()[\];,]+$/;
+interface LanguageLineRules {
+  /** 行頭がこれらのいずれかで始まればコメント行とみなす。 */
+  readonly commentPrefixes: readonly string[];
+  /** 宣言・制御構文の判定に使うキーワード。 */
+  readonly declarationPattern: RegExp;
+  /** 記号だけの行（閉じ括弧など）の判定。 */
+  readonly symbolOnlyPattern: RegExp;
+}
 
-/** 行テキストを分類する（TypeScript 想定・行単位のパターンマッチのみ）。 */
-export function classifyLine(lineText: string): LineKind {
+function toKeywordPattern(keywords: readonly string[]): RegExp {
+  return new RegExp(`\\b(${keywords.join("|")})\\b`);
+}
+
+const LINE_RULES: Record<CodeLanguage, LanguageLineRules> = {
+  typescript: {
+    commentPrefixes: ["//", "/*", "*"],
+    declarationPattern: toKeywordPattern(TYPESCRIPT_DECLARATION_KEYWORDS),
+    symbolOnlyPattern: /^[{}()[\];,]+$/,
+  },
+  python: {
+    commentPrefixes: ["#"],
+    declarationPattern: toKeywordPattern(PYTHON_DECLARATION_KEYWORDS),
+    // Python では閉じ括弧だけの行はほとんど出ないが、複数行リテラルの終端で現れる。
+    symbolOnlyPattern: /^[)\]},]+$/,
+  },
+};
+
+/** 行テキストを分類する（行単位のパターンマッチのみ）。 */
+export function classifyLine(lineText: string, language: CodeLanguage = DEFAULT_LANGUAGE): LineKind {
   const trimmed = lineText.trim();
+  const rules = LINE_RULES[language];
 
   if (isBlankLine(lineText)) {
     return "blank";
   }
-  if (trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*")) {
+  if (rules.commentPrefixes.some((prefix) => trimmed.startsWith(prefix))) {
     return "comment";
   }
-  if (SYMBOL_ONLY_PATTERN.test(trimmed)) {
+  if (rules.symbolOnlyPattern.test(trimmed)) {
     return "symbol-only";
   }
-  if (DECLARATION_KEYWORD_PATTERN.test(trimmed)) {
+  if (rules.declarationPattern.test(trimmed)) {
     return "declaration";
   }
   return "expression";
@@ -74,20 +127,28 @@ const DELETABLE_KINDS: Record<TurnDifficulty, readonly LineKind[]> = {
 };
 
 /** その難易度でこの行を削除してよいか。 */
-export function isDeletableUnder(difficulty: TurnDifficulty, lineText: string): boolean {
-  const kind = classifyLine(lineText);
+export function isDeletableUnder(
+  difficulty: TurnDifficulty,
+  lineText: string,
+  language: CodeLanguage = DEFAULT_LANGUAGE,
+): boolean {
+  const kind = classifyLine(lineText, language);
   return DELETABLE_KINDS[difficulty].includes(kind);
 }
 
 /** その難易度で削除できる行番号（1始まり）の一覧。UI のグレーアウトや詰み判定に使う。 */
-export function listDeletableLineNumbers(code: string, difficulty: TurnDifficulty): number[] {
+export function listDeletableLineNumbers(
+  code: string,
+  difficulty: TurnDifficulty,
+  language: CodeLanguage = DEFAULT_LANGUAGE,
+): number[] {
   if (code === "") {
     return [];
   }
   const lines = code.split("\n");
   const lineNumbers: number[] = [];
   for (let index = 0; index < lines.length; index += 1) {
-    if (isDeletableUnder(difficulty, lines[index])) {
+    if (isDeletableUnder(difficulty, lines[index], language)) {
       lineNumbers.push(index + 1);
     }
   }
@@ -95,8 +156,12 @@ export function listDeletableLineNumbers(code: string, difficulty: TurnDifficult
 }
 
 /** その難易度で削除できる行が1行でもあるか（フォールバック判定用）。 */
-export function hasDeletableLine(code: string, difficulty: TurnDifficulty): boolean {
-  return listDeletableLineNumbers(code, difficulty).length > 0;
+export function hasDeletableLine(
+  code: string,
+  difficulty: TurnDifficulty,
+  language: CodeLanguage = DEFAULT_LANGUAGE,
+): boolean {
+  return listDeletableLineNumbers(code, difficulty, language).length > 0;
 }
 
 const ROULETTE_DIFFICULTIES: readonly TurnDifficulty[] = ["easy", "normal", "hard"];
@@ -104,12 +169,17 @@ const ROULETTE_DIFFICULTIES: readonly TurnDifficulty[] = ["easy", "normal", "har
 /**
  * EASY / NORMAL / HARD を均等確率で抽選し、削除可能行が0行なら EASY にフォールバックする。
  * `random` はテストから抽選結果を固定するための注入口（デフォルトは Math.random）。
+ * language は既存の呼び出しを壊さないよう末尾に置いている。
  */
-export function rollTurnDifficulty(code: string, random: () => number = Math.random): TurnDifficulty {
+export function rollTurnDifficulty(
+  code: string,
+  random: () => number = Math.random,
+  language: CodeLanguage = DEFAULT_LANGUAGE,
+): TurnDifficulty {
   const index = Math.floor(random() * ROULETTE_DIFFICULTIES.length);
   const rolled = ROULETTE_DIFFICULTIES[Math.min(index, ROULETTE_DIFFICULTIES.length - 1)];
 
-  if (hasDeletableLine(code, rolled)) {
+  if (hasDeletableLine(code, rolled, language)) {
     return rolled;
   }
   return "easy";

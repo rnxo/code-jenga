@@ -18,7 +18,9 @@ param(
   [switch]$SkipVercel,
   [switch]$NoDeploy,
   [string]$VercelEnvTarget = "production",
-  [int]$TunnelWaitSeconds = 60
+  [int]$TunnelWaitSeconds = 60,
+  # 発行された URL が DNS で引けて実際に応答するまでの待ち時間（Quick Tunnel は 2 分前後かかることがある）
+  [int]$TunnelReachableWaitSeconds = 240
 )
 
 $ErrorActionPreference = "Stop"
@@ -84,17 +86,28 @@ if (-not $publicUrl) {
 }
 $pistonApiUrl = "$publicUrl/api/v2"
 
-# トンネル経由で到達できるか確認（DNS 伝播で数秒かかることがある）
+# トンネル経由で到達できるか確認。
+# Quick Tunnel のホスト名は発行から DNS で引けるようになるまで 2 分前後かかることがあり（Cloudflare 自身の
+# 1.1.1.1 でもその間は NXDOMAIN を返す）、Windows のリゾルバはその「存在しない」結果をキャッシュする。
+# そのため長めに待ち、毎回 DNS キャッシュを消してから試す。名前解決失敗は即座に返るので待ち時間は Sleep で刻む。
+Write-Host "[3/4] トンネルの DNS 伝播を待っています（最大 $TunnelReachableWaitSeconds 秒）: $pistonApiUrl"
 $reachable = $false
-for ($i = 1; $i -le 20; $i++) {
+$lastError = $null
+$reachDeadline = (Get-Date).AddSeconds($TunnelReachableWaitSeconds)
+while ((Get-Date) -lt $reachDeadline) {
+  if ($tunnel.HasExited) { throw "cloudflared が終了しました。ログ: $tunnelLog" }
+  ipconfig /flushdns | Out-Null
   try {
     Invoke-RestMethod -Method Get -Uri "$pistonApiUrl/runtimes" -Headers $headers -TimeoutSec 10 | Out-Null
     $reachable = $true; break
-  } catch { Start-Sleep -Seconds 2 }
+  } catch {
+    $lastError = $_.Exception.Message
+    Start-Sleep -Seconds 3
+  }
 }
 if (-not $reachable) {
   Stop-Process -Id $tunnel.Id -Force -ErrorAction SilentlyContinue
-  throw "トンネル経由（$pistonApiUrl/runtimes）で Piston に到達できませんでした。"
+  throw "トンネル経由（$pistonApiUrl/runtimes）で $TunnelReachableWaitSeconds 秒以内に Piston に到達できませんでした。最後のエラー: $lastError。ログ: $tunnelLog"
 }
 Write-Host "[3/4] トンネル公開中: $pistonApiUrl"
 

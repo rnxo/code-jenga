@@ -21,6 +21,8 @@ import type {
   StartGameRequest,
   StartGameResponse,
   TimeoutTurnResponse,
+  UpdateGameLanguageRequest,
+  UpdateGameLanguageResponse,
 } from "@/types/api";
 import * as mock from "./mock";
 
@@ -37,6 +39,20 @@ async function post<TReq, TRes>(path: string, body: TReq): Promise<ApiResult<TRe
   try {
     const res = await fetch(path, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return (await res.json()) as ApiResult<TRes>;
+  } catch (error) {
+    return networkErrorResult<TRes>(error);
+  }
+}
+
+// PATCH リクエストを送信する。失敗した場合は networkErrorResult を返す。
+async function patch<TReq, TRes>(path: string, body: TReq): Promise<ApiResult<TRes>> {
+  try {
+    const res = await fetch(path, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
@@ -64,6 +80,12 @@ export const apiClient = {
 
   joinRoom: (code: string, req: JoinRoomRequest): Promise<ApiResult<JoinRoomResponse>> =>
     USE_MOCK ? mock.joinRoom(code, req) : post(`/api/rooms/${code}/join`, req),
+
+  updateGameLanguage: (
+    gameId: string,
+    req: UpdateGameLanguageRequest,
+  ): Promise<ApiResult<UpdateGameLanguageResponse>> =>
+    USE_MOCK ? mock.updateGameLanguage(gameId, req) : patch(`/api/games/${gameId}/language`, req),
 
   startGame: (gameId: string, req: StartGameRequest): Promise<ApiResult<StartGameResponse>> =>
     USE_MOCK ? mock.startGame(gameId, req) : post(`/api/games/${gameId}/start`, req),

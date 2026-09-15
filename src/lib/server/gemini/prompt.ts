@@ -1,38 +1,19 @@
 import "server-only";
 
-import { CJ_SUPPORTED_MATCHERS } from "@/lib/server/piston/harness";
+import type { CodeLanguage } from "@/types/game";
+import { DEFAULT_LANGUAGE } from "@/lib/shared/language";
+import { getLanguageDefinition } from "@/lib/server/piston/languages";
 
 // 担当: BE-B
 // Gemini へ渡すお題生成プロンプトを組み立てる。
+//
+// 言語ごとに変わる文面（役割の宣言と各種制約）は
+// src/lib/server/piston/languages/ の言語定義が持つ。ここは難易度の行を挟んで結合するだけにして、
+// 言語を増やしてもこのファイルを触らずに済むようにしている。
 
-/** difficulty（例: "easy"）に応じたお題生成プロンプトを組み立てる。 */
-export function buildProblemGenerationPrompt(difficulty?: string): string {
+/** difficulty（例: "easy"）と言語に応じたお題生成プロンプトを組み立てる。 */
+export function buildProblemGenerationPrompt(difficulty?: string, language: CodeLanguage = DEFAULT_LANGUAGE): string {
   const requestedDifficulty = difficulty?.trim() || "easy";
-  return [
-    "あなたはTypeScriptの教材コードを作る専門家です。",
-    `難易度は ${requestedDifficulty} です。`,
-    "短いTypeScript関数と、その関数を検証するVitestテストを1組生成してください。",
-    "コードは最初は全テストが通るようにしてください。",
-    "ゲームとして、sourceCodeには『削除してもテスト結果が変わらない行』を多数含めてください。",
-    "プレイヤーはsourceCodeから任意の1行を選んで削除するため、ほとんどの行を削除しても全テストが通り、一部の重要な行を削除した場合だけテストが失敗する構造にしてください。",
-    "テストを失敗させる可能性がある重要な行はsourceCode全体で1行だけにしてください。",
-    "その重要な1行は、関数の正しい動作に実質的に必要な処理であり、単なる構文上の必須行であってはいけません。",
-    "重要な1行が一見して分からないように、実際の処理に影響しない変数、定数、条件分岐、ヘルパー関数、コメント、空行などを適度に含めてください。",
-    "重要な1行以外の行は、削除しても既存のVitestテストがすべて成功するようにしてください。",
-    "ただし、重要な1行以外をすべて削除してもTypeScriptとして構文エラーになってしまうような必須構文は、ゲーム上の『重要な1行』として扱わないでください。",
-    "追加するコードはTypeScriptとして自然に読める範囲にし、意味のないコードを大量に羅列しないでください。",
-    "使われていない変数や関数を含めても構いませんが、ゲーム性を損なうほど多くしないでください。",
-    "コメントアウトされたコードを少量含めても構いませんが、重要な1行を直接示唆するコメントは禁止します。",
-    "sourceCodeは15〜50行程度にしてください。",
-    "関数そのものは短く保ち、コード全体の行数を増やすために不要な複雑化をしすぎないでください。",
-    "テストコードは、重要な1行が正しく機能していることを検証できる内容にしてください。",
-    "テストは同期的なdescribe / itのみを使ってください。",
-    `expectで使えるマッチャーは次のものだけです: ${CJ_SUPPORTED_MATCHERS.join(", ")}`,
-    "vi.mock、test.each、非同期テスト、ネットワークアクセス、外部パッケージ依存は使わないでください。",
-    "対象コードとテストコードのトップレベル宣言名を重複させないでください。",
-    "importはVitestと対象コードの参照だけにしてください。",
-    "説明文、Markdownフェンスは含めないでください。",
-    'JSONのみで返し、キーは "sourceCode", "testCode", "language" としてください。',
-    'language は "typescript" 固定です。'
-  ].join("\n");
+  const { prompt } = getLanguageDefinition(language);
+  return [prompt.roleLine, `難易度は ${requestedDifficulty} です。`, ...prompt.rules].join("\n");
 }

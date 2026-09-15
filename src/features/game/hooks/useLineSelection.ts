@@ -2,15 +2,20 @@
 
 import { useState } from "react";
 import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder } from "@/lib/shared/difficulty";
-import type { TurnDifficulty } from "@/types/game";
+import { DEFAULT_LANGUAGE } from "@/lib/shared/language";
+import type { CodeLanguage, TurnDifficulty } from "@/types/game";
 
-export function useLineSelection(currentCode: string, difficulty: TurnDifficulty | null) {
+export function useLineSelection(
+  currentCode: string,
+  difficulty: TurnDifficulty | null,
+  language: CodeLanguage = DEFAULT_LANGUAGE,
+) {
   const [selection, setSelection] = useState<{ code: string; lineNo: number } | null>(null);
   const selectedLineNo = selection !== null && selection.code === currentCode ? selection.lineNo : null;
   const selectedLineText =
     selectedLineNo === null ? null : currentCode.split("\n")[selectedLineNo - 1] ?? null;
   const blockedReason =
-    difficulty && selectedLineText !== null && !isDeletableUnder(difficulty, selectedLineText)
+    difficulty && selectedLineText !== null && !isDeletableUnder(difficulty, selectedLineText, language)
       ? `${DIFFICULTY_LABEL[difficulty]} ではこの行は削除できません。${DIFFICULTY_RULE_TEXT[difficulty]}`
       : null;
 

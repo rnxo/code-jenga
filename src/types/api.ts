@@ -10,6 +10,7 @@
 // ============================================================================
 
 import type {
+  CodeLanguage,
   Game,
   GamePlayer,
   Problem,
@@ -67,6 +68,16 @@ export interface JoinRoomRequest {
 export interface JoinRoomResponse {
   /** join_room RPC が返す games.id */
   gameId: string;
+}
+
+// ---- PATCH /api/games/[gameId]/language（ロビーでの実行言語変更） -----------
+
+export interface UpdateGameLanguageRequest {
+  language: CodeLanguage;
+}
+
+export interface UpdateGameLanguageResponse {
+  game: Game;
 }
 
 // ---- POST /api/games/[gameId]/start（試合開始） -------------------------

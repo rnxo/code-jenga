@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/Spinner";
 import { LeaveButton } from "@/components/ui/LeaveButton";
+import { DEFAULT_LANGUAGE } from "@/lib/shared/language";
 import { useGameRealtime } from "../hooks/useGameRealtime";
 import { useGameTimeout } from "../hooks/useGameTimeout";
 import { useLineSelection } from "../hooks/useLineSelection";
@@ -44,7 +45,13 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const latestTurn = turns.at(-1) ?? null;
   const currentCode = game?.current_code ?? "";
   const difficulty = game?.current_turn_difficulty ?? null;
-  const { selectedLineNo, blockedReason, selectLine, clearSelection } = useLineSelection(currentCode, difficulty);
+  // ロビーでホストが選んだ言語。行の削除可否判定とシンタックスハイライトの両方に使う。
+  const language = game?.language ?? DEFAULT_LANGUAGE;
+  const { selectedLineNo, blockedReason, selectLine, clearSelection } = useLineSelection(
+    currentCode,
+    difficulty,
+    language,
+  );
 
   if (isLoading) {
     return <Spinner label="盤面を読み込み中..." />;
@@ -93,6 +100,7 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
        */}
       <GameBoardPlayfield
         code={currentCode}
+        language={language}
         selectedLineNo={selectedLineNo}
         isMyTurn={isMyTurn}
         isSubmitting={isSubmitting}

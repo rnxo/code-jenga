@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Problem, ProblemSource } from "@/types/game";
+import type { CodeLanguage, Problem, ProblemSource } from "@/types/game";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // problems テーブルへのアクセスをまとめるリポジトリ。担当: BE-A（BE-B の gemini/piston 実装から呼ばれる）
@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export interface CreateProblemInput {
   sourceCode: string;
   testCode: string;
-  language: string;
+  language: CodeLanguage;
   initialLineCount: number;
   generatedBy: ProblemSource;
   generationPrompt?: string;
@@ -57,6 +57,11 @@ export interface FindVerifiedProblemOptions {
   generatedBy?: ProblemSource;
   roomId?: string;
   difficulty?: string;
+  /**
+   * 実行言語での絞り込み。games.language と食い違うお題を配ると、削除した行と無関係に
+   * 初手で全員がアウトになるため、試合用に引くときは必ず指定すること。
+   */
+  language?: CodeLanguage;
 }
 
 /** 条件に合う検証済みお題から、同一ルームの直近使用分を除外してランダムに1件取得する。 */
@@ -71,6 +76,9 @@ export async function findVerifiedProblem(options: FindVerifiedProblemOptions = 
   }
   if (options.difficulty) {
     query = query.eq("difficulty", options.difficulty);
+  }
+  if (options.language) {
+    query = query.eq("language", options.language);
   }
   const { data, error } = await query;
   if (error) {

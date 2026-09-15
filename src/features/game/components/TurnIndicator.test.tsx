@@ -14,6 +14,7 @@ function buildGame(overrides: Partial<Game> = {}): Game {
     round_no: 1,
     problem_id: "problem-1",
     status: "playing",
+    language: "typescript",
     turn_no: 3,
     current_player_id: "player-1",
     current_turn_difficulty: null,
