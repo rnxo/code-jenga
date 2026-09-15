@@ -6,6 +6,7 @@ import { findGameById, updateGame } from "@/lib/server/repositories/games";
 import { listGamePlayers } from "@/lib/server/repositories/game-players";
 import { findVerifiedProblem } from "@/lib/server/repositories/problems";
 import { updateRoomStatus } from "@/lib/server/repositories/rooms";
+import { generateVerifiedProblem } from "@/lib/server/problems/prepare-problem";
 import { rollTurnDifficulty } from "@/lib/shared/difficulty";
 import { getActivePlayers, MIN_PLAYERS } from "./turn-order";
 
@@ -52,14 +53,25 @@ export async function startGame(input: StartGameInput): Promise<Game> {
   const firstPlayer = players[0];
 
   // お題確保中は 'generating' にして Realtime 経由で待機画面を出せるようにする。
+  // 選択順: 同一ルームで未使用の検証済みお題 → Gemini 生成＋検証 → seed お題（DB_DESIGN.md 5章-2）。
   await updateGame(input.gameId, { status: "generating" });
   let problemId: string;
   let sourceCode: string;
   let initialLineCount: number;
   try {
-    const problem = await findVerifiedProblem();
+    let problem = await findVerifiedProblem({ roomId: game.room_id });
     if (!problem) {
-      throw new ApplicationError("PROBLEM_GENERATION_FAILED", "利用可能な検証済みお題がありません。");
+      try {
+        problem = await generateVerifiedProblem("easy");
+      } catch {
+        problem = null;
+      }
+    }
+    if (!problem) {
+      problem = await findVerifiedProblem({ generatedBy: "seed" });
+    }
+    if (!problem) {
+      throw new ApplicationError("PROBLEM_GENERATION_FAILED", "利用可能なお題を生成・検証できませんでした。");
     }
     problemId = problem.id;
     sourceCode = problem.source_code;

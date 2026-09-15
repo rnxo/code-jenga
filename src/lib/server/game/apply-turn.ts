@@ -36,6 +36,10 @@ const RPC_CODE_TO_API_CODE: Partial<Record<string, ApiErrorCode>> = {
   VALIDATION_ERROR: "VALIDATION_ERROR",
 };
 
+// 1手の確定処理を行う。
+// 1. 該当ゲームの状態を取得し、手番・難易度・コード状態を検証する。
+// 2. 指定行を削除し、難易度ルールに従って削除可能か判定する。
+// 3. Piston でテストを実行し、結果を apply_turn RPC で1トランザクション確定する。
 export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult> {
   const game = await findGameById(input.gameId);
   if (!game) {

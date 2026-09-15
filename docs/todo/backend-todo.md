@@ -72,33 +72,28 @@
 
 ## 2. お題生成（Gemini）と事前検証
 
-### 🔴 2-1. お題生成が試合開始フローにつながっていない
-- `startGame` は `findVerifiedProblem()` で既存の検証済みお題を1件拾うだけで、`POST /api/problems` を呼ぶ導線がフロントにもサーバーにもない。DB に検証済みお題が0件だと `PROBLEM_GENERATION_FAILED` で開始できない。
-- 対応案: `startGame` の冒頭で `generateProblem → createProblem → verifyProblem` を試み、失敗したら `generated_by='seed'` の検証済みお題にフォールバックする（DB_DESIGN.md 5章-2）。生成中は 1-8 の `'generating'` 状態にする。
+### ✅ 2-1. お題生成が試合開始フローにつながっていない
+- `startGame` は検証済みお題がない場合に `generating` へ遷移し、`generateProblem` → `createProblem` → `verifyProblem` を最大3回試行する。失敗時は `generated_by='seed'` の検証済みお題へフォールバックする。
 - 関連: `src/lib/server/game/start-game.ts`、`src/app/api/problems/route.ts`
 
-### 🔴 2-2. シードお題が未検証のまま（デプロイ手順に組み込まれていない）
-- `20260914140000_seed_problems.sql` は `is_verified=false` で投入し、`POST /api/problems/verify` を叩いて初めて使える。この手順が README にも起動スクリプトにもない。
-- 環境構築手順に「Piston 起動 → deno ランタイム導入 → `/api/problems/verify` 実行」を明記するか、`scripts/` に検証スクリプトを追加する。
+### ✅ 2-2. シードお題が未検証のまま（デプロイ手順に組み込まれていない）
+- `20260914140000_seed_problems.sql` のシードは `is_verified=false` で投入し、`scripts/verify-seed-problems.ps1` から `POST /api/problems/verify` を実行して検証する。
 - 関連: `supabase/migrations/20260914140000_seed_problems.sql`、`src/app/api/problems/verify/route.ts`
 
-### 🟠 2-3. お題の選択が固定・偏る
-- `findVerifiedProblem` は `limit(1)` で常に同じ行を返す（ORDER BY なし）。再戦しても同じお題になる。
-- ランダム選択（`order('created_at')` + オフセット、または RPC で `order by random()`）、`problems.difficulty` によるフィルタ、同一ルームで直近に使ったお題の除外を入れる。
+### ✅ 2-3. お題の選択が固定・偏る
+- `findVerifiedProblem` は検証済みお題を難易度で絞り込み、同一ルームの使用済みお題を可能な限り除外したうえで、アプリ側でランダム選択する。
 - 関連: `src/lib/server/repositories/problems.ts`
 
-### 🟠 2-4. Gemini プロンプトがハーネスの制約を伝えていない
-- `harness.ts` は `CJ_SUPPORTED_MATCHERS` に列挙したマッチャーしか対応せず、未対応マッチャーは `__CJ_ERROR__`（判定不能）になる。しかし `prompt.ts` はマッチャー制限・`vi.mock` / `test.each` 禁止・非同期テスト・トップレベル宣言の重複禁止などを一切指示していない。
-- `buildProblemGenerationPrompt` に `CJ_SUPPORTED_MATCHERS` を埋め込み、行数の目安（例: 15〜40行）と「1行削除で失敗し得る構造」の具体例を追加する。
-- `generation_prompt` 列に実際のプロンプトを保存する（`createProblem` に渡していない）。
+### ✅ 2-4. Gemini プロンプトがハーネスの制約を伝えていない
+- `buildProblemGenerationPrompt` に対応マッチャー、同期テスト、禁止機能、行数目安、宣言名重複禁止を追加し、生成したプロンプトを `generation_prompt` に保存する。
 - 関連: `src/lib/server/gemini/prompt.ts`、`src/app/api/problems/route.ts`
 
-### 🟡 2-5. Gemini モデル名の確認
-- `generate-problem.ts` は `gemini-3.6-flash` を直書きしている。有効なモデル名か、環境変数で差し替え可能にするかを確認する。API エラー（404）時のメッセージは残っているので原因は追える。
+### ✅ 2-5. Gemini モデル名の確認
+- モデル名を `GEMINI_MODEL` で変更可能にし、未設定時は `gemini-2.5-flash` を使用する。
 - 関連: `src/lib/server/gemini/generate-problem.ts`
 
-### 🟡 2-6. Gemini 呼び出しにタイムアウト・リトライがない
-- `fetch` に `AbortSignal.timeout` がなく、Gemini が応答しないと Route Handler がハングする。`run.ts` と同様に 30秒程度のタイムアウトを入れる。
+### ✅ 2-6. Gemini 呼び出しにタイムアウト・リトライがない
+- `AbortSignal.timeout(30_000)` を追加し、429 / 5xx と接続失敗を最大3回まで再試行する。
 - 関連: `src/lib/server/gemini/generate-problem.ts`
 
 ---
