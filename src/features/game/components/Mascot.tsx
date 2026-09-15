@@ -5,18 +5,18 @@ import type { MascotMood } from "../mascot-lines";
 
 // カイル風マスコットの見た目。担当: 見た目（Nezumi / ようた）
 // 渡されたセリフを吹き出しで出すだけ。何を喋るかは GameBoard 側（mascot-lines.ts）で決める。
-// キャラの絵は public/images/mascot/{mood}.png（#42）。画像がまだ無い（404）間は絵文字で代用する。
-// GIF に差し替えるときは FACE の src の拡張子を変えるだけでよい。
+// キャラの絵は public/images/mascot/{mood}.gif|png（#42）。画像がまだ無い（404）間は絵文字で代用する。
+// GIF は自前で動くので CSS のアニメを付けない（animated）。PNG の表情は CSS で揺らす。
 
 export interface MascotProps {
   message: string | null;
   mood: MascotMood;
 }
 
-const FACE: Record<MascotMood, { src: string; emoji: string }> = {
-  idle: { src: "/images/mascot/idle.png", emoji: "🐭" },
-  smug: { src: "/images/mascot/smug.png", emoji: "😏" },
-  panic: { src: "/images/mascot/panic.png", emoji: "😱" },
+const FACE: Record<MascotMood, { src: string; emoji: string; animated: boolean }> = {
+  idle: { src: "/images/mascot/idle.gif", emoji: "🐭", animated: true },
+  smug: { src: "/images/mascot/smug.png", emoji: "😏", animated: false },
+  panic: { src: "/images/mascot/panic.png", emoji: "😱", animated: false },
 };
 
 const BUBBLE_CLASS: Record<MascotMood, string> = {
@@ -76,7 +76,7 @@ export function Mascot({ message, mood }: MascotProps) {
             alt=""
             width={64}
             height={64}
-            className={`h-16 w-16 select-none object-contain drop-shadow ${motionClass}`}
+            className={`h-16 w-16 select-none object-contain drop-shadow ${face.animated ? "" : motionClass}`}
             onError={() => setFailedMoods((prev) => ({ ...prev, [mood]: true }))}
           />
         )}
