@@ -660,13 +660,14 @@
   /* SVG の変形基準を自分の描画範囲にする（これが無いと SVG 全体が基準になる） */
   transform-box: fill-box;
   transform-origin: 50% 88%;
-  animation: faceSway 2.8s ease-in-out infinite;
+  /* 最大限速く振る。linear にしないと、この短さでは端で止まって見える */
+  animation: faceSway 0.12s linear infinite;
 }
 
-/* 2体が同じ動きにならないよう、大仏はゆっくり・逆位相から始める */
+/* 2体が完全に同期しないよう、大仏だけわずかにずらす */
 .monumentFaceSlow {
-  animation-duration: 3.6s;
-  animation-delay: -1.8s;
+  animation-duration: 0.15s;
+  animation-delay: -0.075s;
 }
 
 @keyframes faceSway {
