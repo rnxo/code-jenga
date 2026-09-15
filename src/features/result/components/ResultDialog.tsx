@@ -18,6 +18,8 @@ export interface ResultDialogProps {
   onRematch?: () => void;
   /** 再戦リクエストの送信中。ボタンを押せなくする */
   isRematching?: boolean;
+  /** 再戦リクエストが失敗したときのメッセージ。null なら何も出さない */
+  rematchErrorMessage?: string | null;
 }
 
 /** games.finish_reason（database.ts の game_finish_reason）の日本語表示。 */
@@ -50,6 +52,7 @@ export function ResultDialog({
   roomCode,
   onRematch,
   isRematching = false,
+  rematchErrorMessage = null,
 }: ResultDialogProps) {
   const router = useRouter();
   const finishReason = game.finish_reason;
@@ -106,6 +109,11 @@ export function ResultDialog({
             <Button className="w-full" onClick={onRematch} disabled={isRematching}>
               {isRematching ? "準備中..." : "もう一度あそぶ"}
             </Button>
+            {rematchErrorMessage ? (
+              <p className="w-full rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {rematchErrorMessage}
+              </p>
+            ) : null}
             <Button variant="secondary" className="w-full" onClick={() => router.push("/")}>
               トップに戻る
             </Button>
