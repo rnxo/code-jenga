@@ -27,6 +27,9 @@ export interface ApplyTurnResult {
   game: Game;
 }
 
+// 1手の確定処理を行う。
+// 1. 該当ゲームの状態を取得し、手番・難易度・コード状態を検証する。
+// 2. 指定行を削除し、難易度ルールに従って削除可能か判定する。
 export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult> {
   const game = await findGameById(input.gameId);
   if (!game) {

@@ -6,6 +6,7 @@ import { findGameById, updateGame } from "@/lib/server/repositories/games";
 import { listGamePlayers } from "@/lib/server/repositories/game-players";
 import { findVerifiedProblem } from "@/lib/server/repositories/problems";
 import { updateRoomStatus } from "@/lib/server/repositories/rooms";
+import { generateVerifiedProblem } from "@/lib/server/problems/prepare-problem";
 import { rollTurnDifficulty } from "@/lib/shared/difficulty";
 
 // 担当: BE-A
@@ -27,9 +28,21 @@ export async function startGame(input: StartGameInput): Promise<Game> {
   if (game.status !== "waiting") {
     throw new ApplicationError("GAME_NOT_PLAYING", "この試合は開始可能な状態ではありません。");
   }
-  const problem = await findVerifiedProblem();
+  let problem = await findVerifiedProblem({ roomId: game.room_id });
   if (!problem) {
-    throw new ApplicationError("PROBLEM_GENERATION_FAILED", "利用可能な検証済みお題がありません。");
+    await updateGame(input.gameId, { status: "generating" });
+    try {
+      problem = await generateVerifiedProblem("easy");
+    } catch {
+      problem = null;
+    }
+    if (!problem) {
+      problem = await findVerifiedProblem({ generatedBy: "seed" });
+    }
+    if (!problem) {
+      await updateGame(input.gameId, { status: "waiting" });
+      throw new ApplicationError("PROBLEM_GENERATION_FAILED", "利用可能なお題を生成・検証できませんでした。");
+    }
   }
   const players = await listGamePlayers(input.gameId);
   const firstPlayer = players
