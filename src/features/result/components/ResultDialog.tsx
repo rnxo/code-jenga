@@ -96,7 +96,11 @@ export function ResultDialog({
     (game.current_code ?? "").trim().length > 0;
 
   return (
-    <section className="flex flex-col items-center gap-5 rounded-xl border-2 border-amber-900/25 bg-amber-50 p-6 text-center shadow-sm">
+    <section
+      // 決着の枠なので、宇宙人みたいなテルミン
+      data-silly-sound="theremin"
+      className="flex flex-col items-center gap-5 rounded-xl border-2 border-amber-900/25 bg-amber-50 p-6 text-center shadow-sm"
+    >
       <div className="flex flex-col items-center gap-0.5">
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber-900/60">
           game over

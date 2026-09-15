@@ -36,7 +36,11 @@ export function TestResultPanel({ turn }: TestResultPanelProps) {
   const style = RESULT_CLASS[turn.result];
 
   return (
-    <section className={`flex flex-col gap-2 rounded-lg border-2 p-3 ${style.frame}`}>
+    <section
+      // 判定を知らせる枠なので、鳩時計
+      data-silly-sound="cuckoo"
+      className={`flex flex-col gap-2 rounded-lg border-2 p-3 ${style.frame}`}
+    >
       <div className="flex items-center gap-2">
         <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-black/40">
           last move
