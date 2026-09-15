@@ -744,3 +744,49 @@
     animation: none;
   }
 }
+
+/* 吐き始めたら白目を剥く。像が立ち上がった直後に目が裏返る */
+.pupil {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: rollEyesUp 0.35s ease-in forwards;
+  animation-delay: 1.35s;
+}
+
+@keyframes rollEyesUp {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-160%);
+    opacity: 0;
+  }
+}
+
+/* 白目側（下まぶたの線・大仏の白目）は、瞳が消えるのに合わせて出す */
+.eyeRolled {
+  opacity: 0;
+  animation: rollEyesReveal 0.35s ease-in forwards;
+  animation-delay: 1.45s;
+}
+
+@keyframes rollEyesReveal {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pupil,
+  .eyeRolled {
+    animation: none;
+  }
+
+  .eyeRolled {
+    opacity: 1;
+  }
+}

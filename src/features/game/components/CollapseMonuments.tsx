@@ -47,8 +47,25 @@ function LibertySvg() {
         {/* 目 */}
         <ellipse cx="29.4" cy="34.4" rx="1.5" ry="1.7" fill="#ffffff" />
         <ellipse cx="34.6" cy="34.4" rx="1.5" ry="1.7" fill="#ffffff" />
-        <circle cx="29.6" cy="34.6" r="0.85" fill="#22352f" />
-        <circle cx="34.8" cy="34.6" r="0.85" fill="#22352f" />
+        <circle className={styles.pupil} cx="29.6" cy="34.6" r="0.85" fill="#22352f" />
+        <circle className={styles.pupil} cx="34.8" cy="34.6" r="0.85" fill="#22352f" />
+        {/* 白目を剥いたあとの下まぶた */}
+        <path
+          className={styles.eyeRolled}
+          d="M28.1 35.4 Q29.5 36.5 30.8 35.4"
+          fill="none"
+          stroke="#22352f"
+          strokeWidth="0.45"
+          strokeLinecap="round"
+        />
+        <path
+          className={styles.eyeRolled}
+          d="M33.4 35.4 Q34.7 36.5 36.1 35.4"
+          fill="none"
+          stroke="#22352f"
+          strokeWidth="0.45"
+          strokeLinecap="round"
+        />
         {/* まゆ */}
         <path d="M27.5 31.9 Q29.4 30.9 31.3 31.8" fill="none" stroke="#22352f" strokeWidth="0.7" strokeLinecap="round" />
         <path d="M32.7 31.8 Q34.6 30.9 36.5 31.9" fill="none" stroke="#22352f" strokeWidth="0.7" strokeLinecap="round" />
@@ -116,6 +133,9 @@ function DaibutsuSvg() {
         {/* 螺髪の生え際 */}
         <path d="M36.8 39 Q48 30.8 59.2 39 Q54 34.8 48 34.5 Q42 34.8 36.8 39 Z" fill="#584a33" />
         {/* 伏せたまぶた */}
+        {/* 吐き始めたら剥く白目。まぶたの線より先に描いて、線が下まぶたに見えるようにする */}
+        <ellipse className={styles.eyeRolled} cx="43.6" cy="42.6" rx="4.1" ry="3.2" fill="#f8f6f0" />
+        <ellipse className={styles.eyeRolled} cx="52.4" cy="42.6" rx="4.1" ry="3.2" fill="#f8f6f0" />
         <path d="M39.8 43.2 Q43.6 46.8 47.4 43.2" fill="none" stroke="#2c2519" strokeWidth="1.3" strokeLinecap="round" />
         <path d="M48.6 43.2 Q52.4 46.8 56.2 43.2" fill="none" stroke="#2c2519" strokeWidth="1.3" strokeLinecap="round" />
         {/* まゆ */}
