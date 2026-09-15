@@ -6,6 +6,7 @@ import type { Game } from "@/types/game";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { LeaveButton } from "@/components/ui/LeaveButton";
 import { createClient } from "@/lib/supabase/client";
 import { useLobbyRealtime } from "../hooks/useLobbyRealtime";
 import { PlayerList, type LobbyPlayer } from "./PlayerList";
@@ -22,6 +23,10 @@ export interface LobbyPanelProps {
   maxPlayers?: number;
   /** 何人そろえば開始できるか */
   minPlayers?: number;
+  /** ルームからの退出。渡されたときだけ「ルームを出る」を出す（配線は FE-B） */
+  onLeave?: () => void;
+  /** 退出リクエストの送信中 */
+  isLeaving?: boolean;
 }
 
 export function LobbyPanel({
@@ -32,6 +37,8 @@ export function LobbyPanel({
   currentUserId,
   maxPlayers,
   minPlayers = 2,
+  onLeave,
+  isLeaving = false,
 }: LobbyPanelProps) {
   const router = useRouter();
   const { game: liveGame, players: livePlayers, isLoading, errorMessage } = useLobbyRealtime(initialGame.id);
@@ -183,6 +190,9 @@ export function LobbyPanel({
           ホストが試合を開始するまでお待ちください。
         </p>
       )}
+
+      {/* 退出は主要な動線ではないので、開始ボタンより下に控えめに置く */}
+      {onLeave ? <LeaveButton onLeave={onLeave} isLeaving={isLeaving} /> : null}
     </div>
   );
 }
