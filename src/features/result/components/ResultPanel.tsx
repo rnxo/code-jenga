@@ -34,6 +34,8 @@ export function ResultPanel({
   const router = useRouter();
   const [isRematching, setIsRematching] = useState(false);
   const [rematchError, setRematchError] = useState<string | null>(null);
+  // 決着直後は自動で開く。閉じたあとも「もう一度見る」で何度でも開ける
+  const [isDogezaOpen, setIsDogezaOpen] = useState(true);
   const isHost = currentUserId !== null && currentUserId === hostId;
 
   // 次局の games INSERT は参加者コピー前で RLS に弾かれるため、自分の game_players INSERT を合図にする。
@@ -59,7 +61,10 @@ export function ResultPanel({
   return (
     <>
       {/* 決着直後に土下座動画をポップアップで見せる。閉じれば下の結果画面が操作できる */}
-      <DogezaPopup />
+      <DogezaPopup
+        isOpen={isDogezaOpen}
+        onClose={() => setIsDogezaOpen(false)}
+      />
       <ResultDialog
         game={game}
         loserNickname={loserNickname}
@@ -70,6 +75,7 @@ export function ResultPanel({
         }
         isRematching={isRematching}
         rematchErrorMessage={rematchError}
+        onReplayDogeza={() => setIsDogezaOpen(true)}
       />
     </>
   );
