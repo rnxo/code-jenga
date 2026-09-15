@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { apiClient } from "@/lib/api/client";
 import { isValidRoomCode, normalizeRoomCode } from "@/lib/shared/room-code";
+import { Field } from "./Field";
 
 // ルームコード入室フォーム。担当: FE-A
 
@@ -41,28 +42,33 @@ export function JoinRoomForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-sm">
-        ルームコード
-        <input
-          type="text"
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          maxLength={6}
-          placeholder="ABC123"
-          className="rounded-md border border-gray-300 px-3 py-2 uppercase tracking-widest"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        ニックネーム（任意）
-        <input
-          type="text"
-          value={nickname}
-          onChange={(event) => setNickname(event.target.value)}
-          maxLength={20}
-          className="rounded-md border border-gray-300 px-3 py-2"
-        />
-      </label>
-      {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+      <Field
+        label="room code"
+        type="text"
+        value={code}
+        onChange={(event) => setCode(normalizeRoomCode(event.target.value))}
+        maxLength={6}
+        placeholder="ABC123"
+        inputMode="text"
+        autoCapitalize="characters"
+        autoComplete="off"
+        spellCheck={false}
+        className="text-center font-mono text-xl tracking-[0.4em] uppercase"
+        hint="ホストから聞いた英数字6桁。"
+      />
+      <Field
+        label="your name"
+        type="text"
+        value={nickname}
+        onChange={(event) => setNickname(event.target.value)}
+        maxLength={20}
+        placeholder="なまえ（任意）"
+      />
+      {errorMessage ? (
+        <p className="rounded-md border border-red-300 bg-red-50/60 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+          {errorMessage}
+        </p>
+      ) : null}
       <Button type="submit" variant="secondary" disabled={isSubmitting}>
         {isSubmitting ? "入室中..." : "ルームに入室"}
       </Button>
