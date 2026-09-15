@@ -26,7 +26,7 @@ async function handleRematchGame(gameId: string): Promise<RematchGameResponse> {
   const userId = await requireUserId();
   const players = await listGamePlayers(gameId);
   if (!players.some((player) => player.player_id === userId)) {
-    throw new ApplicationError("UNAUTHENTICATED", "この試合の参加者ではありません。");
+    throw new ApplicationError("FORBIDDEN", "この試合の参加者ではありません。");
   }
   return rematchGame({ gameId });
 }
