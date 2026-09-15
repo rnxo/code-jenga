@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/Button";
+import { JengaTower } from "@/features/game";
 import type { Game, GameFinishReason } from "@/types/game";
-import { useRematchRealtime } from "../hooks/useRematchRealtime";
 
 // 敗者表示＋再戦ボタン。担当: ようた（#21 で FE-B から移管）
 
@@ -14,10 +12,32 @@ export interface ResultDialogProps {
   /** loser_id に対応する表示名（TODO: profiles との JOIN 結果を呼び出し側で渡す） */
   loserNickname: string | null;
   roomCode: string;
-  /** rooms.host_id。再戦ボタンはホストにだけ出す。 */
-  hostId: string;
-  /** 自分の profile id。未サインインなら null。 */
-  currentUserId: string | null;
+  /**
+   * 再戦の実行。渡されたときだけ「再戦する」ボタンを出す。
+   * 渡さなければ従来どおり「トップに戻る」だけ（#26 / 配線は FE-B）。
+   */
+  onRematch?: () => void;
+  /**
+   * 再戦ボタンを出さないときに代わりに見せる案内（例: 非ホストへ「ホストの開始待ち」）。
+   * 渡さなければ「再戦は準備中です」を出す。
+   */
+  rematchUnavailableMessage?: string | null;
+  /** 再戦リクエストの送信中。ボタンを押せなくする */
+  isRematching?: boolean;
+  /** 再戦リクエストが失敗したときのメッセージ。null なら何も出さない */
+  rematchErrorMessage?: string | null;
+  /**
+   * 再戦できない理由（相手の退出など）。渡すと知らせを出し、
+   * 「もう一度あそぶ」を押せなくする（#40 / 検知と配線は FE-B）。
+   */
+  rematchBlockedMessage?: string | null;
+  /**
+   * 「トップに戻る」を押したときの処理。渡さなければトップへ遷移するだけ。
+   * 退出 API を叩いてから戻りたい場合に使う（#40 / 配線は FE-B）。
+   */
+  onBackToTop?: () => void;
+  /** 退出リクエストの送信中。ボタンを押せなくする */
+  isLeaving?: boolean;
 }
 
 /** games.finish_reason（database.ts の game_finish_reason）の日本語表示。 */
@@ -36,7 +56,10 @@ const FINISH_REASON_TEXT: Record<GameFinishReason, string> = {
   aborted: "試合が途中で中断されました。",
 };
 
-/** 崩れたタワーの積み木。傾き・ずれ・色を1ブロックずつ指定する。 */
+/** 崩壊で終わった試合。タワーを崩れた姿で見せる価値があるのはこの2つだけ。 */
+const COLLAPSED_REASONS: ReadonlySet<GameFinishReason> = new Set(["test_failed", "timeout"]);
+
+/** 実際のコードが無いとき（中断・完走）に出す、崩れたタワーの略図。 */
 const RUBBLE = [
   { rotate: "-rotate-12", offset: "-translate-x-6", width: "w-24", tone: "bg-amber-700" },
   { rotate: "rotate-6", offset: "translate-x-8", width: "w-20", tone: "bg-amber-600" },
@@ -48,30 +71,29 @@ export function ResultDialog({
   game,
   loserNickname,
   roomCode,
-  hostId,
-  currentUserId,
+  onRematch,
+  rematchUnavailableMessage = null,
+  isRematching = false,
+  rematchErrorMessage = null,
+  rematchBlockedMessage = null,
+  onBackToTop,
+  isLeaving = false,
 }: ResultDialogProps) {
   const router = useRouter();
-  const [isRematching, setIsRematching] = useState(false);
-  const [rematchError, setRematchError] = useState<string | null>(null);
   const finishReason = game.finish_reason;
-  const isHost = currentUserId !== null && currentUserId === hostId;
-
-  // ホスト以外は、ホストの再戦で自分が次局にコピーされたのを検知してロビーへ移る。
-  useRematchRealtime(currentUserId);
-
-  async function handleRematch() {
-    setIsRematching(true);
-    setRematchError(null);
-    const result = await apiClient.rematchGame(game.id);
-    if (!result.ok) {
-      setRematchError(result.error.message);
-      setIsRematching(false);
+  // onBackToTop が渡されていれば、退出などの後始末はそちらに任せる
+  function handleBackToTop() {
+    if (onBackToTop) {
+      onBackToTop();
       return;
     }
-    // 次局（status = waiting）ができたので、サーバー側の描画を取り直してロビーへ遷移する。
-    router.refresh();
+    router.push("/");
   }
+
+  const showCollapsedTower =
+    finishReason !== null &&
+    COLLAPSED_REASONS.has(finishReason) &&
+    (game.current_code ?? "").trim().length > 0;
 
   return (
     <section className="flex flex-col items-center gap-5 rounded-xl border-2 border-amber-900/25 bg-amber-50 p-6 text-center shadow-sm">
@@ -85,16 +107,35 @@ export function ResultDialog({
         </p>
       </div>
 
-      {/* 崩れた積み木。装飾なので読み上げ対象から外す */}
-      <div aria-hidden className="flex w-full flex-col items-center gap-1 py-1">
-        {RUBBLE.map((block) => (
-          <span
-            key={block.rotate + block.offset}
-            className={`h-3 rounded-sm shadow-sm ${block.width} ${block.tone} ${block.rotate} ${block.offset}`}
+      {/*
+       * 崩れたタワーそのものを見せる。盤面（GameBoard）は決着と同時に
+       * ResultPanel へ差し替わるので、崩壊と光の演出は実プレイではほとんど
+       * 見えない。結果画面で改めて出すことで、崩れた姿が必ず残る。
+       * 音は盤面側で鳴っているので silent。
+       */}
+      {showCollapsedTower ? (
+        <div aria-hidden className="w-full">
+          <JengaTower
+            code={game.current_code ?? ""}
+            selectedLineNo={null}
+            onSelectLine={() => {}}
+            interactive={false}
+            collapsed
+            compact
+            silent
           />
-        ))}
-        <span className="mt-1 h-1 w-32 rounded-full bg-amber-900/20" />
-      </div>
+        </div>
+      ) : (
+        <div aria-hidden className="flex w-full flex-col items-center gap-1 py-1">
+          {RUBBLE.map((block) => (
+            <span
+              key={block.rotate + block.offset}
+              className={`h-3 rounded-sm shadow-sm ${block.width} ${block.tone} ${block.rotate} ${block.offset}`}
+            />
+          ))}
+          <span className="mt-1 h-1 w-32 rounded-full bg-amber-900/20" />
+        </div>
+      )}
 
       <div className="flex flex-col gap-1">
         <h2 className="text-xl font-bold text-amber-950">
@@ -120,27 +161,47 @@ export function ResultDialog({
       </div>
 
       <div className="flex w-full flex-col items-center gap-2">
-        {isHost ? (
+        {/*
+         * 相手が退出したなど、再戦できない事情の知らせ。ボタンより上に出して、
+         * 押せない理由が分かってから「もう一度あそぶ」が目に入るようにする。
+         */}
+        {rematchBlockedMessage ? (
+          <p className="w-full rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {rematchBlockedMessage}
+          </p>
+        ) : null}
+
+        {onRematch ? (
           <>
-            {/* 再戦は同じルーム・同じメンバーで次局を作る（POST /api/games/[id]/rematch）。 */}
             <Button
-              type="button"
-              onClick={handleRematch}
-              disabled={isRematching}
-              className="w-full max-w-xs bg-amber-700 hover:bg-amber-800"
+              className="w-full"
+              onClick={onRematch}
+              disabled={isRematching || rematchBlockedMessage !== null}
             >
-              {isRematching ? "次の試合を準備中..." : "同じメンバーで再戦する"}
+              {isRematching ? "準備中..." : "もう一度あそぶ"}
             </Button>
-            {rematchError ? <p className="text-sm text-red-600">{rematchError}</p> : null}
+            {rematchErrorMessage ? (
+              <p className="w-full rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {rematchErrorMessage}
+              </p>
+            ) : null}
+            <Button variant="secondary" className="w-full" onClick={handleBackToTop} disabled={isLeaving}>
+              {isLeaving ? "退出中..." : "トップに戻る"}
+            </Button>
           </>
         ) : (
-          <p className="text-sm text-amber-900/70">
-            ホストが再戦を始めると、自動でロビーに移動します。
-          </p>
+          <>
+            {/*
+             * onRematch が無いあいだは再戦できない。games が finished のままなので
+             * /rooms/{roomCode} に戻してもこの結果画面に戻ってくるだけになる。
+             * 新しいルームを作る導線が生きるよう、トップに戻す。
+             */}
+            <Button onClick={handleBackToTop} disabled={isLeaving}>
+              {isLeaving ? "退出中..." : "トップに戻る"}
+            </Button>
+            <p className="text-sm text-amber-900/70">{rematchUnavailableMessage ?? "再戦は準備中です"}</p>
+          </>
         )}
-        <Button type="button" variant="secondary" onClick={() => router.push("/")}>
-          トップに戻る
-        </Button>
       </div>
     </section>
   );

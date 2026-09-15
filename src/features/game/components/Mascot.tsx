@@ -1,0 +1,93 @@
+"use client";
+
+import { useState } from "react";
+import type { MascotMood } from "../mascot-lines";
+
+// カイル風マスコットの見た目。担当: 見た目（Nezumi / ようた）
+// 渡されたセリフを吹き出しで出すだけ。何を喋るかは GameBoard 側（mascot-lines.ts）で決める。
+// キャラの絵は public/images/mascot/{mood}.png（#42）。画像がまだ無い（404）間は絵文字で代用する。
+// GIF に差し替えるときは FACE の src の拡張子を変えるだけでよい。
+
+export interface MascotProps {
+  message: string | null;
+  mood: MascotMood;
+}
+
+const FACE: Record<MascotMood, { src: string; emoji: string }> = {
+  idle: { src: "/images/mascot/idle.png", emoji: "🐭" },
+  smug: { src: "/images/mascot/smug.png", emoji: "😏" },
+  panic: { src: "/images/mascot/panic.png", emoji: "😱" },
+};
+
+const BUBBLE_CLASS: Record<MascotMood, string> = {
+  idle: "border-amber-300 bg-white text-amber-950",
+  smug: "border-amber-400 bg-amber-50 text-amber-950",
+  panic: "border-red-400 bg-red-50 text-red-800",
+};
+
+export function Mascot({ message, mood }: MascotProps) {
+  const [isMuted, setIsMuted] = useState(false);
+  /** 読み込みに失敗した表情。その表情だけ絵文字に戻す */
+  const [failedMoods, setFailedMoods] = useState<Partial<Record<MascotMood, true>>>({});
+  const face = FACE[mood];
+  const motionClass = mood === "panic" ? "animate-bounce" : "animate-pulse";
+
+  if (isMuted) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsMuted(false)}
+        className="fixed right-4 bottom-4 z-40 rounded-full border border-amber-300 bg-white/90 px-3 py-1 text-xs text-amber-900/70 shadow hover:bg-amber-50"
+        aria-label="マスコットを戻す"
+      >
+        🐭 戻す
+      </button>
+    );
+  }
+
+  return (
+    // スマホ幅では吹き出しが画面いっぱいに広がり、盤面の下（判定・退出ボタン）に
+    // 重なる。狭いときだけ幅を絞る
+    <div className="pointer-events-none fixed right-4 bottom-4 z-40 flex max-w-[70vw] items-end gap-2 sm:max-w-xs">
+      {message ? (
+        <div
+          className={`pointer-events-auto relative rounded-xl border-2 px-3 py-2 text-sm shadow-md ${BUBBLE_CLASS[mood]}`}
+          role="status"
+        >
+          {message}
+          {/* 吹き出しのしっぽ */}
+          <span
+            aria-hidden
+            className={`absolute -right-2 bottom-3 h-3 w-3 rotate-45 border-r-2 border-b-2 ${BUBBLE_CLASS[mood]}`}
+          />
+        </div>
+      ) : null}
+      <div className="pointer-events-auto flex shrink-0 flex-col items-center gap-1">
+        {failedMoods[mood] ? (
+          <span aria-hidden className={`select-none text-5xl drop-shadow ${motionClass}`}>
+            {face.emoji}
+          </span>
+        ) : (
+          // 小さな固定画像で、後で GIF にする予定なので next/image の最適化は使わない
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            aria-hidden
+            src={face.src}
+            alt=""
+            width={64}
+            height={64}
+            className={`h-16 w-16 select-none object-contain drop-shadow ${motionClass}`}
+            onError={() => setFailedMoods((prev) => ({ ...prev, [mood]: true }))}
+          />
+        )}
+        <button
+          type="button"
+          onClick={() => setIsMuted(true)}
+          className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-amber-900/60 hover:bg-white"
+        >
+          黙らせる
+        </button>
+      </div>
+    </div>
+  );
+}
