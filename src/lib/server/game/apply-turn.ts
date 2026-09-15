@@ -6,6 +6,8 @@ import { deleteLine } from "@/lib/shared/code";
 import type { Game, Turn } from "@/types/game";
 import { applyTurnTransaction, findGameById, GameRpcError } from "@/lib/server/repositories/games";
 import { listGamePlayers } from "@/lib/server/repositories/game-players";
+import { findProblemById } from "@/lib/server/repositories/problems";
+import { PistonError } from "@/lib/server/piston/errors";
 import { getNextPlayerId } from "./turn-order";
 import { judgeTurnResult } from "./judge";
 import { runOnPiston } from "@/lib/server/piston/run";
@@ -16,6 +18,12 @@ import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder, rollTurnDiffi
 // DB_DESIGN.md 5章-5: 1手の確定（この関数が全体の中核）。
 // Piston 実行はこの関数内で行い、DB への書き込み（test_runs / turns / games / rooms）は
 // apply_turn RPC に委譲して1トランザクションで確定する（backend-todo 1-2）。
+//
+// TEST_RUN_ERROR（Piston 呼び出し自体の失敗・判定不能）の救済方針（backend-todo 4-4）:
+// - 一過性の失敗は run.ts が総予算の範囲内で自動リトライする。それでも失敗した場合のみここに届く。
+// - この場合は turns / test_runs / games に何も書かず、手番もそのまま。クライアントは 502 を受け取り、
+//   同じ行番号で POST /api/games/[gameId]/turns を再送すれば良い（べき等）。
+// - 判定不能をアウト扱いにはしない（judge.ts）。メッセージで「再送できる」ことをプレイヤーに伝える。
 
 export interface ApplyTurnInput {
   gameId: string;
@@ -71,7 +79,10 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
   }
 
   const startedAt = Date.now();
-  const problem = await loadProblem(game.problem_id);
+  const problem = await findProblemById(game.problem_id);
+  if (!problem) {
+    throw new ApplicationError("INTERNAL_ERROR", `試合に紐づくお題が見つかりません（problem_id=${game.problem_id}）。`);
+  }
   let pistonResult;
   try {
     pistonResult = await runOnPiston({
@@ -82,18 +93,15 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
       testCode: problem.test_code,
     });
   } catch (error) {
-    throw new ApplicationError(
-      "TEST_RUN_ERROR",
-      error instanceof Error ? `テスト実行に失敗しました: ${error.message}` : "テスト実行に失敗しました。",
-    );
+    throw toTestRunError(input, error);
   }
 
   const summary = parseVitestOutput(pistonResult.stdout);
-  const testStatus = pistonResult.exitCode === null ? "error" : pistonResult.exitCode === 0 ? "passed" : "failed";
+  const testStatus = pistonResult.outcome;
   const judgement = judgeTurnResult(testStatus);
   if (!judgement.judged) {
-    // Piston 自体の失敗（判定不能）は DB に残さず、同じ手を再送できるようにする（backend-todo 4-4）。
-    throw new ApplicationError("TEST_RUN_ERROR", judgement.reason);
+    // 判定不能（ハーネス障害など）は DB に残さず、同じ手を再送できるようにする（backend-todo 4-4）。
+    throw toTestRunError(input, new Error(pistonResult.errorMessage ?? judgement.reason));
   }
 
   const players = await listGamePlayers(input.gameId);
@@ -143,12 +151,17 @@ export async function applyTurn(input: ApplyTurnInput): Promise<ApplyTurnResult>
   }
 }
 
-/** お題IDから現在のお題を取得する。 */
-async function loadProblem(problemId: string) {
-  const { createAdminClient } = await import("@/lib/supabase/admin");
-  const { data, error } = await createAdminClient().from("problems").select().eq("id", problemId).single();
-  if (error || !data) {
-    throw new Error(`お題の取得に失敗しました: ${error?.message ?? "見つかりません"}`);
-  }
-  return data;
+const RETRY_HINT = "手番は消費されていません。しばらく待ってから同じ行をもう一度送信してください。";
+
+/**
+ * Piston 呼び出しの失敗・判定不能を TEST_RUN_ERROR に変換する（backend-todo 4-4）。
+ * ターンは確定していないので、メッセージで再送可能であることを伝え、原因はサーバーログに残す。
+ */
+function toTestRunError(input: ApplyTurnInput, error: unknown): ApplicationError {
+  const detail = error instanceof Error ? error.message : "原因不明のエラー";
+  const kind = error instanceof PistonError ? error.kind : "unjudgeable";
+  console.error(
+    `[apply-turn] TEST_RUN_ERROR kind=${kind} game=${input.gameId} player=${input.playerId} line=${input.lineNo}: ${detail}`,
+  );
+  return new ApplicationError("TEST_RUN_ERROR", `テスト実行に失敗しました（${detail}）。${RETRY_HINT}`);
 }

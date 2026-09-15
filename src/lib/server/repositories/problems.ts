@@ -36,6 +36,15 @@ export async function createProblem(input: CreateProblemInput): Promise<Problem>
   return data;
 }
 
+/** お題IDで1件取得する。見つからなければ null。 */
+export async function findProblemById(problemId: string): Promise<Problem | null> {
+  const { data, error } = await createAdminClient().from("problems").select().eq("id", problemId).maybeSingle();
+  if (error) {
+    throw new Error(`お題の取得に失敗しました: ${error.message}`);
+  }
+  return data;
+}
+
 /** お題を検証済みとして更新する。 */
 export async function markProblemVerified(problemId: string): Promise<void> {
   const { error } = await createAdminClient().from("problems").update({ is_verified: true }).eq("id", problemId);

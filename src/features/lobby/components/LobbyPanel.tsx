@@ -115,7 +115,10 @@ export function LobbyPanel({
     if (!result.ok) {
       setStartError(result.error.message);
       setIsStarting(false);
+      return;
     }
+    // Realtime の games UPDATE を待たずにサーバー側の描画を取り直し、ホストは即座に盤面へ遷移する。
+    router.refresh();
   }
 
   if (isLoading && !liveGame) {

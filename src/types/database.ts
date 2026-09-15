@@ -423,7 +423,25 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      test_run_summaries: {
+        Row: {
+          compile_output: string | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          exit_code: number | null
+          failed_tests: number | null
+          game_id: string | null
+          id: string
+          kind: Database["public"]["Enums"]["test_run_kind"]
+          passed_tests: number | null
+          problem_id: string | null
+          status: Database["public"]["Enums"]["test_run_status"]
+          stderr: string | null
+          total_tests: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       apply_turn: {

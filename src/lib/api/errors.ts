@@ -18,6 +18,8 @@ const STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   NOT_YOUR_TURN: 403,
   ROOM_NOT_FOUND: 404,
   ROOM_FULL: 409,
+  ROOM_CLOSED: 409,
+  GAME_NOT_READY: 409,
   GAME_NOT_FOUND: 404,
   GAME_NOT_PLAYING: 409,
   INVALID_LINE: 400,
@@ -27,6 +29,7 @@ const STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   TEST_RUN_ERROR: 502,
   PROBLEM_GENERATION_FAILED: 502,
   UNAUTHENTICATED: 401,
+  FORBIDDEN: 403,
   VALIDATION_ERROR: 400,
   INTERNAL_ERROR: 500,
 };
@@ -51,6 +54,10 @@ export function toSuccessResponse<T>(data: T, status = 200): Response {
 /** 例外を ApiResult<never> の失敗レスポンスに変換する。握りつぶさない（CLAUDE.md）。 */
 export function toErrorResponse(error: unknown): Response {
   const apiError = toApiError(error);
+  if (apiError.code === "INTERNAL_ERROR") {
+    // 想定外の例外はレスポンスに載せるだけでは追えないので、スタックをサーバーログに残す（backend-todo 6-4）。
+    console.error("[api] INTERNAL_ERROR:", error instanceof Error ? (error.stack ?? error.message) : error);
+  }
   const body: ApiResult<never> = { ok: false, error: apiError };
   return Response.json(body, { status: STATUS_BY_CODE[apiError.code] });
 }

@@ -31,7 +31,7 @@ async function handleGetGame(gameId: string): Promise<GetGameResponse> {
   }
   const players = await listGamePlayers(gameId);
   if (!players.some((player) => player.player_id === userId)) {
-    throw new ApplicationError("UNAUTHENTICATED", "この試合を閲覧する権限がありません。");
+    throw new ApplicationError("FORBIDDEN", "この試合を閲覧する権限がありません。");
   }
   return { game, players, turns: await listTurnsByGameId(gameId) };
 }

@@ -1,17 +1,37 @@
 # Piston（コード実行サンドボックス）のセルフホスト定義。
 # 公開インスタンス emkc.org は 2026/2/15 からホワイトリスト制で 401 を返すため自前で立てる。
 #
+#   # 起動 → deno ランタイム導入 → /runtimes 確認までを1コマンドで行う（backend-todo 4-2）
+#   bash scripts/setup-piston.sh            # macOS / Linux / Git Bash
+#   pwsh scripts/setup-piston.ps1           # Windows PowerShell
+#
+# 手動で行う場合（起動直後はランタイムが1つも入っていないので必ずインストールする）:
 #   docker compose -f piston/docker-compose.yml up -d
-#   # 起動直後はランタイムが1つも入っていないので必ずインストールする
-#   curl -X POST http://localhost:2000/api/v2/packages -H 'content-type: application/json' \
+#   curl -X POST http://127.0.0.1:2000/api/v2/packages -H 'content-type: application/json' \
 #        -d '{"language":"deno","version":"1.32.3"}'
-#   curl http://localhost:2000/api/v2/runtimes
+#   curl http://127.0.0.1:2000/api/v2/runtimes
 services:
   piston:
     image: ghcr.io/engineer-man/piston
     container_name: piston_api
     restart: unless-stopped
     privileged: true
+    # backend-todo 4-1: Piston 側のジョブ制限を既定値に任せず明示する。
+    # アプリ（src/lib/server/piston/run.ts）はリクエストで run_timeout / compile_timeout を送るが、
+    # ここで定めた値が上限になる（超えると Piston が 400 を返す）。
+    environment:
+      # run ステージの上限（ms）。無限ループのお題はこの時間で SIGKILL され failed(124) になる。
+      PISTON_RUN_TIMEOUT: "3000"
+      # compile ステージの上限（ms）。deno は compile ステージが無いので実質未使用。
+      PISTON_COMPILE_TIMEOUT: "10000"
+      # stdout / stderr の上限（バイト）。既定 1024 だと Vitest 風の出力が途中で切れて
+      # サマリ行（classify.ts の CJ_SUMMARY_MARKER）を読めなくなるため 64KiB に広げる。
+      PISTON_OUTPUT_MAX_SIZE: "65536"
+      # 同時実行ジョブ数。複数ルームが同時に手を打っても待たされないよう明示する。
+      PISTON_MAX_CONCURRENT_JOBS: "64"
+      # 1ジョブあたりのプロセス上限。deno + テストハーネスには十分。
+      PISTON_MAX_PROCESS_COUNT: "64"
+      PISTON_LOG_LEVEL: "INFO"
     ports:
       - "2000:2000"
     volumes:

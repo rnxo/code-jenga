@@ -63,6 +63,9 @@ export function useLobbyRealtime(gameId: string): UseLobbyRealtimeResult {
 
     void loadInitialState();
 
+    // RLS が効くテーブルの Realtime は購読時の JWT でポリシーが評価されるため、
+    // セッション復元前に subscribe すると anon 扱いになりイベントが届かない。
+    // 先にセッションを取得して Realtime に JWT を渡してから購読する（useGameRealtime と同じ）。
     const channel = supabase
       .channel(`lobby:${gameId}`)
       .on(
@@ -89,8 +92,28 @@ export function useLobbyRealtime(gameId: string): UseLobbyRealtimeResult {
               }
             });
         },
-      )
-      .subscribe();
+      );
+
+    async function subscribeWithAuth() {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+      if (error) {
+        console.error(`Realtime 購読前のセッション取得に失敗しました: ${error.message}`);
+      }
+      if (!isMounted) {
+        return;
+      }
+      await supabase.realtime.setAuth(session?.access_token);
+      channel.subscribe((status, err) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.error(`Realtime 購読でエラーが発生しました (${status})`, err);
+        }
+      });
+    }
+
+    void subscribeWithAuth();
 
     return () => {
       isMounted = false;

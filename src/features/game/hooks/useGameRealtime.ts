@@ -36,7 +36,9 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
     const supabase = createClient();
     let isMounted = true;
 
-    async function loadInitialState() {
+    // 初回ロードと再接続時の補完で共用する。Realtime の切断中に INSERT された turns は
+    // 購読では届かないため、再接続（SUBSCRIBED の2回目以降）で全件を取り直して上書きする。
+    async function loadState() {
       const [gameResult, turnsResult] = await Promise.all([
         supabase.from("games").select("*").eq("id", gameId).single(),
         supabase
@@ -65,8 +67,13 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
       setIsLoading(false);
     }
 
-    void loadInitialState();
+    void loadState();
+    let hasSubscribedOnce = false;
 
+    // RLS が効くテーブルの Realtime は、購読時に送った JWT でポリシーが評価される。
+    // セッション復元前に subscribe すると anon ロールで評価され、`to authenticated` の
+    // ポリシーに弾かれてイベントが一切届かない（購読自体は成功して見える）。
+    // そのため先にセッションを取得して Realtime に JWT を渡してから購読する。
     const channel = supabase
       .channel(`game:${gameId}`)
       .on(
@@ -81,12 +88,45 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
       )
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "turns", filter: `game_id=eq.${gameId}` },
+        { event: "INSERT", schema: "public", table: "turns" },
         (payload) => {
-          setTurns((prev) => [...prev, payload.new as Turn]);
+          console.log("TURN REALTIME", payload);
+          const turn = payload.new as Turn;
+          if (turn.game_id !== gameId) {
+            return;
+          }
+          setTurns((prev) => (prev.some((currentTurn) => currentTurn.id === turn.id) ? prev : [...prev, turn]));
         },
-      )
-      .subscribe();
+      );
+
+    async function subscribeWithAuth() {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+      if (error) {
+        console.error(`Realtime 購読前のセッション取得に失敗しました: ${error.message}`);
+      }
+      if (!isMounted) {
+        return;
+      }
+      await supabase.realtime.setAuth(session?.access_token);
+      channel.subscribe((status, err) => {
+        if (status === "SUBSCRIBED") {
+          if (hasSubscribedOnce) {
+            // 再接続: 切断中に取りこぼした手を補完する
+            void loadState();
+          }
+          hasSubscribedOnce = true;
+          return;
+        }
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.error(`Realtime 購読でエラーが発生しました (${status})`, err);
+        }
+      });
+    }
+
+    void subscribeWithAuth();
 
     return () => {
       isMounted = false;

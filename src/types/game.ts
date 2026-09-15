@@ -45,4 +45,6 @@ export type Game = Tables<"games">;
 export type GamePlayer = Tables<"game_players">;
 export type Problem = Tables<"problems">;
 export type TestRun = Tables<"test_runs">;
+/** 参加者に公開する test_runs の列だけを持つ View の行（executed_code / piston_raw / stdout は含まない）。 */
+export type TestRunSummary = Tables<"test_run_summaries">;
 export type Turn = Tables<"turns">;
