@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import styles from "./JengaTower.module.css";
 import { playCollapseSound } from "../collapse-sound";
+import { CollapseMonuments } from "./CollapseMonuments";
 
 // コードを 3D の積み木として見せる盤面。担当: FE-B
 //
@@ -198,6 +199,9 @@ export function JengaTower({
           <span className={styles.burstFlash} />
         </div>
       ) : null}
+
+      {/* 崩壊後のおまけ。瓦礫の奥からせり上がってくる */}
+      {collapsed && !compact ? <CollapseMonuments /> : null}
 
       <div
         className={towerClassName}
