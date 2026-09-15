@@ -31,6 +31,7 @@ const STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   INTERNAL_ERROR: 500,
 };
 
+//** 例外を ApiError に変換する。ApplicationError はそのまま、その他は INTERNAL_ERROR 扱いにする。 */
 function toApiError(error: unknown): ApiError {
   if (error instanceof ApplicationError) {
     return { code: error.code, message: error.message };

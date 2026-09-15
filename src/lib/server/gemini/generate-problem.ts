@@ -12,25 +12,44 @@ export interface GeneratedProblem {
   sourceCode: string;
   testCode: string;
   language: string;
+  prompt: string;
 }
 
+// Gemini にお題生成プロンプトを投げて、コード＋テストコードを取得する。
 export async function generateProblem(difficulty?: string): Promise<GeneratedProblem> {
   const prompt = buildProblemGenerationPrompt(difficulty);
   const { GEMINI_API_KEY } = getServerEnv();
-  const response = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.4 },
-      }),
-      cache: "no-store",
-    },
-  );
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  let response: Response | null = null;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0.4 },
+        }),
+        signal: AbortSignal.timeout(30_000),
+        cache: "no-store",
+      });
+      if (response.ok || ![429, 500, 502, 503, 504].includes(response.status) || attempt === 2) {
+        break;
+      }
+    } catch (error) {
+      lastError = error;
+      if (attempt === 2) {
+        throw new Error(`Gemini API に接続できませんでした: ${error instanceof Error ? error.message : "不明なエラー"}`);
+      }
+    }
+  }
+  if (!response) {
+    throw new Error(`Gemini API に接続できませんでした: ${lastError instanceof Error ? lastError.message : "不明なエラー"}`);
+  }
   if (!response.ok) {
-    const detail = await response.text();
+    const detail = (await response.text()).slice(0, 500);
     throw new Error(`Gemini API の呼び出しに失敗しました（${response.status}）: ${detail}`);
   }
 
@@ -45,7 +64,7 @@ export async function generateProblem(difficulty?: string): Promise<GeneratedPro
   if (!isGeneratedProblem(parsed)) {
     throw new Error("Gemini の応答に sourceCode、testCode、language が正しく含まれていません。");
   }
-  return parsed;
+  return { ...parsed, prompt };
 }
 
 /** Geminiレスポンスから生成本文を取り出す。 */

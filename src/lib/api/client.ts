@@ -16,18 +16,23 @@ import type {
   GetGameResponse,
   JoinRoomRequest,
   JoinRoomResponse,
+  LeaveGameResponse,
+  RematchGameResponse,
   StartGameRequest,
   StartGameResponse,
+  TimeoutTurnResponse,
 } from "@/types/api";
 import * as mock from "./mock";
 
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
 
+// 通信エラーが発生した場合の ApiResult を返す。
 function networkErrorResult<T>(error: unknown): ApiResult<T> {
   const message = error instanceof Error ? error.message : "通信エラーが発生しました。";
   return { ok: false, error: { code: "INTERNAL_ERROR", message } };
 }
 
+// POST リクエストを送信する。失敗した場合は networkErrorResult を返す。
 async function post<TReq, TRes>(path: string, body: TReq): Promise<ApiResult<TRes>> {
   try {
     const res = await fetch(path, {
@@ -41,6 +46,7 @@ async function post<TReq, TRes>(path: string, body: TReq): Promise<ApiResult<TRe
   }
 }
 
+// GET リクエストを送信する。失敗した場合は networkErrorResult を返す。
 async function get<TRes>(path: string): Promise<ApiResult<TRes>> {
   try {
     const res = await fetch(path);
@@ -51,6 +57,8 @@ async function get<TRes>(path: string): Promise<ApiResult<TRes>> {
 }
 
 export const apiClient = {
+  // ルーム作成 / 入室 / 試合開始 / ターン作成 / 試合情報取得 / お題作成
+  // NEXT_PUBLIC_USE_MOCK_API=true のときは mock.ts の実装を呼ぶ。
   createRoom: (req: CreateRoomRequest): Promise<ApiResult<CreateRoomResponse>> =>
     USE_MOCK ? mock.createRoom(req) : post("/api/rooms", req),
 
@@ -65,6 +73,15 @@ export const apiClient = {
 
   getGame: (gameId: string): Promise<ApiResult<GetGameResponse>> =>
     USE_MOCK ? mock.getGame(gameId) : get(`/api/games/${gameId}`),
+
+  timeoutTurn: (gameId: string): Promise<ApiResult<TimeoutTurnResponse>> =>
+    USE_MOCK ? mock.timeoutTurn(gameId) : post(`/api/games/${gameId}/timeout`, {}),
+
+  leaveGame: (gameId: string): Promise<ApiResult<LeaveGameResponse>> =>
+    USE_MOCK ? mock.leaveGame(gameId) : post(`/api/games/${gameId}/leave`, {}),
+
+  rematchGame: (gameId: string): Promise<ApiResult<RematchGameResponse>> =>
+    USE_MOCK ? mock.rematchGame(gameId) : post(`/api/games/${gameId}/rematch`, {}),
 
   createProblem: (req: CreateProblemRequest): Promise<ApiResult<CreateProblemResponse>> =>
     USE_MOCK ? mock.createProblem(req) : post("/api/problems", req),
