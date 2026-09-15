@@ -10,6 +10,7 @@ import { useGameRealtime } from "../hooks/useGameRealtime";
 import { useTurnTimer } from "../hooks/useTurnTimer";
 import { pickMascotLine, type MascotLine, type MascotSituation } from "../mascot-lines";
 import { CodeViewer } from "./CodeViewer";
+import { JengaTower } from "./JengaTower";
 import { Mascot } from "./Mascot";
 import { LineDeleteControls } from "./LineDeleteControls";
 import { TestResultPanel } from "./TestResultPanel";
@@ -156,6 +157,17 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   return (
     <div className="flex flex-col gap-4">
       <TurnIndicator game={game} isMyTurn={isMyTurn} />
+      {/*
+       * 3D タワーは「見せ場」担当。行の選択は下の CodeViewer と同じ state を共有するので、
+       * どちらをクリックしても同じ行が選ばれる（Monaco 側のハイライトも連動する）。
+       */}
+      <JengaTower
+        code={currentCode}
+        selectedLineNo={selectedLineNo}
+        onSelectLine={(lineNo) => setSelection({ code: currentCode, lineNo })}
+        interactive={isMyTurn && !isSubmitting}
+        collapsed={latestTurn !== null && latestTurn.result !== "safe"}
+      />
       <CodeViewer
         code={currentCode}
         language="typescript"
