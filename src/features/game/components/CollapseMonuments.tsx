@@ -27,6 +27,15 @@ function LibertySvg() {
         <path d="M19 30 l5 4 -6 0.5 Z" />
         <path d="M45 30 l-5 4 6 0.5 Z" />
       </g>
+
+      {/* 顔。勝ち側なので誇らしげに */}
+      <g className={styles.monumentFace}>
+        <ellipse cx="29.2" cy="33.6" rx="0.95" ry="1.2" />
+        <ellipse cx="34.8" cy="33.6" rx="0.95" ry="1.2" />
+        <path d="M28.8 37.2 Q32 40.2 35.2 37.2" fill="none" strokeWidth="1" />
+        <path d="M27.4 31.6 Q29.2 30.4 31 31.4" fill="none" strokeWidth="0.8" />
+        <path d="M33 31.4 Q34.8 30.4 36.6 31.6" fill="none" strokeWidth="0.8" />
+      </g>
     </svg>
   );
 }
@@ -48,6 +57,19 @@ function DaibutsuSvg() {
         <circle cx="48" cy="44" r="15" />
         {/* 肉髻 */}
         <circle cx="48" cy="28" r="5" />
+      </g>
+
+      {/* 顔。負け側なので、伏し目でいたわる表情に */}
+      <g className={styles.monumentFace}>
+        {/* 伏せたまぶた */}
+        <path d="M39.5 42.5 Q43.5 46 47.5 42.5" fill="none" strokeWidth="1.5" />
+        <path d="M48.5 42.5 Q52.5 46 56.5 42.5" fill="none" strokeWidth="1.5" />
+        {/* まゆ */}
+        <path d="M38.5 38 Q43 36.2 47 38" fill="none" strokeWidth="1.1" />
+        <path d="M49 38 Q53 36.2 57.5 38" fill="none" strokeWidth="1.1" />
+        {/* 白毫と口 */}
+        <circle cx="48" cy="39.5" r="1.1" stroke="none" />
+        <path d="M44.5 50.5 Q48 52.6 51.5 50.5" fill="none" strokeWidth="1.2" />
       </g>
     </svg>
   );
