@@ -68,6 +68,7 @@ export function JengaTower({
     if (drag.current) {
       return;
     }
+
     drag.current = {
       pointerId: event.pointerId,
       x: event.clientX,
@@ -75,6 +76,10 @@ export function JengaTower({
       ...angle,
     };
     didDrag.current = false;
+
+    // 閾値を待たずにここで捕捉する。待つと、閾値を超える前に pointerup を
+    // 取りこぼしたとき（右クリックや要素外への離脱）に掴んだままになる
+    event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
@@ -88,14 +93,13 @@ export function JengaTower({
     const dy = event.clientY - origin.y;
 
     if (!didDrag.current) {
+      // ここでの閾値は「クリックとみなすか回転とみなすか」の分岐にだけ使う
       if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) {
         return;
       }
-      // ここで初めてドラッグと見なす
       didDrag.current = true;
       setIsDragging(true);
       window.getSelection()?.removeAllRanges();
-      event.currentTarget.setPointerCapture(event.pointerId);
     }
 
     setAngle({
@@ -116,9 +120,16 @@ export function JengaTower({
     }
   }
 
-  function handleSelectLine(lineNo: number) {
-    // 回したあとの指離しをクリックとして拾わない
-    if (didDrag.current) {
+  /** 捕捉を失ったときの保険。これが無いと掴んだままになる経路が残る */
+  function handleLostPointerCapture() {
+    drag.current = null;
+    setIsDragging(false);
+  }
+
+  function handleSelectLine(lineNo: number, isFromPointer: boolean) {
+    // 回したあとの指離しをクリックとして拾わない。
+    // キーボード（Enter / Space）の click は detail が 0 なので対象外にする
+    if (isFromPointer && didDrag.current) {
       didDrag.current = false;
       return;
     }
@@ -151,6 +162,7 @@ export function JengaTower({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onLostPointerCapture={handleLostPointerCapture}
       >
         {lines.map((line, index) => {
           const lineNo = index + 1;
@@ -174,10 +186,17 @@ export function JengaTower({
               key={lineNo}
               type="button"
               className={className}
-              disabled={!canSelect}
+              // disabled にすると pointer イベントが出ず、相手の手番で回転も
+              // 文字選択もできなくなる（#2）。押せないことは aria で伝える
+              aria-disabled={!canSelect}
               aria-pressed={isSelected}
               aria-label={`${lineNo} 行目: ${isBlank ? "空行" : line}`}
-              onClick={() => handleSelectLine(lineNo)}
+              onClick={(event) => {
+                if (!canSelect) {
+                  return;
+                }
+                handleSelectLine(lineNo, event.detail > 0);
+              }}
               style={fallStyle(index, lines.length, compact)}
             >
               {/* 回したときに中が抜けないよう、見えない面も置く */}

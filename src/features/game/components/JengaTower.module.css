@@ -4,6 +4,10 @@
 .scene {
   perspective: 1500px;
   perspective-origin: 50% 45%;
+  /* 崩壊で木片が横に振れてもページに横スクロールを出さない。
+     overflow-x: hidden と違い clip は overflow-y を auto にしないので、
+     崩れ落ちる縦方向はそのまま見える */
+  overflow-x: clip;
 }
 
 .tower {
@@ -42,7 +46,8 @@
 
 .piece {
   position: relative;
-  /* 長い行は折り返して木片が高くなる。3D の各面は inset 基準なので追従する */
+  /* 高さは .front（唯一の in-flow な面）が決める。他の5面は inset 基準で追従する。
+     6面すべてを absolute にすると、何行折り返しても木片が 44px のままになる */
   min-height: 44px;
   transform-style: preserve-3d;
   transition: transform 0.3s ease;
@@ -82,7 +87,9 @@
 }
 
 .front {
-  inset: 0;
+  /* ここだけ in-flow。折り返した行の高さがそのまま木片の高さになる */
+  position: relative;
+  min-height: inherit;
   transform: translateZ(6px);
   display: flex;
   align-items: center;
