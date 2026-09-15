@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { JengaTower } from "@/features/game";
 import type { Game, GameFinishReason } from "@/types/game";
 
 // 敗者表示＋再戦ボタン。担当: ようた（#21 で FE-B から移管）
@@ -38,7 +39,10 @@ const FINISH_REASON_TEXT: Record<GameFinishReason, string> = {
   aborted: "試合が途中で中断されました。",
 };
 
-/** 崩れたタワーの積み木。傾き・ずれ・色を1ブロックずつ指定する。 */
+/** 崩壊で終わった試合。タワーを崩れた姿で見せる価値があるのはこの2つだけ。 */
+const COLLAPSED_REASONS: ReadonlySet<GameFinishReason> = new Set(["test_failed", "timeout"]);
+
+/** 実際のコードが無いとき（中断・完走）に出す、崩れたタワーの略図。 */
 const RUBBLE = [
   { rotate: "-rotate-12", offset: "-translate-x-6", width: "w-24", tone: "bg-amber-700" },
   { rotate: "rotate-6", offset: "translate-x-8", width: "w-20", tone: "bg-amber-600" },
@@ -56,6 +60,10 @@ export function ResultDialog({
 }: ResultDialogProps) {
   const router = useRouter();
   const finishReason = game.finish_reason;
+  const showCollapsedTower =
+    finishReason !== null &&
+    COLLAPSED_REASONS.has(finishReason) &&
+    (game.current_code ?? "").trim().length > 0;
 
   return (
     <section className="flex flex-col items-center gap-5 rounded-xl border-2 border-amber-900/25 bg-amber-50 p-6 text-center shadow-sm">
@@ -69,16 +77,35 @@ export function ResultDialog({
         </p>
       </div>
 
-      {/* 崩れた積み木。装飾なので読み上げ対象から外す */}
-      <div aria-hidden className="flex w-full flex-col items-center gap-1 py-1">
-        {RUBBLE.map((block) => (
-          <span
-            key={block.rotate + block.offset}
-            className={`h-3 rounded-sm shadow-sm ${block.width} ${block.tone} ${block.rotate} ${block.offset}`}
+      {/*
+       * 崩れたタワーそのものを見せる。盤面（GameBoard）は決着と同時に
+       * ResultPanel へ差し替わるので、崩壊と光の演出は実プレイではほとんど
+       * 見えない。結果画面で改めて出すことで、崩れた姿が必ず残る。
+       * 音は盤面側で鳴っているので silent。
+       */}
+      {showCollapsedTower ? (
+        <div aria-hidden className="w-full">
+          <JengaTower
+            code={game.current_code ?? ""}
+            selectedLineNo={null}
+            onSelectLine={() => {}}
+            interactive={false}
+            collapsed
+            compact
+            silent
           />
-        ))}
-        <span className="mt-1 h-1 w-32 rounded-full bg-amber-900/20" />
-      </div>
+        </div>
+      ) : (
+        <div aria-hidden className="flex w-full flex-col items-center gap-1 py-1">
+          {RUBBLE.map((block) => (
+            <span
+              key={block.rotate + block.offset}
+              className={`h-3 rounded-sm shadow-sm ${block.width} ${block.tone} ${block.rotate} ${block.offset}`}
+            />
+          ))}
+          <span className="mt-1 h-1 w-32 rounded-full bg-amber-900/20" />
+        </div>
+      )}
 
       <div className="flex flex-col gap-1">
         <h2 className="text-xl font-bold text-amber-950">

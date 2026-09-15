@@ -38,6 +38,8 @@ export interface JengaTowerProps {
   interactive: boolean;
   /** 直前の判定がアウト／タイムアウトなら崩す */
   collapsed: boolean;
+  /** 効果音を鳴らさない。盤面で既に鳴っている結果画面などで使う */
+  silent?: boolean;
   /**
    * 崩れ方を詰める。盤面では派手に散らしたいが、終了画面では
    * 「崩れたあとの山」として枠に収めたいので、そちらで使う。
@@ -51,6 +53,7 @@ export function JengaTower({
   onSelectLine,
   interactive,
   collapsed,
+  silent = false,
   compact = false,
 }: JengaTowerProps) {
   const lines = code.length > 0 ? code.split("\n") : [];
@@ -74,14 +77,19 @@ export function JengaTower({
       playedCollapse.current = false;
       return;
     }
-    if (playedCollapse.current || isMuted) {
+    if (playedCollapse.current || isMuted || silent) {
       return;
     }
     playedCollapse.current = true;
     playCollapseSound(lines.length);
-  }, [collapsed, isMuted, lines.length]);
+  }, [collapsed, isMuted, silent, lines.length]);
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
+    // 左ボタン（タッチ・ペンの主接触）以外では掴まない。右クリックはコンテキスト
+    // メニューが開いて pointerup が来ないため、掴むと次の操作を1回食ってしまう
+    if (event.button !== 0 || !event.isPrimary) {
+      return;
+    }
     // すでに別の指で回している場合は、そちらを優先する
     if (drag.current) {
       return;
@@ -181,13 +189,14 @@ export function JengaTower({
     styles.tower,
     isDragging ? styles.towerDragging : "",
     !isDragging && !collapsed ? styles.towerIdle : "",
+    compact ? styles.towerCompact : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
     <div
-      className={styles.scene}
+      className={`${styles.scene} ${compact ? styles.sceneCompact : ""}`}
       style={{ paddingTop: compact ? 8 : 24, paddingBottom: collapsed && !compact ? 176 : 24 }}
     >
       {/* 崩壊の光。奥から差してくる演出で、崩れているあいだだけ出す */}
