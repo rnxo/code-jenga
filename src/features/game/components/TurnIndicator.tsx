@@ -27,7 +27,10 @@ export function TurnIndicator({ game, isMyTurn }: TurnIndicatorProps) {
   // 0 除算と、時計のズレで 100% を超えるのを避ける
   const remainingRatio =
     limitSeconds > 0 ? Math.min(1, Math.max(0, remainingSeconds / limitSeconds)) : 0;
-  const isHurrying = remainingSeconds <= HURRY_SECONDS;
+  // 決着後は turn_deadline_at が過去（または null）になり、残り 0 秒の赤い表示が
+  // 出たままになる。時間を見せるのは試合中だけにする
+  const isPlaying = game.status === "playing";
+  const isHurrying = isPlaying && remainingSeconds <= HURRY_SECONDS;
 
   return (
     <section
@@ -50,30 +53,34 @@ export function TurnIndicator({ game, isMyTurn }: TurnIndicatorProps) {
           </p>
         </div>
 
-        <div className="flex shrink-0 flex-col items-end gap-0.5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-amber-900/50">
-            time
-          </p>
-          <p
-            className={`text-2xl font-bold tabular-nums ${
-              isHurrying ? "text-red-600" : "text-amber-900"
-            }`}
-          >
-            {remainingSeconds}
-            <span className="ml-0.5 text-xs font-normal">秒</span>
-          </p>
-        </div>
+        {isPlaying ? (
+          <div className="flex shrink-0 flex-col items-end gap-0.5">
+            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-amber-900/50">
+              time
+            </p>
+            <p
+              className={`text-2xl font-bold tabular-nums ${
+                isHurrying ? "text-red-600" : "text-amber-900"
+              }`}
+            >
+              {remainingSeconds}
+              <span className="ml-0.5 text-xs font-normal">秒</span>
+            </p>
+          </div>
+        ) : null}
       </div>
 
       {/* 残り時間のバー。数字より先に「あとどれくらいか」が目に入るように */}
-      <div className="h-1.5 overflow-hidden rounded-full bg-amber-900/10">
-        <div
-          className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${
-            isHurrying ? "bg-red-500" : "bg-amber-600"
-          }`}
-          style={{ width: `${remainingRatio * 100}%` }}
-        />
-      </div>
+      {isPlaying ? (
+        <div className="h-1.5 overflow-hidden rounded-full bg-amber-900/10">
+          <div
+            className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${
+              isHurrying ? "bg-red-500" : "bg-amber-600"
+            }`}
+            style={{ width: `${remainingRatio * 100}%` }}
+          />
+        </div>
+      ) : null}
 
       {difficulty ? (
         <div className="flex flex-wrap items-center gap-2">
