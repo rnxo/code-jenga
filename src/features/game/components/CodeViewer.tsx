@@ -9,21 +9,30 @@ import type { OnMount } from "@monaco-editor/react";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
-// monaco-editor を直接 import せず、OnMount の引数型からエディタ型を取り出す。
 type CodeEditor = Parameters<OnMount>[0];
 type DecorationsCollection = ReturnType<CodeEditor["createDecorationsCollection"]>;
 
-/** 選択行を行全体の背景色でハイライトする。未選択なら装飾を消す。 */
-function applySelection(decorations: DecorationsCollection, lineNo: number | null): void {
+function applySelection(
+  decorations: DecorationsCollection,
+  lineNo: number | null,
+): void {
   if (lineNo === null) {
     decorations.clear();
     return;
   }
+
   decorations.set([
     {
-      range: { startLineNumber: lineNo, startColumn: 1, endLineNumber: lineNo, endColumn: 1 },
-      // クラス名はリテラルのままにする（組み立てると Tailwind のスキャンに乗らない）。
-      options: { isWholeLine: true, className: "bg-yellow-200" },
+      range: {
+        startLineNumber: lineNo,
+        startColumn: 1,
+        endLineNumber: lineNo,
+        endColumn: 1,
+      },
+      options: {
+        isWholeLine: true,
+        className: "bg-yellow-200",
+      },
     },
   ]);
 }
@@ -31,14 +40,11 @@ function applySelection(decorations: DecorationsCollection, lineNo: number | nul
 export interface CodeViewerProps {
   code: string;
   language: string;
-  /** 選択中の行番号（1始まり）。未選択なら null。 */
   selectedLineNo: number | null;
   onSelectLine: (lineNo: number) => void;
 }
 
-/** 行数・行幅に合わせるときの上限。これを超えるコードはエディタ内でスクロールする。 */
 const MAX_HEIGHT_PX = 640;
-/** 一番長い行の右に少し余白を残す（行末ぴったりだと詰まって見える）。 */
 const RIGHT_PADDING_PX = 24;
 
 interface EditorSize {
@@ -46,36 +52,63 @@ interface EditorSize {
   height: number;
 }
 
-export function CodeViewer({ code, language, selectedLineNo, onSelectLine }: CodeViewerProps) {
+export function CodeViewer({
+  code,
+  language,
+  selectedLineNo,
+  onSelectLine,
+}: CodeViewerProps) {
   const decorationsRef = useRef<DecorationsCollection | null>(null);
-  // コードの一番長い行と行数に合わせてエディタの大きさを決める（Monaco 側の実測値を使う）。
   const [size, setSize] = useState<EditorSize | null>(null);
 
   const handleMount: OnMount = (editor) => {
     const fitToContent = () => {
       const { contentLeft } = editor.getLayoutInfo();
+
       const next: EditorSize = {
-        width: Math.ceil(contentLeft + editor.getContentWidth() + RIGHT_PADDING_PX),
-        height: Math.min(MAX_HEIGHT_PX, Math.ceil(editor.getContentHeight())),
+        // コードの実際の横幅に合わせる。
+        // 画面より広い場合は、外側の CodeViewer で横スクロールする。
+        width: Math.ceil(
+          contentLeft + editor.getContentWidth() + RIGHT_PADDING_PX,
+        ),
+
+        // コードが長くても最大高さを超えないようにする。
+        height: Math.min(
+          MAX_HEIGHT_PX,
+          Math.ceil(editor.getContentHeight()),
+        ),
       };
+
+      // サイズが変わっていない場合は不要な再レンダーを避ける。
       setSize((prev) =>
-        prev && prev.width === next.width && prev.height === next.height ? prev : next,
+        prev &&
+        prev.width === next.width &&
+        prev.height === next.height
+          ? prev
+          : next,
       );
     };
+
     fitToContent();
+
+    // コードの内容やレイアウトによって必要サイズが変わったら再計算する。
     editor.onDidContentSizeChange(fitToContent);
 
+    // 選択中の行をハイライトするための Decoration を作成する。
     decorationsRef.current = editor.createDecorationsCollection();
-    // Monaco は遅延ロードなので、選択済みの状態でマウントされることがある。その場合もここで反映する。
     applySelection(decorationsRef.current, selectedLineNo);
+
+    // Monaco 上で行をクリックしたら、その行を選択する。
     editor.onMouseDown((event) => {
       const lineNo = event.target.position?.lineNumber;
+
       if (lineNo) {
         onSelectLine(lineNo);
       }
     });
   };
 
+  // React 側の選択行が変わったら Monaco のハイライトも更新する。
   useEffect(() => {
     if (decorationsRef.current) {
       applySelection(decorationsRef.current, selectedLineNo);
@@ -83,11 +116,26 @@ export function CodeViewer({ code, language, selectedLineNo, onSelectLine }: Cod
   }, [selectedLineNo]);
 
   return (
-    <div className="max-w-full overflow-hidden rounded-md border border-gray-300 bg-white">
-      {/* 実測前は仮の高さ。画面幅より長い行があるときは max-width で止めてエディタ内で横スクロールさせる。 */}
+    <div className="w-full min-w-0 overflow-x-auto rounded-md border border-gray-300 bg-white">
+      {/*
+        Monaco はコードの実際の内容幅に合わせて横に広がる。
+        画面幅を超えた場合は、この親要素の中で横スクロールする。
+        max-w-full にすると Monaco 側の幅を無理に縮めたり、
+        overflow-hidden にすると長いコードを切ってしまうため、
+        ここでは max-w-none にする。
+      */}
       <div
-        className="max-w-full"
-        style={size ? { width: size.width, height: size.height } : { height: 240 }}
+        className="max-w-none"
+        style={
+          size
+            ? {
+                width: size.width,
+                height: size.height,
+              }
+            : {
+                height: 240,
+              }
+        }
       >
         <MonacoEditor
           height="100%"
@@ -104,12 +152,17 @@ export function CodeViewer({ code, language, selectedLineNo, onSelectLine }: Cod
             scrollBeyondLastLine: false,
             automaticLayout: true,
             overviewRulerLanes: 0,
-            scrollbar: { alwaysConsumeMouseWheel: false },
+            scrollbar: {
+              alwaysConsumeMouseWheel: false,
+            },
           }}
         />
       </div>
+
       <p className="border-t border-gray-200 px-2 py-1 text-xs text-gray-500">
-        {selectedLineNo !== null ? `選択中の行: ${selectedLineNo}` : "削除する行をクリックしてください"}
+        {selectedLineNo !== null
+          ? `選択中の行: ${selectedLineNo}`
+          : "削除する行をクリックしてください"}
       </p>
     </div>
   );

@@ -5,16 +5,12 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/Spinner";
 import { LeaveButton } from "@/components/ui/LeaveButton";
-import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder } from "@/lib/shared/difficulty";
-import { DEFAULT_LANGUAGE, MONACO_LANGUAGE_ID } from "@/lib/shared/language";
+import { DEFAULT_LANGUAGE } from "@/lib/shared/language";
 import { useGameRealtime } from "../hooks/useGameRealtime";
-import { useTurnTimer } from "../hooks/useTurnTimer";
-import { pickMascotLine, type MascotLine, type MascotSituation } from "../mascot-lines";
-import { CodeViewer } from "./CodeViewer";
-import { JengaTower } from "./JengaTower";
-import { Mascot } from "./Mascot";
-import { LineDeleteControls } from "./LineDeleteControls";
-import { TestResultPanel } from "./TestResultPanel";
+import { useGameTimeout } from "../hooks/useGameTimeout";
+import { useLineSelection } from "../hooks/useLineSelection";
+import { GameBoardMascot } from "./GameBoardMascot";
+import { GameBoardPlayfield } from "./GameBoardPlayfield";
 import { TurnIndicator } from "./TurnIndicator";
 
 // 盤面全体のコンテナ。担当: FE-B
@@ -24,15 +20,6 @@ export interface GameBoardProps {
   /** 自分の profile id（手番判定に使う） */
   currentUserId: string;
 }
-
-/** 締切を過ぎてからタイムアウト確定を叩くまでの猶予。端末の時計ズレで「まだ過ぎていない」と弾かれるのを避ける。 */
-const TIMEOUT_GRACE_MS = 1500;
-/** それでも弾かれたとき（時計が大きく遅れている端末）に1回だけ叩き直すまでの間隔。 */
-const TIMEOUT_RETRY_MS = 3000;
-/** マスコットが「急げ」と言い出す残り秒数。 */
-const MASCOT_HURRY_SECONDS = 10;
-/** マスコットが雑談を挟む間隔。 */
-const MASCOT_IDLE_MS = 25_000;
 
 export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const router = useRouter();
@@ -47,29 +34,8 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
     }
   }, [gameStatus, router]);
 
-  // 締切を過ぎたらタイムアウト確定を叩く。参加者なら誰が叩いてもよく、
-  // 先に手が確定していればサーバーが applied=false を返すだけなので二重に呼んでも害はない。
-  useEffect(() => {
-    if (gameStatus !== "playing" || !turnDeadlineAt) {
-      return;
-    }
-    const delayMs = new Date(turnDeadlineAt).getTime() - Date.now() + TIMEOUT_GRACE_MS;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    const timer = setTimeout(() => {
-      void apiClient.timeoutTurn(gameId).then((result) => {
-        if (!result.ok) {
-          console.error(`タイムアウトの確定に失敗しました: ${result.error.message}`);
-          retryTimer = setTimeout(() => void apiClient.timeoutTurn(gameId), TIMEOUT_RETRY_MS);
-        }
-      });
-    }, Math.max(0, delayMs));
-    return () => {
-      clearTimeout(timer);
-      if (retryTimer) clearTimeout(retryTimer);
-    };
-  }, [gameId, gameStatus, turnDeadlineAt]);
-  // 選択は「どのコードに対する選択か」と一緒に持ち、相手の手で current_code が変わったら自動的に無効になる。
-  const [selection, setSelection] = useState<{ code: string; lineNo: number } | null>(null);
+  useGameTimeout(gameId, gameStatus, turnDeadlineAt);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -78,46 +44,14 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const isMyTurn = game?.current_player_id === currentUserId;
   const latestTurn = turns.at(-1) ?? null;
   const currentCode = game?.current_code ?? "";
-  const selectedLineNo = selection !== null && selection.code === currentCode ? selection.lineNo : null;
-
-  const selectedLineText =
-    selectedLineNo === null ? null : currentCode.split("\n")[selectedLineNo - 1] ?? null;
   const difficulty = game?.current_turn_difficulty ?? null;
   // ロビーでホストが選んだ言語。行の削除可否判定とシンタックスハイライトの両方に使う。
   const language = game?.language ?? DEFAULT_LANGUAGE;
-  const blockedReason =
-    difficulty && selectedLineText !== null && !isDeletableUnder(difficulty, selectedLineText, language)
-      ? `${DIFFICULTY_LABEL[difficulty]} ではこの行は削除できません。${DIFFICULTY_RULE_TEXT[difficulty]}`
-      : null;
-
-
-  // ---- マスコット（演出のみ。ゲーム進行には関与しない） ----
-  const remainingSeconds = useTurnTimer(turnDeadlineAt);
-  const [idleTick, setIdleTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setIdleTick((tick) => tick + 1), MASCOT_IDLE_MS);
-    return () => clearInterval(id);
-  }, []);
-  const mascotSituation = resolveMascotSituation({
-    isMyTurn,
-    isSelected: selectedLineNo !== null,
-    isBlocked: blockedReason !== null,
-    isHurrying: remainingSeconds <= MASCOT_HURRY_SECONDS && turnDeadlineAt !== null,
-    latestTurnResult: latestTurn?.result ?? null,
-    latestTurnByMe: latestTurn?.player_id === currentUserId,
-    idleTick,
-  });
-  // 状況（と手番・雑談のタイミング）が変わったときだけセリフを引き直す。
-  const mascotKey = `${mascotSituation}:${game?.turn_no ?? 0}:${idleTick}`;
-  const [mascot, setMascot] = useState<{ key: string; line: MascotLine } | null>(null);
-  if (mascot === null || mascot.key !== mascotKey) {
-    // key が変わったときだけ描画中に state を調整する（直前のセリフと被らないように選ぶ）。
-    setMascot({
-      key: mascotKey,
-      line: pickMascotLine(mascotSituation, mascot?.line.message ?? null),
-    });
-  }
-  const mascotLine = mascot?.line ?? pickMascotLine(mascotSituation);
+  const { selectedLineNo, blockedReason, selectLine, clearSelection } = useLineSelection(
+    currentCode,
+    difficulty,
+    language,
+  );
 
   if (isLoading) {
     return <Spinner label="盤面を読み込み中..." />;
@@ -139,7 +73,7 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
     if (!result.ok) {
       setSubmitError(result.error.message);
     } else {
-      setSelection(null);
+      clearSelection();
     }
     setIsSubmitting(false);
   }
@@ -164,29 +98,18 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
        * 3D タワーは「見せ場」担当。行の選択は下の CodeViewer と同じ state を共有するので、
        * どちらをクリックしても同じ行が選ばれる（Monaco 側のハイライトも連動する）。
        */}
-      <JengaTower
+      <GameBoardPlayfield
         code={currentCode}
+        language={language}
         selectedLineNo={selectedLineNo}
-        onSelectLine={(lineNo) => setSelection({ code: currentCode, lineNo })}
-        interactive={isMyTurn && !isSubmitting}
-        collapsed={latestTurn !== null && latestTurn.result !== "safe"}
+        isMyTurn={isMyTurn}
+        isSubmitting={isSubmitting}
+        submitError={submitError}
+        blockedReason={blockedReason}
+        latestTurn={latestTurn}
+        onSelectLine={selectLine}
+        onConfirmDelete={handleDeleteLine}
       />
-      <CodeViewer
-        code={currentCode}
-        language={MONACO_LANGUAGE_ID[language]}
-        selectedLineNo={selectedLineNo}
-        onSelectLine={(lineNo) => setSelection({ code: currentCode, lineNo })}
-      />
-      {isMyTurn ? (
-        <LineDeleteControls
-          selectedLineNo={selectedLineNo}
-          isSubmitting={isSubmitting}
-          errorMessage={submitError}
-          blockedReason={blockedReason}
-          onConfirm={handleDeleteLine}
-        />
-      ) : null}
-      <TestResultPanel turn={latestTurn} />
       {/* 誤爆しにくいよう一番下に小さく置く */}
       {leaveError ? (
         <p className="rounded-md border border-red-300 bg-red-50/60 px-3 py-2 text-center text-sm text-red-700">
@@ -194,30 +117,15 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
         </p>
       ) : null}
       <LeaveButton onLeave={handleLeave} isLeaving={isLeaving} size="quiet" />
-      <Mascot message={mascotLine.message} mood={mascotLine.mood} />
+      <GameBoardMascot
+        isMyTurn={isMyTurn}
+        selectedLineNo={selectedLineNo}
+        blockedReason={blockedReason}
+        turnDeadlineAt={turnDeadlineAt}
+        latestTurnResult={latestTurn?.result ?? null}
+        latestTurnByMe={latestTurn?.player_id === currentUserId}
+        turnNo={game.turn_no}
+      />
     </div>
   );
-}
-
-interface MascotContext {
-  isMyTurn: boolean;
-  isSelected: boolean;
-  isBlocked: boolean;
-  isHurrying: boolean;
-  latestTurnResult: "safe" | "out" | "timeout" | null;
-  latestTurnByMe: boolean;
-  idleTick: number;
-}
-
-/** 盤面の状態からマスコットの状況を決める。上にあるものほど優先。 */
-function resolveMascotSituation(ctx: MascotContext): MascotSituation {
-  if (ctx.isMyTurn && ctx.isHurrying) return "hurry";
-  if (ctx.isMyTurn && ctx.isBlocked) return "blocked";
-  if (ctx.isMyTurn && ctx.isSelected) return "selected";
-  // 雑談は2回に1回挟む（最初のティックは状況に合ったセリフ）。
-  if (ctx.idleTick > 0 && ctx.idleTick % 2 === 1) return "idle";
-  if (ctx.latestTurnResult === "safe") {
-    return ctx.latestTurnByMe ? "safe_mine" : "safe_opponent";
-  }
-  return ctx.isMyTurn ? "my_turn" : "waiting";
 }
