@@ -1,0 +1,63 @@
+"use client";
+
+import { MONACO_LANGUAGE_ID } from "@/lib/shared/language";
+import type { CodeLanguage, Turn } from "@/types/game";
+import { CodeViewer } from "./CodeViewer";
+import { JengaTower } from "./JengaTower";
+import { LineDeleteControls } from "./LineDeleteControls";
+import { TestResultPanel } from "./TestResultPanel";
+
+interface GameBoardPlayfieldProps {
+  code: string;
+  /** シンタックスハイライトに使う実行言語（ロビーでホストが選んだもの） */
+  language: CodeLanguage;
+  selectedLineNo: number | null;
+  isMyTurn: boolean;
+  isSubmitting: boolean;
+  submitError: string | null;
+  blockedReason: string | null;
+  latestTurn: Turn | null;
+  onSelectLine: (lineNo: number) => void;
+  onConfirmDelete: () => void;
+}
+
+export function GameBoardPlayfield({
+  code,
+  language,
+  selectedLineNo,
+  isMyTurn,
+  isSubmitting,
+  submitError,
+  blockedReason,
+  latestTurn,
+  onSelectLine,
+  onConfirmDelete,
+}: GameBoardPlayfieldProps) {
+  return (
+    <>
+      <JengaTower
+        code={code}
+        selectedLineNo={selectedLineNo}
+        onSelectLine={onSelectLine}
+        interactive={isMyTurn && !isSubmitting}
+        collapsed={latestTurn !== null && latestTurn.result !== "safe"}
+      />
+      <CodeViewer
+        code={code}
+        language={MONACO_LANGUAGE_ID[language]}
+        selectedLineNo={selectedLineNo}
+        onSelectLine={onSelectLine}
+      />
+      {isMyTurn ? (
+        <LineDeleteControls
+          selectedLineNo={selectedLineNo}
+          isSubmitting={isSubmitting}
+          errorMessage={submitError}
+          blockedReason={blockedReason}
+          onConfirm={onConfirmDelete}
+        />
+      ) : null}
+      <TestResultPanel turn={latestTurn} />
+    </>
+  );
+}

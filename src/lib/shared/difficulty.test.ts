@@ -62,10 +62,10 @@ describe("isDeletableUnder", () => {
     expect(isDeletableUnder("easy", "")).toBe(true);
   });
 
-  it("NORMAL は空行・コメント・記号だけの行を削除できない", () => {
+  it("NORMAL は空行だけ削除できない", () => {
     expect(isDeletableUnder("normal", "")).toBe(false);
-    expect(isDeletableUnder("normal", "// comment")).toBe(false);
-    expect(isDeletableUnder("normal", "}")).toBe(false);
+    expect(isDeletableUnder("normal", "// comment")).toBe(true);
+    expect(isDeletableUnder("normal", "}")).toBe(true);
     expect(isDeletableUnder("normal", "total += n;")).toBe(true);
     expect(isDeletableUnder("normal", "let total = 0;")).toBe(true);
   });
@@ -83,7 +83,7 @@ describe("listDeletableLineNumbers（単調性: HARD ⊆ NORMAL ⊆ EASY）", ()
 
   it("サンプルコードで難易度ごとの削除可能行を正しく列挙する", () => {
     expect(listDeletableLineNumbers(SAMPLE_SOURCE, "easy")).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(listDeletableLineNumbers(SAMPLE_SOURCE, "normal")).toEqual([1, 2, 3, 4, 6]);
+    expect(listDeletableLineNumbers(SAMPLE_SOURCE, "normal")).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(listDeletableLineNumbers(SAMPLE_SOURCE, "hard")).toEqual([1, 2, 3, 6]);
   });
 
@@ -106,7 +106,7 @@ describe("hasDeletableLine", () => {
   it("宣言行が無いコードは HARD で削除可能行が0行", () => {
     const code = ["// comment", "}", "];"].join("\n");
     expect(hasDeletableLine(code, "hard")).toBe(false);
-    expect(hasDeletableLine(code, "normal")).toBe(false);
+    expect(hasDeletableLine(code, "normal")).toBe(true);
     expect(hasDeletableLine(code, "easy")).toBe(true);
   });
 });
@@ -125,7 +125,7 @@ describe("rollTurnDifficulty", () => {
   it("抽選結果で削除できる行が無い場合は EASY にフォールバックする", () => {
     const code = ["// comment", "}", "];"].join("\n");
     expect(rollTurnDifficulty(code, () => 0.9)).toBe("easy");
-    expect(rollTurnDifficulty(code, () => 0.4)).toBe("easy");
+    expect(rollTurnDifficulty(code, () => 0.4)).toBe("normal");
   });
 });
 
@@ -157,8 +157,9 @@ describe("classifyLine（Python）", () => {
 });
 
 describe("isDeletableUnder（Python）", () => {
-  it("NORMAL 以上では # コメント行を削除できない", () => {
-    expect(isDeletableUnder("normal", "# メモ", "python")).toBe(false);
+  it("HARD では # コメント行を削除できない（NORMAL / EASY は削除できる）", () => {
+    expect(isDeletableUnder("hard", "# メモ", "python")).toBe(false);
+    expect(isDeletableUnder("normal", "# メモ", "python")).toBe(true);
     expect(isDeletableUnder("easy", "# メモ", "python")).toBe(true);
   });
 
