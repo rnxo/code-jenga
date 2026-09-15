@@ -81,6 +81,12 @@ export interface JengaTowerProps {
    * 「崩れたあとの山」として枠に収めたいので、そちらで使う。
    */
   compact?: boolean;
+  /**
+   * 外からねらっている行を渡す口（#44 のカメラのスワイプなど）。
+   * 渡さなければ、下の HandPointer が見つけた行を自分で使う。
+   * selectedLineNo（確定した選択）とは別で、こちらは「いまここを指している」の下見。
+   */
+  aimedLineNo?: number | null;
 }
 
 export function JengaTower({
@@ -91,6 +97,7 @@ export function JengaTower({
   collapsed,
   silent = false,
   compact = false,
+  aimedLineNo,
 }: JengaTowerProps) {
   const lines = code.length > 0 ? code.split("\n") : [];
 
@@ -113,8 +120,10 @@ export function JengaTower({
   /**
    * カメラの手でねらっている行。選択（selectedLineNo）とは別物で、
    * 「いまここを指している」という下見の表示にだけ使う。
+   * 外から aimedLineNo を渡されたらそちらを優先する。
    */
-  const [aimedLineNo, setAimedLineNo] = useState<number | null>(null);
+  const [ownAimedLineNo, setOwnAimedLineNo] = useState<number | null>(null);
+  const aimed = aimedLineNo !== undefined ? aimedLineNo : ownAimedLineNo;
 
   useEffect(() => {
     if (!collapsed) {
@@ -278,7 +287,7 @@ export function JengaTower({
           const lineNo = index + 1;
           const isBlank = line.trim().length === 0;
           const isSelected = selectedLineNo === lineNo;
-          const isAimed = aimedLineNo === lineNo && !isSelected;
+          const isAimed = aimed === lineNo && !isSelected;
           // 空行も正当な手なので選べる（DB_DESIGN.md 10章「空行の削除は禁止していない」）
           const canSelect = interactive && !collapsed;
 
@@ -357,7 +366,7 @@ export function JengaTower({
           {" · "}
           <HandPointer
             disabled={!interactive}
-            onAim={setAimedLineNo}
+            onAim={setOwnAimedLineNo}
             onCommit={onSelectLine}
           />
         </p>
