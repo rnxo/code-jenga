@@ -112,7 +112,9 @@ if ($SkipVercel) {
   $vercelReady = $false
   if (Get-Command vercel -ErrorAction SilentlyContinue) {
     & vercel whoami 2>&1 | Out-Null
-    $vercelReady = ($LASTEXITCODE -eq 0) -and (Test-Path (Join-Path $repoRoot ".vercel\project.json"))
+    # vercel link は CLI の版によって .vercel/project.json か .vercel/repo.json を作る
+    $linked = (Test-Path (Join-Path $repoRoot ".vercel\project.json")) -or (Test-Path (Join-Path $repoRoot ".vercel\repo.json"))
+    $vercelReady = ($LASTEXITCODE -eq 0) -and $linked
   }
   if (-not $vercelReady) {
     Write-Warning "vercel CLI が未ログインか、プロジェクトが未リンクです（vercel login → vercel link）。手動で次の値を設定してください:"
