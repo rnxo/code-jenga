@@ -7,6 +7,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { LeaveButton } from "@/components/ui/LeaveButton";
 import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder } from "@/lib/shared/difficulty";
 import { useGameRealtime } from "../hooks/useGameRealtime";
+import { useHandSwipe } from "../hooks/useHandSwipe";
 import { useTurnTimer } from "../hooks/useTurnTimer";
 import { pickMascotLine, type MascotLine, type MascotSituation } from "../mascot-lines";
 import { CodeViewer } from "./CodeViewer";
@@ -87,6 +88,39 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
       ? `${DIFFICULTY_LABEL[difficulty]} ではこの行は削除できません。${DIFFICULTY_RULE_TEXT[difficulty]}`
       : null;
 
+  const handleDeleteLine = async (lineNo = selectedLineNo) => {
+    const lineText = lineNo === null ? null : currentCode.split("\n")[lineNo - 1] ?? null;
+    const lineBlockedReason =
+      difficulty && lineText !== null && !isDeletableUnder(difficulty, lineText)
+        ? `${DIFFICULTY_LABEL[difficulty]} ではこの行は削除できません。${DIFFICULTY_RULE_TEXT[difficulty]}`
+        : null;
+    if (!isMyTurn || lineNo === null || lineBlockedReason !== null) {
+      return;
+    }
+    setSelection({ code: currentCode, lineNo });
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    const result = await apiClient.createTurn(gameId, { lineNo });
+
+    if (!result.ok) {
+      setSubmitError(result.error.message);
+    } else {
+      setSelection(null);
+    }
+    setIsSubmitting(false);
+  };
+
+  const {
+    videoRef: handSwipeVideoRef,
+    status: handSwipeStatus,
+    errorMessage: handSwipeErrorMessage,
+  } = useHandSwipe({
+    enabled: isMyTurn && gameStatus === "playing" && !isSubmitting && currentCode.length > 0,
+    lineCount: currentCode.split("\n").length,
+    onSwipe: (lineNo) => void handleDeleteLine(lineNo),
+  });
+
 
   // ---- マスコット（演出のみ。ゲーム進行には関与しない） ----
   const remainingSeconds = useTurnTimer(turnDeadlineAt);
@@ -122,23 +156,6 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
 
   if (errorMessage || !game) {
     return <p className="text-sm text-red-600">{errorMessage ?? "試合が見つかりません。"}</p>;
-  }
-
-  async function handleDeleteLine() {
-    if (selectedLineNo === null || blockedReason !== null) {
-      return;
-    }
-    setIsSubmitting(true);
-    setSubmitError(null);
-
-    const result = await apiClient.createTurn(gameId, { lineNo: selectedLineNo });
-
-    if (!result.ok) {
-      setSubmitError(result.error.message);
-    } else {
-      setSelection(null);
-    }
-    setIsSubmitting(false);
   }
 
   // 手番中に抜けると次のプレイヤーへ回り、残り1人なら中断になる（サーバー側で処理）。
@@ -180,8 +197,12 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
           isSubmitting={isSubmitting}
           errorMessage={submitError}
           blockedReason={blockedReason}
-          onConfirm={handleDeleteLine}
+          onConfirm={() => void handleDeleteLine()}
         />
+      ) : null}
+      <video ref={handSwipeVideoRef} className="hidden" muted playsInline aria-hidden="true" />
+      {isMyTurn && handSwipeStatus === "error" ? (
+        <p className="text-center text-xs text-red-700">ジェスチャー操作を利用できません: {handSwipeErrorMessage}</p>
       ) : null}
       <TestResultPanel turn={latestTurn} />
       {/* 誤爆しにくいよう一番下に小さく置く */}
