@@ -17,6 +17,7 @@ import {
   toggleSoundMuted,
 } from "../sound-settings";
 import { CollapseMonuments, type CollapseVerdict } from "./CollapseMonuments";
+import { HandPointer, LINE_NO_ATTRIBUTE } from "./HandPointer";
 
 // コードを 3D の積み木として見せる盤面。担当: FE-B
 //
@@ -82,6 +83,12 @@ export interface JengaTowerProps {
    * 「崩れたあとの山」として枠に収めたいので、そちらで使う。
    */
   compact?: boolean;
+  /**
+   * 外からねらっている行を渡す口（#44 のカメラのスワイプなど）。
+   * 渡さなければ、下の HandPointer が見つけた行を自分で使う。
+   * selectedLineNo（確定した選択）とは別で、こちらは「いまここを指している」の下見。
+   */
+  aimedLineNo?: number | null;
 }
 
 export function JengaTower({
@@ -93,6 +100,7 @@ export function JengaTower({
   silent = false,
   verdict = null,
   compact = false,
+  aimedLineNo,
 }: JengaTowerProps) {
   const lines = code.length > 0 ? code.split("\n") : [];
 
@@ -112,6 +120,13 @@ export function JengaTower({
   const isMuted = useSyncExternalStore(subscribeSoundMuted, isSoundMuted, getServerSoundMuted);
   /** 同じ崩壊で二度鳴らさないための記録 */
   const playedCollapse = useRef(false);
+  /**
+   * カメラの手でねらっている行。選択（selectedLineNo）とは別物で、
+   * 「いまここを指している」という下見の表示にだけ使う。
+   * 外から aimedLineNo を渡されたらそちらを優先する。
+   */
+  const [ownAimedLineNo, setOwnAimedLineNo] = useState<number | null>(null);
+  const aimed = aimedLineNo !== undefined ? aimedLineNo : ownAimedLineNo;
 
   useEffect(() => {
     if (!collapsed) {
@@ -280,6 +295,7 @@ export function JengaTower({
           const lineNo = index + 1;
           const isBlank = line.trim().length === 0;
           const isSelected = selectedLineNo === lineNo;
+          const isAimed = aimed === lineNo && !isSelected;
           // 空行も正当な手なので選べる（DB_DESIGN.md 10章「空行の削除は禁止していない」）
           const canSelect = interactive && !collapsed;
 
@@ -288,6 +304,7 @@ export function JengaTower({
             isBlank ? styles.pieceBlank : "",
             canSelect ? styles.pieceSelectable : "",
             isSelected ? styles.pieceSelected : "",
+            isAimed ? styles.pieceAimed : "",
             collapsed ? styles.pieceFalling : "",
           ]
             .filter(Boolean)
@@ -298,6 +315,8 @@ export function JengaTower({
               key={lineNo}
               type="button"
               className={className}
+              // 手でねらう操作が、指先の下にある木片を引くのに使う
+              {...{ [LINE_NO_ATTRIBUTE]: lineNo }}
               // disabled にすると pointer イベントが出ず、相手の手番で回転も
               // 文字選択もできなくなる（#2）。押せないことは aria で伝える
               aria-disabled={!canSelect}
@@ -352,6 +371,12 @@ export function JengaTower({
           >
             {isMuted ? "効果音オフ" : "効果音オン"}
           </button>
+          {" · "}
+          <HandPointer
+            disabled={!interactive}
+            onAim={setOwnAimedLineNo}
+            onCommit={onSelectLine}
+          />
         </p>
       ) : null}
     </div>

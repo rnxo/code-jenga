@@ -31,8 +31,11 @@ export async function generateVerifiedProblem(
         language: problem.language,
       });
       if (verification.verified) {
-        return { ...problem, is_verified: true };
+        return { ...problem, is_verified: true, safe_line_texts: verification.safeLineTexts };
       }
+      console.warn(
+        `[prepare-problem] ${LANGUAGE_LABEL[language]} のお題が検証に通りませんでした（${attempt + 1}/${MAX_GENERATION_ATTEMPTS}回目）: ${verification.reason ?? "理由不明"}`,
+      );
     } catch (error) {
       // 次の生成候補へ進み、全試行失敗後に呼び出し側でフォールバックする。
       // 握りつぶすと「なぜ Python のお題が作れないのか」が追えなくなるのでログには残す。

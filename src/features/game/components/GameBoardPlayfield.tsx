@@ -2,6 +2,7 @@
 
 import { MONACO_LANGUAGE_ID } from "@/lib/shared/language";
 import type { CodeLanguage, Turn } from "@/types/game";
+import { BoardStack } from "./BoardStack";
 import type { CollapseVerdict } from "./CollapseMonuments";
 import { CodeViewer } from "./CodeViewer";
 import { JengaTower } from "./JengaTower";
@@ -39,19 +40,26 @@ export function GameBoardPlayfield({
 }: GameBoardPlayfieldProps) {
   return (
     <>
-      <JengaTower
-        code={code}
-        selectedLineNo={selectedLineNo}
-        onSelectLine={onSelectLine}
-        interactive={isMyTurn && !isSubmitting}
-        collapsed={latestTurn !== null && latestTurn.result !== "safe"}
-        verdict={verdict}
-      />
-      <CodeViewer
-        code={code}
-        language={MONACO_LANGUAGE_ID[language]}
-        selectedLineNo={selectedLineNo}
-        onSelectLine={onSelectLine}
+      {/* 縦に入り切らない画面では、既定で 2D のコードを畳む（切り替えは BoardStack の中） */}
+      <BoardStack
+        tower={
+          <JengaTower
+            code={code}
+            selectedLineNo={selectedLineNo}
+            onSelectLine={onSelectLine}
+            interactive={isMyTurn && !isSubmitting}
+            collapsed={latestTurn !== null && latestTurn.result !== "safe"}
+            verdict={verdict}
+          />
+        }
+        code={
+          <CodeViewer
+            code={code}
+            language={MONACO_LANGUAGE_ID[language]}
+            selectedLineNo={selectedLineNo}
+            onSelectLine={onSelectLine}
+          />
+        }
       />
       {isMyTurn ? (
         <LineDeleteControls

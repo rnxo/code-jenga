@@ -5,6 +5,8 @@ export { CodeViewer } from "./components/CodeViewer";
 export { JengaTower } from "./components/JengaTower";
 export { SillyTapSounds } from "./components/SillyTapSounds";
 export type { CollapseVerdict } from "./components/CollapseMonuments";
+export { BoardStack, type BoardView } from "./components/BoardStack";
+export { HandPointer } from "./components/HandPointer";
 export { LineDeleteControls } from "./components/LineDeleteControls";
 export { TurnIndicator } from "./components/TurnIndicator";
 export { TestResultPanel } from "./components/TestResultPanel";

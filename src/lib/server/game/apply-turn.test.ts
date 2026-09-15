@@ -66,7 +66,7 @@ function player(playerId: string, turnOrder: number): GamePlayer {
   };
 }
 
-function problem(): Problem {
+function problem(overrides: Partial<Problem> = {}): Problem {
   return {
     id: "problem-1",
     language: "typescript",
@@ -77,7 +77,9 @@ function problem(): Problem {
     generated_by: "seed",
     generation_prompt: null,
     is_verified: true,
+    safe_line_texts: null,
     created_at: "2026-09-15T00:00:00.000Z",
+    ...overrides,
   };
 }
 
@@ -171,6 +173,21 @@ describe("applyTurn: 判定と確定", () => {
     });
     expect(input.nextTurnDifficulty).not.toBeNull();
     expect(result.game.current_player_id).toBe(PLAYER_B);
+  });
+
+  it("次ターンの難易度はお題のセーフ行を使って抽選する（セーフな宣言行が無ければ HARD にならない）", async () => {
+    // 3行目（空行）を削除すると残りは `const answer = 42;` と `console.log(answer);`。
+    // 宣言行はセーフではなく、式の行だけがセーフなので、抽選が何であれ HARD にはならない。
+    vi.mocked(findProblemById).mockResolvedValue(problem({ safe_line_texts: ["console.log(answer);", ""] }));
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.9);
+    try {
+      await applyTurn(turnInput(PLAYER_A, 3));
+    } finally {
+      randomSpy.mockRestore();
+    }
+
+    const input = vi.mocked(applyTurnTransaction).mock.calls[0][0];
+    expect(input.nextTurnDifficulty).toBe("normal");
   });
 
   it("テスト失敗なら out で test_failed 終了にする", async () => {

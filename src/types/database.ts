@@ -185,6 +185,7 @@ export type Database = {
           initial_line_count: number
           is_verified: boolean
           language: string
+          safe_line_texts: string[] | null
           source_code: string
           test_code: string
         }
@@ -197,6 +198,7 @@ export type Database = {
           initial_line_count: number
           is_verified?: boolean
           language: string
+          safe_line_texts?: string[] | null
           source_code: string
           test_code: string
         }
@@ -209,6 +211,7 @@ export type Database = {
           initial_line_count?: number
           is_verified?: boolean
           language?: string
+          safe_line_texts?: string[] | null
           source_code?: string
           test_code?: string
         }
@@ -475,7 +478,7 @@ export type Database = {
       join_room: { Args: { p_code: string }; Returns: string }
     }
     Enums: {
-      code_language: "typescript" | "python"
+      code_language: "typescript" | "python" | "brainfuck"
       game_finish_reason:
         | "test_failed"
         | "timeout"

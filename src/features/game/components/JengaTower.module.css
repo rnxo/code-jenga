@@ -89,6 +89,29 @@
   outline-offset: -2px;
 }
 
+/*
+ * カメラの手でねらっている行。まだ選んだわけではないので、選択より控えめに出す。
+ * 手はどうしても揺れるので、脈を打たせて「ここを見ているよ」と分かるようにする。
+ */
+.pieceAimed {
+  transform: translateZ(22px);
+}
+
+.pieceAimed .front {
+  outline: 2px dashed rgb(251 191 36 / 0.85);
+  outline-offset: -2px;
+  animation: aimPulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes aimPulse {
+  from {
+    outline-color: rgb(251 191 36 / 0.45);
+  }
+  to {
+    outline-color: rgb(251 191 36 / 1);
+  }
+}
+
 .face {
   position: absolute;
   background: var(--face);
@@ -219,8 +242,13 @@
     animation: none;
   }
   .pieceSelectable:hover,
-  .pieceSelected {
+  .pieceSelected,
+  .pieceAimed {
     transform: none;
+  }
+
+  .pieceAimed .front {
+    animation: none;
   }
 }
 

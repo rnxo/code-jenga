@@ -97,6 +97,11 @@ const LINE_RULES: Record<CodeLanguage, LanguageLineRules> = {
     // Python では閉じ括弧だけの行はほとんど出ないが、複数行リテラルの終端で現れる。
     symbolOnlyPattern: /^[)\]},]+$/,
   },
+  brainfuck: {
+    commentPrefixes: ["//", ";"],
+    declarationPattern: /[+\-<>[\].,]/,
+    symbolOnlyPattern: /^[+\-<>[\].,]+$/,
+  },
 };
 
 /** 行テキストを分類する（行単位のパターンマッチのみ）。 */
@@ -136,51 +141,74 @@ export function isDeletableUnder(
   return DELETABLE_KINDS[difficulty].includes(kind);
 }
 
-/** その難易度で削除できる行番号（1始まり）の一覧。UI のグレーアウトや詰み判定に使う。 */
+/**
+ * その難易度で削除できる行番号（1始まり）の一覧。UI のグレーアウトや詰み判定に使う。
+ * `safeLineTexts`（お題の事前検証で算出した「削除しても全テストが通る行」のテキスト一覧）を渡すと、
+ * 削除可能かつセーフな行だけに絞る。null / undefined は「未算出」として絞り込みを行わない。
+ */
 export function listDeletableLineNumbers(
   code: string,
   difficulty: TurnDifficulty,
   language: CodeLanguage = DEFAULT_LANGUAGE,
+  safeLineTexts?: readonly string[] | null,
 ): number[] {
   if (code === "") {
     return [];
   }
+  const safeSet = safeLineTexts ? new Set(safeLineTexts) : null;
   const lines = code.split("\n");
   const lineNumbers: number[] = [];
   for (let index = 0; index < lines.length; index += 1) {
-    if (isDeletableUnder(difficulty, lines[index], language)) {
-      lineNumbers.push(index + 1);
+    const line = lines[index];
+    if (!isDeletableUnder(difficulty, line, language)) {
+      continue;
     }
+    if (safeSet !== null && !safeSet.has(line)) {
+      continue;
+    }
+    lineNumbers.push(index + 1);
   }
   return lineNumbers;
 }
 
-/** その難易度で削除できる行が1行でもあるか（フォールバック判定用）。 */
+/** その難易度で削除できる（safeLineTexts 指定時はセーフでもある）行が1行でもあるか（フォールバック判定用）。 */
 export function hasDeletableLine(
   code: string,
   difficulty: TurnDifficulty,
   language: CodeLanguage = DEFAULT_LANGUAGE,
+  safeLineTexts?: readonly string[] | null,
 ): boolean {
-  return listDeletableLineNumbers(code, difficulty, language).length > 0;
+  return listDeletableLineNumbers(code, difficulty, language, safeLineTexts).length > 0;
 }
 
 const ROULETTE_DIFFICULTIES: readonly TurnDifficulty[] = ["easy", "normal", "hard"];
 
+/** 格下げの順序（縛りの強い順）。抽選結果から始めて、成立する難易度まで順に下げる。 */
+const DOWNGRADE_ORDER: readonly TurnDifficulty[] = ["hard", "normal", "easy"];
+
 /**
- * EASY / NORMAL / HARD を均等確率で抽選し、削除可能行が0行なら EASY にフォールバックする。
+ * EASY / NORMAL / HARD を均等確率で抽選し、その難易度で削除できる行が0行なら
+ * HARD → NORMAL → EASY の順に段階的に格下げする。
+ * `safeLineTexts` を渡すと「削除可能かつ削除してもテストが通る行」が残っている難易度まで下げる
+ * （HARD で選べる宣言行はあるが全て重要行、というお題で HARD が強制アウトになるのを防ぐ）。
+ * EASY でも該当行が無い場合は EASY を返す（残りは全て重要行で、誰かがアウトになって終わる）。
  * `random` はテストから抽選結果を固定するための注入口（デフォルトは Math.random）。
- * language は既存の呼び出しを壊さないよう末尾に置いている。
+ * language / safeLineTexts は既存の呼び出しを壊さないよう末尾に置いている。
  */
 export function rollTurnDifficulty(
   code: string,
   random: () => number = Math.random,
   language: CodeLanguage = DEFAULT_LANGUAGE,
+  safeLineTexts?: readonly string[] | null,
 ): TurnDifficulty {
   const index = Math.floor(random() * ROULETTE_DIFFICULTIES.length);
   const rolled = ROULETTE_DIFFICULTIES[Math.min(index, ROULETTE_DIFFICULTIES.length - 1)];
 
-  if (hasDeletableLine(code, rolled, language)) {
-    return rolled;
+  const startIndex = DOWNGRADE_ORDER.indexOf(rolled);
+  for (let i = startIndex; i < DOWNGRADE_ORDER.length; i += 1) {
+    if (hasDeletableLine(code, DOWNGRADE_ORDER[i], language, safeLineTexts)) {
+      return DOWNGRADE_ORDER[i];
+    }
   }
   return "easy";
 }

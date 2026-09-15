@@ -58,3 +58,15 @@ export function parseVitestOutput(stdout: string): VitestSummary | null {
   }
   return null;
 }
+
+/** ハーネスを持たない言語の標準出力を、既存のテスト集計形式へ変換する。 */
+export function parseTestOutput(stdout: string, language: string, expectedOutput: string): VitestSummary | null {
+  if (language.trim().toLowerCase() !== "brainfuck") {
+    return parseVitestOutput(stdout);
+  }
+  const actual = stdout.replace(/\r\n/g, "\n");
+  const expected = expectedOutput.replace(/\r\n/g, "\n");
+  return actual === expected
+    ? { totalTests: 1, passedTests: 1, failedTests: 0 }
+    : { totalTests: 1, passedTests: 0, failedTests: 1 };
+}

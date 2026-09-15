@@ -45,9 +45,12 @@ export async function findProblemById(problemId: string): Promise<Problem | null
   return data;
 }
 
-/** お題を検証済みとして更新する。 */
-export async function markProblemVerified(problemId: string): Promise<void> {
-  const { error } = await createAdminClient().from("problems").update({ is_verified: true }).eq("id", problemId);
+/** お題を検証済みとして更新し、事前検証で算出したセーフ行（削除しても全テストが通る行）を保存する。 */
+export async function markProblemVerified(problemId: string, safeLineTexts: string[]): Promise<void> {
+  const { error } = await createAdminClient()
+    .from("problems")
+    .update({ is_verified: true, safe_line_texts: safeLineTexts })
+    .eq("id", problemId);
   if (error) {
     throw new Error(`お題の検証状態更新に失敗しました: ${error.message}`);
   }
