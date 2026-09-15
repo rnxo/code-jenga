@@ -172,6 +172,16 @@ export function JengaTower({
       className={styles.scene}
       style={{ paddingTop: compact ? 8 : 24, paddingBottom: collapsed && !compact ? 176 : 24 }}
     >
+      {/* 崩壊の光。奥から差してくる演出で、崩れているあいだだけ出す */}
+      {collapsed ? (
+        <div aria-hidden className={styles.burst}>
+          <span className={styles.burstVeil} />
+          <span className={styles.burstRays} />
+          <span className={styles.burstGlow} />
+          <span className={styles.burstFlash} />
+        </div>
+      ) : null}
+
       <div
         className={towerClassName}
         style={{ "--rx": `${angle.rx}deg`, "--ry": `${angle.ry}deg` } as CSSProperties}
