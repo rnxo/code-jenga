@@ -150,7 +150,19 @@ const MOCK_GAME_BY_CODE: Record<string, () => Game> = {
       turn_no: 0,
       started_at: null,
     }),
-  MOCK02: () => mockGame({ id: MOCK_BOARD_GAME_ID }),
+  // ゲストが1手目（2行目）を抜いてセーフになった直後の、自分の手番。getTurnsByGameId と対応させる。
+  MOCK02: () => {
+    const codeAfter = SAMPLE_SOURCE.split("\n")
+      .filter((_, index) => index !== 1)
+      .join("\n");
+    return mockGame({
+      id: MOCK_BOARD_GAME_ID,
+      turn_no: 1,
+      current_code: codeAfter,
+      current_line_count: codeAfter.split("\n").length,
+      current_turn_difficulty: rollTurnDifficulty(codeAfter),
+    });
+  },
   MOCK03: () =>
     mockGame({
       id: MOCK_RESULT_GAME_ID,
@@ -196,6 +208,31 @@ export function getGameById(gameId: string): Game | null {
 
 export function getPlayersByGameId(gameId: string): GamePlayer[] {
   return mockPlayers().map((player) => ({ ...player, game_id: gameId }));
+}
+
+/** 盤面（MOCK02）には「ゲストが2行目を抜いてセーフ」の1手を入れておき、TestResultPanel が見えるようにする。 */
+export function getTurnsByGameId(gameId: string): Turn[] {
+  if (gameId !== MOCK_BOARD_GAME_ID) {
+    return [];
+  }
+  const lines = SAMPLE_SOURCE.split("\n");
+  return [
+    {
+      id: "mock-turn-0",
+      game_id: gameId,
+      turn_no: 0,
+      player_id: MOCK_GUEST_ID,
+      deleted_line_no: 2,
+      deleted_line_text: lines[1] ?? "",
+      code_before: SAMPLE_SOURCE,
+      code_after: lines.filter((_, index) => index !== 1).join("\n"),
+      turn_difficulty: "easy",
+      result: "safe",
+      test_run_id: null,
+      duration_ms: 1200,
+      created_at: nowIso(),
+    },
+  ];
 }
 
 export async function createRoom(_req: CreateRoomRequest): Promise<ApiResult<CreateRoomResponse>> {

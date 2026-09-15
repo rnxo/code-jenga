@@ -27,6 +27,7 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
     if (USE_MOCK) {
       const timer = setTimeout(() => {
         setGame(mock.getGameById(gameId));
+        setTurns(mock.getTurnsByGameId(gameId));
         setIsLoading(false);
       }, 0);
       return () => clearTimeout(timer);
