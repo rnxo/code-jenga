@@ -11,6 +11,13 @@ import type { MascotMood } from "../mascot-lines";
 export interface MascotProps {
   message: string | null;
   mood: MascotMood;
+  /**
+   * 吹き出しの位置。盤面はキャラの左（横並び）、タイトルはキャラの上（縦並び）。
+   * 上に出すと右端の細い列に収まり、中央のボタンを隠さない。
+   */
+  bubblePlacement?: "left" | "top";
+  /** 吹き出しをクリックしたときの処理。渡すとクリックできる見た目になる（タイトルでセリフ送り） */
+  onBubbleClick?: () => void;
 }
 
 const FACE: Record<MascotMood, { src: string; emoji: string; animated: boolean }> = {
@@ -25,7 +32,7 @@ const BUBBLE_CLASS: Record<MascotMood, string> = {
   panic: "border-red-400 bg-red-50 text-red-800",
 };
 
-export function Mascot({ message, mood }: MascotProps) {
+export function Mascot({ message, mood, bubblePlacement = "left", onBubbleClick }: MascotProps) {
   const [isMuted, setIsMuted] = useState(false);
   /** 読み込みに失敗した表情。その表情だけ絵文字に戻す */
   const [failedMoods, setFailedMoods] = useState<Partial<Record<MascotMood, true>>>({});
@@ -45,21 +52,41 @@ export function Mascot({ message, mood }: MascotProps) {
     );
   }
 
+  const isTop = bubblePlacement === "top";
+  const bubbleClass = `pointer-events-auto relative rounded-xl border-2 px-3 py-2 text-sm shadow-md ${BUBBLE_CLASS[mood]}`;
+  const bubbleContent = (
+    <>
+      {message}
+      {/* 吹き出しのしっぽ。横並びなら右（キャラ側）、縦並びなら下（キャラ側） */}
+      <span
+        aria-hidden
+        className={`absolute h-3 w-3 rotate-45 border-r-2 border-b-2 ${BUBBLE_CLASS[mood]} ${
+          isTop ? "right-6 -bottom-2" : "-right-2 bottom-3"
+        }`}
+      />
+    </>
+  );
+
   return (
     // スマホ幅では吹き出しが画面いっぱいに広がり、盤面の下（判定・退出ボタン）に
     // 重なる。狭いときだけ幅を絞る
-    <div className="pointer-events-none fixed right-4 bottom-4 z-40 flex max-w-[70vw] items-end gap-2 sm:max-w-xs">
-      {message ? (
-        <div
-          className={`pointer-events-auto relative rounded-xl border-2 px-3 py-2 text-sm shadow-md ${BUBBLE_CLASS[mood]}`}
-          role="status"
+    <div
+      className={`pointer-events-none fixed right-4 bottom-4 z-40 flex gap-2 ${
+        isTop ? "max-w-[60vw] flex-col items-end sm:max-w-[16rem]" : "max-w-[70vw] items-end sm:max-w-xs"
+      }`}
+    >
+      {message && onBubbleClick ? (
+        <button
+          type="button"
+          onClick={onBubbleClick}
+          className={`${bubbleClass} cursor-pointer text-left hover:brightness-95`}
+          aria-label="次のセリフ"
         >
-          {message}
-          {/* 吹き出しのしっぽ */}
-          <span
-            aria-hidden
-            className={`absolute -right-2 bottom-3 h-3 w-3 rotate-45 border-r-2 border-b-2 ${BUBBLE_CLASS[mood]}`}
-          />
+          {bubbleContent}
+        </button>
+      ) : message ? (
+        <div className={bubbleClass} role="status">
+          {bubbleContent}
         </div>
       ) : null}
       <div className="pointer-events-auto flex shrink-0 flex-col items-center gap-1">

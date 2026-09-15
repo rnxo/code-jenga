@@ -7,7 +7,7 @@ import { TitleMascot } from "@/features/game";
 
 export default function HomePage() {
   return (
-    <main className="relative flex min-h-screen w-full flex-col gap-8 overflow-hidden px-4 py-12">
+    <main className="relative flex min-h-screen w-full flex-col gap-8 overflow-hidden px-4 pt-12 pb-52 md:pb-40">
       {/* おせっかい君の背景 */}
       <OsekkaikunBackground />
 
