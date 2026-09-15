@@ -1,13 +1,13 @@
 import "server-only";
 
-import type { Game } from "@/types/game";
+import type { Game, GamePlayer } from "@/types/game";
 import { ApplicationError } from "@/lib/api/errors";
 import { findGameById, updateGameIfCurrent } from "@/lib/server/repositories/games";
 import { listGamePlayers, markGamePlayerLeft } from "@/lib/server/repositories/game-players";
 import { findProblemById } from "@/lib/server/repositories/problems";
-import { updateRoomStatus } from "@/lib/server/repositories/rooms";
+import { findRoomById, transferRoomHost, updateRoomStatus } from "@/lib/server/repositories/rooms";
 import { rollTurnDifficulty } from "@/lib/shared/difficulty";
-import { getActivePlayers, getNextPlayerIdAfterLeave, MIN_PLAYERS } from "./turn-order";
+import { getActivePlayers, getNextHostIdAfterLeave, getNextPlayerIdAfterLeave, MIN_PLAYERS } from "./turn-order";
 
 // 担当: BE-A
 // backend-todo 1-7: 離脱・中断の処理。
@@ -16,7 +16,8 @@ import { getActivePlayers, getNextPlayerIdAfterLeave, MIN_PLAYERS } from "./turn
 // - 試合中に手番プレイヤーが離脱したら次のプレイヤーへ手番を回し、締切を再セットする。
 // - 残りが MIN_PLAYERS 未満になったら status='aborted' / finish_reason='aborted' で中断する。
 // - 待機中（waiting）は left_at をセットするだけ。全員が離脱したらルームを 'closed' にする。
-// - ホスト離脱時の権限委譲（DB_DESIGN.md 10章）は未対応。ホストが抜けても試合は続行できる。
+// - ホスト（rooms.host_id）が離脱したら、残っている参加者のうち一番早く入室した人へホスト権限を移す。
+//   試合中・決着後を問わず行う（決着後に再戦ロビーを開始できる人がいなくなるのを防ぐため）。
 
 export interface LeaveGameInput {
   gameId: string;
@@ -38,7 +39,10 @@ export async function leaveGame(input: LeaveGameInput): Promise<LeaveGameResult>
   }
   if (game.status === "finished" || game.status === "aborted") {
     // 決着後の離脱は記録だけ残す（退出済みの参加者は再戦を申し出られない）。
-    await markGamePlayerLeft(input.gameId, input.playerId);
+    const leftAfterFinish = await markGamePlayerLeft(input.gameId, input.playerId);
+    if (leftAfterFinish) {
+      await transferHostIfLeaving(game.room_id, input.playerId, await listGamePlayers(input.gameId));
+    }
     return { game };
   }
 
@@ -48,6 +52,7 @@ export async function leaveGame(input: LeaveGameInput): Promise<LeaveGameResult>
   }
   const players = await listGamePlayers(input.gameId);
   const activePlayers = getActivePlayers(players);
+  await transferHostIfLeaving(game.room_id, input.playerId, players);
 
   if (game.status === "waiting" || game.status === "generating") {
     if (activePlayers.length === 0) {
@@ -104,6 +109,30 @@ export async function leaveGame(input: LeaveGameInput): Promise<LeaveGameResult>
     },
   );
   return { game: passed ?? (await requireGame(input.gameId)) };
+}
+
+/**
+ * 離脱者がホストなら、残っている参加者へホスト権限を移す。
+ * 残りがいなければ何もしない（ルームは呼び出し側で closed にするか、そのまま空になる）。
+ * 委譲に失敗しても離脱自体は成立させたいので、ここでは例外を投げずに警告ログだけ残す。
+ */
+async function transferHostIfLeaving(roomId: string, leftPlayerId: string, players: GamePlayer[]): Promise<void> {
+  const room = await findRoomById(roomId);
+  if (!room) {
+    console.warn(`[leave-game] ルームが見つからないためホスト委譲を行いません（room=${roomId}）`);
+    return;
+  }
+  if (room.host_id !== leftPlayerId) {
+    return;
+  }
+  const nextHostId = getNextHostIdAfterLeave(players, leftPlayerId);
+  if (!nextHostId) {
+    return;
+  }
+  const transferred = await transferRoomHost(roomId, leftPlayerId, nextHostId);
+  if (!transferred) {
+    console.warn(`[leave-game] ホストが既に変わっていたため委譲をスキップしました（room=${roomId}）`);
+  }
 }
 
 async function requireGame(gameId: string): Promise<Game> {

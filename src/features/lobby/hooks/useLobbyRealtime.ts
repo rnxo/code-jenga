@@ -3,21 +3,24 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as mock from "@/lib/api/mock";
-import type { Game, GamePlayer } from "@/types/game";
+import type { Game, GamePlayer, Room } from "@/types/game";
 
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
 
 export interface UseLobbyRealtimeResult {
   game: Game | null;
   players: GamePlayer[];
+  /** rooms.host_id の最新値。ホスト離脱による委譲を反映する。未取得なら null */
+  hostId: string | null;
   isLoading: boolean;
   errorMessage: string | null;
 }
 
-/** games / game_players の変更を Realtime で購読し、ロビー画面の状態を返す（DB_DESIGN.md 7章）。 */
-export function useLobbyRealtime(gameId: string): UseLobbyRealtimeResult {
+/** games / game_players / rooms の変更を Realtime で購読し、ロビー画面の状態を返す（DB_DESIGN.md 7章）。 */
+export function useLobbyRealtime(gameId: string, roomId: string): UseLobbyRealtimeResult {
   const [game, setGame] = useState<Game | null>(null);
   const [players, setPlayers] = useState<GamePlayer[]>([]);
+  const [hostId, setHostId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -37,9 +40,10 @@ export function useLobbyRealtime(gameId: string): UseLobbyRealtimeResult {
     let isMounted = true;
 
     async function loadInitialState() {
-      const [gameResult, playersResult] = await Promise.all([
+      const [gameResult, playersResult, roomResult] = await Promise.all([
         supabase.from("games").select("*").eq("id", gameId).single(),
         supabase.from("game_players").select("*").eq("game_id", gameId),
+        supabase.from("rooms").select("host_id").eq("id", roomId).maybeSingle(),
       ]);
 
       if (!isMounted) {
@@ -56,6 +60,13 @@ export function useLobbyRealtime(gameId: string): UseLobbyRealtimeResult {
         setErrorMessage(`参加者情報の取得に失敗しました: ${playersResult.error.message}`);
       } else {
         setPlayers(playersResult.data ?? []);
+      }
+
+      if (roomResult.error) {
+        // ホスト表示は SSR で渡された値にフォールバックできるので、エラーはログに留める。
+        console.error(`ルーム情報の取得に失敗しました: ${roomResult.error.message}`);
+      } else if (roomResult.data) {
+        setHostId(roomResult.data.host_id);
       }
 
       setIsLoading(false);
@@ -76,6 +87,14 @@ export function useLobbyRealtime(gameId: string): UseLobbyRealtimeResult {
             return;
           }
           setGame(payload.new as Game);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
+        (payload) => {
+          // ホスト離脱時に leaveGame が rooms.host_id を書き換える。それを全員が受け取ってボタン表示を切り替える。
+          setHostId((payload.new as Room).host_id);
         },
       )
       .on(
@@ -119,7 +138,7 @@ export function useLobbyRealtime(gameId: string): UseLobbyRealtimeResult {
       isMounted = false;
       void supabase.removeChannel(channel);
     };
-  }, [gameId]);
+  }, [gameId, roomId]);
 
-  return { game, players, isLoading, errorMessage };
+  return { game, players, hostId, isLoading, errorMessage };
 }

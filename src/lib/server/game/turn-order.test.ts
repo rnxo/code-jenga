@@ -4,7 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import type { GamePlayer } from "@/types/game";
-import { getActivePlayers, getNextPlayerId, getNextPlayerIdAfterLeave } from "./turn-order";
+import {
+  getActivePlayers,
+  getNextHostIdAfterLeave,
+  getNextPlayerId,
+  getNextPlayerIdAfterLeave,
+} from "./turn-order";
 
 function player(playerId: string, turnOrder: number, leftAt: string | null = null): GamePlayer {
   return {
@@ -55,5 +60,21 @@ describe("getNextPlayerIdAfterLeave", () => {
   it("残りの現役プレイヤーがいなければ例外を投げる", () => {
     const players = [player("a", 0, "2026-09-15T01:00:00.000Z")];
     expect(() => getNextPlayerIdAfterLeave(players, "a")).toThrow(/参加者がいません/);
+  });
+});
+
+describe("getNextHostIdAfterLeave", () => {
+  it("離脱者を除いた現役プレイヤーのうち turn_order が最小の人を選ぶ", () => {
+    const players = [player("host", 0), player("c", 2), player("b", 1)];
+    expect(getNextHostIdAfterLeave(players, "host")).toBe("b");
+  });
+
+  it("既に離脱している人は候補にしない", () => {
+    const players = [player("host", 0), player("b", 1, "2026-09-15T01:00:00.000Z"), player("c", 2)];
+    expect(getNextHostIdAfterLeave(players, "host")).toBe("c");
+  });
+
+  it("引き継げる相手がいなければ null を返す", () => {
+    expect(getNextHostIdAfterLeave([player("host", 0)], "host")).toBeNull();
   });
 });

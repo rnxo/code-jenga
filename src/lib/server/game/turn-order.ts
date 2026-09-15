@@ -46,3 +46,13 @@ export function getNextPlayerIdAfterLeave(players: GamePlayer[], leftPlayerId: s
   const following = activePlayers.find((player) => player.turn_order > left.turn_order);
   return (following ?? activePlayers[0]).player_id;
 }
+
+/**
+ * ホストが離脱したときに権限を引き継ぐプレイヤーの ID を返す。
+ * 離脱者を除いた現役プレイヤーのうち turn_order が最小（＝一番早く入室した人）を選ぶ。
+ * 引き継げる相手がいなければ null（ルームは空になる）。
+ */
+export function getNextHostIdAfterLeave(players: GamePlayer[], leftHostId: string): string | null {
+  const candidates = getActivePlayers(players).filter((player) => player.player_id !== leftHostId);
+  return candidates[0]?.player_id ?? null;
+}
