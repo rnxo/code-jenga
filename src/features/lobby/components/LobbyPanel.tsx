@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Game } from "@/types/game";
+import type { CodeLanguage, Game } from "@/types/game";
+import { LANGUAGE_LABEL } from "@/lib/shared/language";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { LeaveButton } from "@/components/ui/LeaveButton";
 import { createClient } from "@/lib/supabase/client";
 import { useLobbyRealtime } from "../hooks/useLobbyRealtime";
+import { LanguageSelector } from "./LanguageSelector";
 import { PlayerList, type LobbyPlayer } from "./PlayerList";
 
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
@@ -41,10 +43,14 @@ export function LobbyPanel({
   const [isLeaving, setIsLeaving] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
   const [isCodeCopied, setIsCodeCopied] = useState(false);
+  const [isUpdatingLanguage, setIsUpdatingLanguage] = useState(false);
+  const [languageError, setLanguageError] = useState<string | null>(null);
+  // モック時は Realtime が無いので、API が返した game をここで保持して見た目を切り替える。
+  const [mockGameOverride, setMockGameOverride] = useState<Game | null>(null);
   const [nicknameById, setNicknameById] = useState(
     () => new Map(initialPlayers.map((player) => [player.player_id, player.nickname])),
   );
-  const game = liveGame ?? initialGame;
+  const game = mockGameOverride ?? liveGame ?? initialGame;
   const players = (isLoading ? initialPlayers : livePlayers).map((player) => ({
     ...player,
     nickname: nicknameById.get(player.player_id) ?? "(参加者)",
@@ -104,6 +110,23 @@ export function LobbyPanel({
       return;
     }
     router.push("/");
+  }
+
+  // 言語の変更はホストだけが行い、結果は games の UPDATE を Realtime で全員が受け取る。
+  // 楽観更新はしない（サーバーが真実。失敗したら元の表示のまま理由を出す）。
+  async function handleChangeLanguage(next: CodeLanguage) {
+    if (next === game.language || isUpdatingLanguage) {
+      return;
+    }
+    setIsUpdatingLanguage(true);
+    setLanguageError(null);
+    const result = await apiClient.updateGameLanguage(initialGame.id, { language: next });
+    if (!result.ok) {
+      setLanguageError(result.error.message);
+    } else if (USE_MOCK) {
+      setMockGameOverride(result.data.game);
+    }
+    setIsUpdatingLanguage(false);
   }
 
   async function handleStart() {
@@ -172,6 +195,14 @@ export function LobbyPanel({
         </button>
       </div>
 
+      <LanguageSelector
+        language={game.language}
+        isHost={isHost}
+        disabled={isUpdatingLanguage || isStarting || game.status !== "waiting"}
+        onChange={handleChangeLanguage}
+        errorMessage={languageError}
+      />
+
       <PlayerList players={players} hostId={hostId} maxPlayers={maxPlayers} />
 
       {isHost ? (
@@ -193,7 +224,7 @@ export function LobbyPanel({
 
           <p className="text-center text-xs text-gray-500">
             {hasEnoughPlayers
-              ? "全員そろいました。開始できます。"
+              ? `${LANGUAGE_LABEL[game.language]} で開始できます。`
               : `あと ${minPlayers - players.length} 人そろうと開始できます。`}
           </p>
         </div>

@@ -88,7 +88,7 @@ export async function leaveGame(input: LeaveGameInput): Promise<LeaveGameResult>
     { status: "playing", turnNo: game.turn_no },
     {
       currentPlayerId: nextPlayerId,
-      currentTurnDifficulty: rollTurnDifficulty(game.current_code),
+      currentTurnDifficulty: rollTurnDifficulty(game.current_code, Math.random, game.language),
       turnDeadlineAt: new Date(Date.now() + game.turn_time_limit_seconds * 1000).toISOString(),
     },
   );

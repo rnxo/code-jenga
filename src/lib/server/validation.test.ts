@@ -6,6 +6,7 @@ import {
   parseCreateTurnRequest,
   parseJoinRoomRequest,
   parseStartGameRequest,
+  parseUpdateGameLanguageRequest,
 } from "./validation";
 
 function expectValidationError(action: () => unknown): void {
@@ -28,6 +29,9 @@ describe("server request validation", () => {
     expect(parseStartGameRequest({ turnTimeLimitSeconds: 60 })).toEqual({ turnTimeLimitSeconds: 60 });
     expectValidationError(() => parseStartGameRequest({ turnTimeLimitSeconds: 1 }));
     expectValidationError(() => parseCreateTurnRequest({ lineNo: 0 }));
+    expect(parseUpdateGameLanguageRequest({ language: "python" })).toEqual({ language: "python" });
+    expectValidationError(() => parseUpdateGameLanguageRequest({ language: "ruby" }));
+    expectValidationError(() => parseUpdateGameLanguageRequest({}));
   });
 
   it("rejects malformed problem input", () => {

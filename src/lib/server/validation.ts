@@ -1,5 +1,13 @@
 import { ApplicationError } from "@/lib/api/errors";
-import type { CreateProblemRequest, CreateRoomRequest, CreateTurnRequest, JoinRoomRequest, StartGameRequest } from "@/types/api";
+import type {
+  CreateProblemRequest,
+  CreateRoomRequest,
+  CreateTurnRequest,
+  JoinRoomRequest,
+  StartGameRequest,
+  UpdateGameLanguageRequest,
+} from "@/types/api";
+import { SUPPORTED_LANGUAGES, isSupportedLanguage } from "@/lib/shared/language";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -44,6 +52,16 @@ export function parseStartGameRequest(value: unknown): StartGameRequest {
     throw new ApplicationError("VALIDATION_ERROR", "turnTimeLimitSeconds は5〜600秒の整数で指定してください。");
   }
   return { turnTimeLimitSeconds: seconds as number | undefined };
+}
+
+export function parseUpdateGameLanguageRequest(value: unknown): UpdateGameLanguageRequest {
+  if (!isRecord(value) || !isSupportedLanguage(value.language)) {
+    throw new ApplicationError(
+      "VALIDATION_ERROR",
+      `language は ${SUPPORTED_LANGUAGES.join(" / ")} のいずれかで指定してください。`,
+    );
+  }
+  return { language: value.language };
 }
 
 export function parseCreateTurnRequest(value: unknown): CreateTurnRequest {

@@ -8,6 +8,9 @@
 //   - supabase/migrations/20260914061323_tune_indexes_and_rls.sql
 //   - supabase/migrations/20260914093123_add_turn_difficulty.sql
 //   - supabase/migrations/20260915120000_apply_turn_rpc.sql
+//   - supabase/migrations/20260915150000_harden_authorization_and_validation.sql
+//   - supabase/migrations/20260915180000_test_run_summaries_view.sql
+//   - supabase/migrations/20260915190000_add_game_language.sql
 // ============================================================================
 
 export type Json =
@@ -82,6 +85,7 @@ export type Database = {
             | null
           finished_at: string | null
           id: string
+          language: Database["public"]["Enums"]["code_language"]
           loser_id: string | null
           problem_id: string | null
           room_id: string
@@ -105,6 +109,7 @@ export type Database = {
             | null
           finished_at?: string | null
           id?: string
+          language?: Database["public"]["Enums"]["code_language"]
           loser_id?: string | null
           problem_id?: string | null
           room_id: string
@@ -128,6 +133,7 @@ export type Database = {
             | null
           finished_at?: string | null
           id?: string
+          language?: Database["public"]["Enums"]["code_language"]
           loser_id?: string | null
           problem_id?: string | null
           room_id?: string
@@ -469,6 +475,7 @@ export type Database = {
       join_room: { Args: { p_code: string }; Returns: string }
     }
     Enums: {
+      code_language: "typescript" | "python"
       game_finish_reason:
         | "test_failed"
         | "timeout"
@@ -608,6 +615,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      code_language: ["typescript", "python"],
       game_finish_reason: [
         "test_failed",
         "timeout",

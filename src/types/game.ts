@@ -37,6 +37,12 @@ export type GameFinishReason = Enums<"game_finish_reason">;
  */
 export type TurnDifficulty = Enums<"turn_difficulty">;
 
+/**
+ * 試合で使う実行言語（ロビーでホストが選択する）。
+ * problems.language（お題が書かれている言語、text）や test_runs.language（実際に走ったランタイム名）とは別概念。
+ */
+export type CodeLanguage = Enums<"code_language">;
+
 // ---- テーブル行の型エイリアス ------------------------------------------
 
 export type Profile = Tables<"profiles">;

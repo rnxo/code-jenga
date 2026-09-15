@@ -37,6 +37,7 @@ function game(overrides: Partial<Game> = {}): Game {
     room_id: "room-1",
     round_no: 1,
     status: "playing",
+    language: "typescript",
     problem_id: "problem-1",
     current_code: CODE,
     current_line_count: 3,

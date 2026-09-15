@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/Spinner";
 import { LeaveButton } from "@/components/ui/LeaveButton";
 import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder } from "@/lib/shared/difficulty";
+import { DEFAULT_LANGUAGE, MONACO_LANGUAGE_ID } from "@/lib/shared/language";
 import { useGameRealtime } from "../hooks/useGameRealtime";
 import { useTurnTimer } from "../hooks/useTurnTimer";
 import { pickMascotLine, type MascotLine, type MascotSituation } from "../mascot-lines";
@@ -82,8 +83,10 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const selectedLineText =
     selectedLineNo === null ? null : currentCode.split("\n")[selectedLineNo - 1] ?? null;
   const difficulty = game?.current_turn_difficulty ?? null;
+  // ロビーでホストが選んだ言語。行の削除可否判定とシンタックスハイライトの両方に使う。
+  const language = game?.language ?? DEFAULT_LANGUAGE;
   const blockedReason =
-    difficulty && selectedLineText !== null && !isDeletableUnder(difficulty, selectedLineText)
+    difficulty && selectedLineText !== null && !isDeletableUnder(difficulty, selectedLineText, language)
       ? `${DIFFICULTY_LABEL[difficulty]} ではこの行は削除できません。${DIFFICULTY_RULE_TEXT[difficulty]}`
       : null;
 
@@ -170,7 +173,7 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
       />
       <CodeViewer
         code={currentCode}
-        language="typescript"
+        language={MONACO_LANGUAGE_ID[language]}
         selectedLineNo={selectedLineNo}
         onSelectLine={(lineNo) => setSelection({ code: currentCode, lineNo })}
       />
