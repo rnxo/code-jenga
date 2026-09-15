@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/Spinner";
 import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder } from "@/lib/shared/difficulty";
@@ -24,6 +25,17 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const [selection, setSelection] = useState<{ code: string; lineNo: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const router = useRouter();
+
+  // ロビー → 盤面 → 結果の出し分けは rooms/[code]/page.tsx（Server Component）が games.status で行う。
+  // Realtime で status が playing 以外（finished / aborted）になったら、サーバー側の描画を取り直して
+  // ResultDialog へ遷移させる（LobbyPanel の playing 遷移と同じ方式）。
+  const gameStatus = game?.status ?? null;
+  useEffect(() => {
+    if (gameStatus !== null && gameStatus !== "playing") {
+      router.refresh();
+    }
+  }, [gameStatus, router]);
 
   if (isLoading) {
     return <Spinner label="盤面を読み込み中..." />;
