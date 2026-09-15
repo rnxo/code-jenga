@@ -4,21 +4,33 @@ import { GameBoard } from "@/features/game";
 import { ResultDialog } from "@/features/result";
 import { LobbyPanel, type LobbyPlayer } from "@/features/lobby";
 import { Spinner } from "@/components/ui/Spinner";
+import * as mock from "@/lib/api/mock";
+import type { Game, Room } from "@/types/game";
 
 // games.status に応じて ロビー / GameBoard / ResultDialog を出し分けるだけの薄いコンテナ。
 //
 // 読み込みは Route Handler を経由せず、DB_DESIGN.md 1章の方針どおり
 // user-scoped な Supabase クライアント（RLS が効く）で直接 SELECT する。
 // 以降のリアルタイム更新は各 feature の useXxxRealtime フックが引き継ぐ。
+// NEXT_PUBLIC_USE_MOCK_API=true のときは Supabase を読まず src/lib/api/mock.ts の固定データを使う。
 //
 // 担当: 共有（変更はチームに宣言してから行うこと）
+
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
 
 interface RoomPageProps {
   params: Promise<{ code: string }>;
 }
 
-export default async function RoomPage({ params }: RoomPageProps) {
-  const { code } = await params;
+interface RoomPageData {
+  userId: string | null;
+  room: Room;
+  game: Game;
+  /** ロビー表示のときだけ埋まる（それ以外は空配列） */
+  lobbyPlayers: LobbyPlayer[];
+}
+
+async function loadFromSupabase(code: string): Promise<RoomPageData | null> {
   const supabase = await createClient();
 
   const {
@@ -35,7 +47,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
     throw new Error(`ルーム情報の取得に失敗しました: ${roomError.message}`);
   }
   if (!room) {
-    notFound();
+    return null;
   }
 
   const { data: game, error: gameError } = await supabase
@@ -50,18 +62,11 @@ export default async function RoomPage({ params }: RoomPageProps) {
     throw new Error(`試合情報の取得に失敗しました: ${gameError.message}`);
   }
   if (!game) {
-    notFound();
+    return null;
   }
 
-  if (game.status === "waiting" || game.status === "generating") {
-    if (game.status === "generating") {
-      return (
-        <main className="mx-auto flex min-h-[50vh] max-w-md items-center justify-center px-4">
-          <Spinner label="お題を生成中..." />
-        </main>
-      );
-    }
-
+  let lobbyPlayers: LobbyPlayer[] = [];
+  if (game.status === "waiting") {
     const { data: gamePlayers, error: gamePlayersError } = await supabase
       .from("game_players")
       .select("*")
@@ -82,10 +87,47 @@ export default async function RoomPage({ params }: RoomPageProps) {
     }
 
     const nicknameById = new Map((profiles ?? []).map((profile) => [profile.id, profile.nickname]));
-    const lobbyPlayers: LobbyPlayer[] = (gamePlayers ?? []).map((player) => ({
+    lobbyPlayers = (gamePlayers ?? []).map((player) => ({
       ...player,
       nickname: nicknameById.get(player.player_id) ?? "(不明なプレイヤー)",
     }));
+  }
+
+  return { userId: user?.id ?? null, room, game, lobbyPlayers };
+}
+
+function loadFromMock(code: string): RoomPageData | null {
+  const data = mock.getRoomPageData(code);
+  if (!data) {
+    return null;
+  }
+  return {
+    userId: data.userId,
+    room: data.room,
+    game: data.game,
+    lobbyPlayers: data.players.map((player) => ({
+      ...player,
+      nickname: data.nicknameById.get(player.player_id) ?? "(不明なプレイヤー)",
+    })),
+  };
+}
+
+export default async function RoomPage({ params }: RoomPageProps) {
+  const { code } = await params;
+  const data = USE_MOCK ? loadFromMock(code) : await loadFromSupabase(code);
+  if (!data) {
+    notFound();
+  }
+  const { userId, room, game, lobbyPlayers } = data;
+
+  if (game.status === "waiting" || game.status === "generating") {
+    if (game.status === "generating") {
+      return (
+        <main className="mx-auto flex min-h-[50vh] max-w-md items-center justify-center px-4">
+          <Spinner label="お題を生成中..." />
+        </main>
+      );
+    }
 
     return (
       <main className="mx-auto flex max-w-md flex-col gap-4 px-4 py-12">
@@ -102,12 +144,12 @@ export default async function RoomPage({ params }: RoomPageProps) {
   }
 
   if (game.status === "playing") {
-    if (!user) {
+    if (!userId) {
       notFound();
     }
     return (
       <main className="mx-auto max-w-2xl px-4 py-12">
-        <GameBoard gameId={game.id} currentUserId={user.id} />
+        <GameBoard gameId={game.id} currentUserId={userId} />
       </main>
     );
   }
