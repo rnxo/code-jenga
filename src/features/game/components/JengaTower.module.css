@@ -676,10 +676,10 @@
 @keyframes faceSway {
   0%,
   100% {
-    transform: translateX(-2%) rotate(-3.5deg);
+    transform: translateX(-7%) rotate(-15deg);
   }
   50% {
-    transform: translateX(2%) rotate(3.5deg);
+    transform: translateX(7%) rotate(15deg);
   }
 }
 
