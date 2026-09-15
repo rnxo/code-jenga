@@ -3,8 +3,8 @@
 
 .scene {
   position: relative;
-  perspective: 1500px;
-  perspective-origin: 50% 45%;
+  /* perspective はここに置かない。置くと position: fixed の子孫がこの要素に
+     閉じ込められ、崩壊の演出を画面全体に広げられなくなる（.tower 側で持つ） */
   /* 崩壊で木片が横に振れてもページに横スクロールを出さない。
      overflow-x: hidden と違い clip は overflow-y を auto にしないので、
      崩れ落ちる縦方向はそのまま見える */
@@ -16,7 +16,8 @@
   /* 崩壊の光は奥から差すので、木片より手前に来ないようにする */
   z-index: 1;
   transform-style: preserve-3d;
-  transform: rotateX(var(--rx)) rotateY(var(--ry));
+  transform: perspective(1500px) rotateX(var(--rx)) rotateY(var(--ry));
+  transform-origin: 50% 45%;
   transition: transform 0.12s linear;
   display: flex;
   flex-direction: column;
@@ -230,6 +231,8 @@
 .burst {
   position: absolute;
   inset: 0;
+  /* translateZ を効かせるための奥行き。.scene から移してきた */
+  perspective: 1500px;
   z-index: 0;
   display: grid;
   place-items: center;
@@ -255,7 +258,7 @@
     rgb(245 158 11 / 0.3) 70%,
     rgb(245 158 11 / 0) 84%
   );
-  animation: burstGlow 2.2s ease-out forwards;
+  animation: burstGlow 3.6s ease-out forwards;
 }
 
 /* 奥から手前へ。最初は遠くて小さく、崩れ切るころに広がって消える */
@@ -264,13 +267,18 @@
     opacity: 0;
     transform: translateZ(-520px) scale(0.35);
   }
-  16% {
+  10% {
     opacity: 1;
     transform: translateZ(-380px) scale(0.7);
   }
-  55% {
-    opacity: 0.8;
-    transform: translateZ(-200px) scale(1.05);
+  /* 像が立ち上がるあいだ、明るいまま保つ */
+  40% {
+    opacity: 1;
+    transform: translateZ(-260px) scale(1);
+  }
+  70% {
+    opacity: 0.85;
+    transform: translateZ(-190px) scale(1.12);
   }
   100% {
     opacity: 0;
@@ -308,7 +316,7 @@
   );
   /* 中心を抜いて、外周に向かって消えるようにする */
   mask-image: radial-gradient(circle, rgb(0 0 0 / 0) 18%, rgb(0 0 0 / 1) 42%, rgb(0 0 0 / 0) 74%);
-  animation: burstRays 2.3s ease-out forwards;
+  animation: burstRays 3.8s ease-out forwards;
 }
 
 @keyframes burstRays {
@@ -342,18 +350,18 @@
     rgb(120 53 15 / 0.2) 72%,
     rgb(120 53 15 / 0) 86%
   );
-  animation: burstVeil 2.2s ease-out forwards;
+  animation: burstVeil 3.6s ease-out forwards;
 }
 
 @keyframes burstVeil {
   0% {
     opacity: 0;
   }
-  18% {
+  12% {
     opacity: 1;
   }
-  70% {
-    opacity: 0.7;
+  75% {
+    opacity: 0.8;
   }
   100% {
     opacity: 0;
@@ -525,4 +533,34 @@
 /* 小さい枠ではキャプションが切れて読めないので出さない */
 .monumentsCompact .monumentCaption {
   display: none;
+}
+
+/* ------------------------------------------------------------------
+   画面全体版。盤面（非 compact）の崩壊では、光も像もビューポート全体に出す。
+   結果カードは枠が狭いので従来どおり盤面の中に収める。
+   ------------------------------------------------------------------ */
+.burstFullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+
+.monumentsFullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 31;
+  padding: 0 2vw;
+}
+
+.monumentsFullscreen .monumentSvg {
+  height: min(52rem, 88vh);
+}
+
+.monumentsFullscreen .monumentBuddha .monumentSvg {
+  height: min(44rem, 74vh);
+}
+
+.monumentsFullscreen .monumentCaption {
+  font-size: 12px;
+  padding-bottom: 0.5rem;
 }

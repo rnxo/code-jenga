@@ -226,7 +226,12 @@ export function JengaTower({
 
       {/* 崩壊の光。奥から差してくる演出で、崩れているあいだだけ出す */}
       {collapsed ? (
-        <div aria-hidden className={styles.burst}>
+        <div
+          aria-hidden
+          className={[styles.burst, compact ? "" : styles.burstFullscreen]
+            .filter(Boolean)
+            .join(" ")}
+        >
           <span className={styles.burstVeil} />
           <span className={styles.burstRays} />
           <span className={styles.burstGlow} />
