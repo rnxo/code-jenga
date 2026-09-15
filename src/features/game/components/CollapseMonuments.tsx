@@ -8,6 +8,16 @@ import styles from "./JengaTower.module.css";
 function LibertySvg() {
   return (
     <svg viewBox="0 0 64 128" className={styles.monumentSvg} role="img" aria-label="自由の女神">
+      <defs>
+        <linearGradient id="pukeGradientLiberty" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ef4444" />
+          <stop offset="20%" stopColor="#f97316" />
+          <stop offset="40%" stopColor="#facc15" />
+          <stop offset="60%" stopColor="#22c55e" />
+          <stop offset="80%" stopColor="#3b82f6" />
+          <stop offset="100%" stopColor="#a855f7" />
+        </linearGradient>
+      </defs>
       <g fill="currentColor">
         {/* 台座 */}
         <rect x="16" y="112" width="32" height="12" rx="1.5" />
@@ -48,6 +58,17 @@ function LibertySvg() {
         <path d="M29.7 39.2 Q32 41.4 34.3 39.2" fill="none" stroke="#22352f" strokeWidth="0.9" strokeLinecap="round" />
         {/* 出した舌 */}
         <path d="M30.2 39.7 Q30.1 47.2 32 49.4 Q33.9 47.2 34 39.7 Z" fill="#e2706a" stroke="#b9524c" strokeWidth="0.3" strokeLinejoin="round" />
+        {/* 虹色の吐瀉物。口から下へ流れ続ける */}
+        <g className={styles.puke}>
+          <path
+            d="M30.1 41 Q27.6 74 25.8 128 L38.2 128 Q36.4 74 33.9 41 Z"
+            fill="url(#pukeGradientLiberty)"
+            opacity="0.9"
+          />
+          <ellipse className={styles.pukeDrop} cx="28.6" cy="56" rx="1.9" ry="2.5" fill="#f97316" />
+          <ellipse className={styles.pukeDropB} cx="34.4" cy="62" rx="1.6" ry="2.2" fill="#22c55e" />
+          <ellipse className={styles.pukeDropC} cx="31" cy="70" rx="2.1" ry="2.8" fill="#3b82f6" />
+        </g>
         {/* ほお */}
         <ellipse cx="27.9" cy="37.7" rx="1.1" ry="0.7" fill="#e8907d" opacity="0.5" />
         <ellipse cx="36.1" cy="37.7" rx="1.1" ry="0.7" fill="#e8907d" opacity="0.5" />
@@ -59,6 +80,16 @@ function LibertySvg() {
 function DaibutsuSvg() {
   return (
     <svg viewBox="0 0 96 112" className={styles.monumentSvg} role="img" aria-label="奈良の大仏">
+      <defs>
+        <linearGradient id="pukeGradientBuddha" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ef4444" />
+          <stop offset="20%" stopColor="#f97316" />
+          <stop offset="40%" stopColor="#facc15" />
+          <stop offset="60%" stopColor="#22c55e" />
+          <stop offset="80%" stopColor="#3b82f6" />
+          <stop offset="100%" stopColor="#a855f7" />
+        </linearGradient>
+      </defs>
       <g fill="currentColor">
         {/* 蓮華座 */}
         <ellipse cx="48" cy="100" rx="36" ry="8" />
@@ -97,6 +128,17 @@ function DaibutsuSvg() {
         <path d="M44.8 51.8 Q48 53.9 51.2 51.8" fill="none" stroke="#2c2519" strokeWidth="1.1" strokeLinecap="round" />
         {/* 出した舌 */}
         <path d="M45.6 52.4 Q45.2 64.4 48 67.6 Q50.8 64.4 50.4 52.4 Z" fill="#c96a63" stroke="#8f4740" strokeWidth="0.4" strokeLinejoin="round" />
+        {/* 虹色の吐瀉物。口から下へ流れ続ける */}
+        <g className={styles.puke}>
+          <path
+            d="M45.3 54 Q41.6 82 39.4 112 L56.6 112 Q54.4 82 50.7 54 Z"
+            fill="url(#pukeGradientBuddha)"
+            opacity="0.9"
+          />
+          <ellipse className={styles.pukeDrop} cx="43.6" cy="72" rx="2.6" ry="3.4" fill="#f97316" />
+          <ellipse className={styles.pukeDropB} cx="52.4" cy="80" rx="2.2" ry="3" fill="#22c55e" />
+          <ellipse className={styles.pukeDropC} cx="47.8" cy="90" rx="2.9" ry="3.8" fill="#3b82f6" />
+        </g>
       </g>
     </svg>
   );

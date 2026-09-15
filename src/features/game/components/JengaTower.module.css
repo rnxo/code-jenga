@@ -688,3 +688,59 @@
     animation: none;
   }
 }
+
+/* 虹色の吐瀉物。顔と同じグループにあるので、首を振ると一緒に振れる */
+.puke {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: pukePulse 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes pukePulse {
+  from {
+    transform: scaleY(0.94) scaleX(0.97);
+  }
+  to {
+    transform: scaleY(1.05) scaleX(1.03);
+  }
+}
+
+/* 流れ落ちる粒。3つを少しずつずらして、途切れず落ち続けているように見せる */
+.pukeDrop,
+.pukeDropB,
+.pukeDropC {
+  animation: pukeDrop 0.6s linear infinite;
+}
+
+.pukeDropB {
+  animation-duration: 0.75s;
+  animation-delay: -0.25s;
+}
+
+.pukeDropC {
+  animation-duration: 0.9s;
+  animation-delay: -0.5s;
+}
+
+@keyframes pukeDrop {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0.95;
+  }
+  80% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(0, 34px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .puke,
+  .pukeDrop,
+  .pukeDropB,
+  .pukeDropC {
+    animation: none;
+  }
+}
