@@ -11,6 +11,15 @@ export interface ResultDialogProps {
   /** loser_id に対応する表示名（TODO: profiles との JOIN 結果を呼び出し側で渡す） */
   loserNickname: string | null;
   roomCode: string;
+  /**
+   * 再戦の実行。渡されたときだけ「再戦する」ボタンを出す。
+   * 渡さなければ従来どおり「トップに戻る」だけ（#26 / 配線は FE-B）。
+   */
+  onRematch?: () => void;
+  /** 再戦リクエストの送信中。ボタンを押せなくする */
+  isRematching?: boolean;
+  /** 再戦リクエストが失敗したときのメッセージ。null なら何も出さない */
+  rematchErrorMessage?: string | null;
 }
 
 /** games.finish_reason（database.ts の game_finish_reason）の日本語表示。 */
@@ -37,7 +46,14 @@ const RUBBLE = [
   { rotate: "rotate-12", offset: "-translate-x-9", width: "w-16", tone: "bg-amber-600" },
 ] as const;
 
-export function ResultDialog({ game, loserNickname, roomCode }: ResultDialogProps) {
+export function ResultDialog({
+  game,
+  loserNickname,
+  roomCode,
+  onRematch,
+  isRematching = false,
+  rematchErrorMessage = null,
+}: ResultDialogProps) {
   const router = useRouter();
   const finishReason = game.finish_reason;
 
@@ -87,14 +103,32 @@ export function ResultDialog({ game, loserNickname, roomCode }: ResultDialogProp
         </p>
       </div>
 
-      <div className="flex flex-col items-center gap-1">
-        {/*
-         * 再戦 API はバック TODO 1-6 で未実装。games が finished のままなので
-         * /rooms/{roomCode} に戻してもこの結果画面に戻ってくるだけになる。
-         * 新しいルームを作る導線が生きるよう、トップに戻す。
-         */}
-        <Button onClick={() => router.push("/")}>トップに戻る</Button>
-        <p className="text-xs text-amber-900/50">再戦は準備中です</p>
+      <div className="flex w-full flex-col items-center gap-2">
+        {onRematch ? (
+          <>
+            <Button className="w-full" onClick={onRematch} disabled={isRematching}>
+              {isRematching ? "準備中..." : "もう一度あそぶ"}
+            </Button>
+            {rematchErrorMessage ? (
+              <p className="w-full rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {rematchErrorMessage}
+              </p>
+            ) : null}
+            <Button variant="secondary" className="w-full" onClick={() => router.push("/")}>
+              トップに戻る
+            </Button>
+          </>
+        ) : (
+          <>
+            {/*
+             * onRematch が無いあいだは再戦できない。games が finished のままなので
+             * /rooms/{roomCode} に戻してもこの結果画面に戻ってくるだけになる。
+             * 新しいルームを作る導線が生きるよう、トップに戻す。
+             */}
+            <Button onClick={() => router.push("/")}>トップに戻る</Button>
+            <p className="text-xs text-amber-900/50">再戦は準備中です</p>
+          </>
+        )}
       </div>
     </section>
   );
