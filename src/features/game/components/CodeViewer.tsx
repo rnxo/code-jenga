@@ -4,9 +4,14 @@
 // SSR では動かないため next/dynamic で遅延ロードする。
 
 import dynamic from "next/dynamic";
+import { useEffect, useRef } from "react";
 import type { OnMount } from "@monaco-editor/react";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+
+// monaco-editor を直接 import せず、OnMount の引数型からエディタ型を取り出す。
+type CodeEditor = Parameters<OnMount>[0];
+type DecorationsCollection = ReturnType<CodeEditor["createDecorationsCollection"]>;
 
 export interface CodeViewerProps {
   code: string;
@@ -16,9 +21,11 @@ export interface CodeViewerProps {
   onSelectLine: (lineNo: number) => void;
 }
 
-// TODO(FE-B): selectedLineNo をエディタ上でハイライト表示する（decorations）。
 export function CodeViewer({ code, language, selectedLineNo, onSelectLine }: CodeViewerProps) {
+  const decorationsRef = useRef<DecorationsCollection | null>(null);
+
   const handleMount: OnMount = (editor) => {
+    decorationsRef.current = editor.createDecorationsCollection();
     editor.onMouseDown((event) => {
       const lineNo = event.target.position?.lineNumber;
       if (lineNo) {
@@ -26,6 +33,27 @@ export function CodeViewer({ code, language, selectedLineNo, onSelectLine }: Cod
       }
     });
   };
+
+  // 選択行を行全体の背景色でハイライトする。未選択なら装飾を消す。
+  useEffect(() => {
+    const decorations = decorationsRef.current;
+    if (!decorations) return;
+    if (selectedLineNo === null) {
+      decorations.clear();
+      return;
+    }
+    decorations.set([
+      {
+        range: {
+          startLineNumber: selectedLineNo,
+          startColumn: 1,
+          endLineNumber: selectedLineNo,
+          endColumn: 1,
+        },
+        options: { isWholeLine: true, className: "bg-yellow-200" },
+      },
+    ]);
+  }, [selectedLineNo]);
 
   return (
     <div className="overflow-hidden rounded-md border border-gray-300">
