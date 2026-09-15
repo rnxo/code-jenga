@@ -21,6 +21,18 @@ export interface ResultDialogProps {
   isRematching?: boolean;
   /** 再戦リクエストが失敗したときのメッセージ。null なら何も出さない */
   rematchErrorMessage?: string | null;
+  /**
+   * 再戦できない理由（相手の退出など）。渡すと知らせを出し、
+   * 「もう一度あそぶ」を押せなくする（#40 / 検知と配線は FE-B）。
+   */
+  rematchBlockedMessage?: string | null;
+  /**
+   * 「トップに戻る」を押したときの処理。渡さなければトップへ遷移するだけ。
+   * 退出 API を叩いてから戻りたい場合に使う（#40 / 配線は FE-B）。
+   */
+  onBackToTop?: () => void;
+  /** 退出リクエストの送信中。ボタンを押せなくする */
+  isLeaving?: boolean;
 }
 
 /** games.finish_reason（database.ts の game_finish_reason）の日本語表示。 */
@@ -57,9 +69,21 @@ export function ResultDialog({
   onRematch,
   isRematching = false,
   rematchErrorMessage = null,
+  rematchBlockedMessage = null,
+  onBackToTop,
+  isLeaving = false,
 }: ResultDialogProps) {
   const router = useRouter();
   const finishReason = game.finish_reason;
+  // onBackToTop が渡されていれば、退出などの後始末はそちらに任せる
+  function handleBackToTop() {
+    if (onBackToTop) {
+      onBackToTop();
+      return;
+    }
+    router.push("/");
+  }
+
   const showCollapsedTower =
     finishReason !== null &&
     COLLAPSED_REASONS.has(finishReason) &&
@@ -131,9 +155,23 @@ export function ResultDialog({
       </div>
 
       <div className="flex w-full flex-col items-center gap-2">
+        {/*
+         * 相手が退出したなど、再戦できない事情の知らせ。ボタンより上に出して、
+         * 押せない理由が分かってから「もう一度あそぶ」が目に入るようにする。
+         */}
+        {rematchBlockedMessage ? (
+          <p className="w-full rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {rematchBlockedMessage}
+          </p>
+        ) : null}
+
         {onRematch ? (
           <>
-            <Button className="w-full" onClick={onRematch} disabled={isRematching}>
+            <Button
+              className="w-full"
+              onClick={onRematch}
+              disabled={isRematching || rematchBlockedMessage !== null}
+            >
               {isRematching ? "準備中..." : "もう一度あそぶ"}
             </Button>
             {rematchErrorMessage ? (
@@ -141,8 +179,8 @@ export function ResultDialog({
                 {rematchErrorMessage}
               </p>
             ) : null}
-            <Button variant="secondary" className="w-full" onClick={() => router.push("/")}>
-              トップに戻る
+            <Button variant="secondary" className="w-full" onClick={handleBackToTop} disabled={isLeaving}>
+              {isLeaving ? "退出中..." : "トップに戻る"}
             </Button>
           </>
         ) : (
@@ -152,7 +190,9 @@ export function ResultDialog({
              * /rooms/{roomCode} に戻してもこの結果画面に戻ってくるだけになる。
              * 新しいルームを作る導線が生きるよう、トップに戻す。
              */}
-            <Button onClick={() => router.push("/")}>トップに戻る</Button>
+            <Button onClick={handleBackToTop} disabled={isLeaving}>
+              {isLeaving ? "退出中..." : "トップに戻る"}
+            </Button>
             <p className="text-xs text-amber-900/50">再戦は準備中です</p>
           </>
         )}
