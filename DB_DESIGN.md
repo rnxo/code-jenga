@@ -133,6 +133,11 @@ erDiagram
 | `test_run_kind` | `problem_verification` / `turn_check` | テスト実行の目的 |
 | `test_run_status` | `passed` / `failed` / `error` | テスト実行そのものの結果 |
 | `game_finish_reason` | `test_failed` / `timeout` / `no_lines_left` / `aborted` | 試合が終了した理由 |
+| `turn_difficulty` | `easy` / `normal` / `hard` | ランダム難易度ルーレットで抽選される、そのターンの削除制限 |
+
+### 補足: `turn_difficulty` と `problems.difficulty` は別概念
+
+`turn_difficulty` は**サーバーがターン開始のたびに均等抽選する、削除してよい行の種類に対する縛り**（10章参照）。`problems.difficulty`（`text` の自由記述、お題自体の難易度ラベル）とは無関係で、命名の衝突を避けるため `turn_` 接頭辞を付けている。
 
 ### 補足: `test_run_status` を3値にする理由
 
@@ -218,6 +223,7 @@ AI（Gemini）が生成した「お題」= 塔になるソースコードと、�
 | `status` | `game_status` | NOT NULL, DEFAULT `'waiting'` | 試合の状態 |
 | `turn_no` | `int` | NOT NULL, DEFAULT `0` | 現在の手番番号（次に記録される `turns.turn_no`） |
 | `current_player_id` | `uuid` | FK → `profiles(id)` | 現在の手番のプレイヤー |
+| `current_turn_difficulty` | `turn_difficulty` | NULL 可 | **非正規化**: 現在の手番に適用中の削除制限（ランダム難易度ルーレット） |
 | `turn_time_limit_seconds` | `int` | NOT NULL, DEFAULT `60`, CHECK (`> 0`) | 1手あたりの制限時間 |
 | `turn_deadline_at` | `timestamptz` | NULL 可 | 現在の手番の制限時刻 |
 | `current_code` | `text` | NULL 可 | **非正規化**: 現時点のコード全文 |
@@ -234,6 +240,7 @@ AI（Gemini）が生成した「お題」= 塔になるソースコードと、�
 
 **補足**:
 - `current_code` / `current_line_count` は `turns` の最新行（`code_after`）から導出可能な**意図的な非正規化**。クライアントは `games` 1行を Realtime 購読するだけで盤面全体を再描画でき、`turns` テーブルを毎回 JOIN する必要がない。**更新は必ず `turns` の INSERT と同一トランザクションで行うこと**（ズレを防ぐため）。
+- `current_turn_difficulty` も同様の非正規化で、真実は `turns.turn_difficulty`（4.7節）側にある。手番が存在しない間（`status` が `waiting` / `generating`）は NULL。抽選ロジックは `src/lib/shared/difficulty.ts` の `rollTurnDifficulty`（10章参照）。
 - `winner_id` は持たない。DESIGN.md のルールは「ルーズ判定になったプレイヤーの負け」であり、3人以上対戦では勝者が一意に決まらないため、勝者は「`game_players` から `loser_id` を除いた集合」として都度算出する。
 
 ---
@@ -307,6 +314,7 @@ Piston でのテスト実行ログ。**「お題の事前検証」と「ター�
 | `deleted_line_text` | `text` | NOT NULL | 削除された行の内容 |
 | `code_before` | `text` | NOT NULL | 削除前のコード全文 |
 | `code_after` | `text` | NOT NULL | 削除後のコード全文 |
+| `turn_difficulty` | `turn_difficulty` | NOT NULL | この手に適用されていた削除制限のスナップショット（ランダム難易度ルーレット） |
 | `result` | `turn_result` | NOT NULL | この手の判定結果 |
 | `test_run_id` | `uuid` | FK → `test_runs(id)` ON DELETE SET NULL, NULL 可 | 判定根拠となったテスト実行 |
 | `duration_ms` | `int` | CHECK (`>= 0`), NULL 可 | このプレイヤーが手番開始から確定までにかけた時間 |
@@ -316,7 +324,7 @@ Piston でのテスト実行ログ。**「お題の事前検証」と「ター�
 
 **インデックス**: `game_id`（`turn_no` は UNIQUE 制約で複合インデックス済み）、`player_id`。`test_run_id`（外部キー）にも Supabase Advisor の指摘に基づきインデックスを追加している。
 
-**補足**: `code_before` / `code_after` を毎手ごとに全文スナップショットとして保存する（差分からの再構築は行わない）。これによりリプレイ・巻き戻し・途中参加者への状態共有がすべて単純な `SELECT` で完結する。ハッカソン規模のコード量（数十〜百数十行程度）であれば容量上の問題にはならない。`test_run_id` は `ON DELETE SET NULL` とし、`games` の削除に伴う `test_runs` / `turns` の並行カスケード削除で外部キー違反が起きないようにしている。
+**補足**: `code_before` / `code_after` を毎手ごとに全文スナップショットとして保存する（差分からの再構築は行わない）。これによりリプレイ・巻き戻し・途中参加者への状態共有がすべて単純な `SELECT` で完結する。ハッカソン規模のコード量（数十〜百数十行程度）であれば容量上の問題にはならない。`test_run_id` は `ON DELETE SET NULL` とし、`games` の削除に伴う `test_runs` / `turns` の並行カスケード削除で外部キー違反が起きないようにしている。`turn_difficulty` に DEFAULT を付けていないのは、書き込み側の渡し忘れを `Insert` 型と NOT NULL 制約でコンパイル時・実行時の両方で検出させるため（CLAUDE.md「エラーは握りつぶさず処理する」）。
 
 ---
 
@@ -340,14 +348,16 @@ DESIGN.md のゲームフロー（お題生成 → 表示 → 1行削除 → テ
 
 4. **試合開始**（ホストが開始操作、または人数が揃い全員 `is_ready`）
    - `games` を UPDATE: `status = 'playing'`, `problem_id`, `current_code = problems.source_code`, `current_line_count = initial_line_count`, `current_player_id = 先頭手番のプレイヤー`, `turn_no = 1`, `turn_deadline_at = now() + turn_time_limit_seconds`, `started_at = now()`
+   - **ランダム難易度ルーレット**: `src/lib/shared/difficulty.ts` の `rollTurnDifficulty(problems.source_code)` で先頭ターンの難易度（EASY/NORMAL/HARD を均等抽選、削除可能行が0行なら EASY にフォールバック）を決め、同じ UPDATE の `current_turn_difficulty` に含める
 
 5. **1手の確定**（手番プレイヤーが行番号を指定して削除操作）
    - サーバーが `current_player_id` と一致することを検証（手番外の操作を拒否）
+   - `games.current_turn_difficulty` と対象行のテキストを `isDeletableUnder` で検証し、その難易度の縛りに反していれば `INVALID_LINE` エラーとして拒否する（10章参照）
    - `games.current_code` から指定行を除いたコードを組み立て、Piston でテストを実行
    - 以下を **1トランザクション**で実行:
      1. `test_runs`（`kind = 'turn_check'`）へ実行結果を INSERT
-     2. `turns` へ `code_before` / `code_after` / `result` / `test_run_id` を INSERT
-     3. `games` を UPDATE: `current_code = code_after`, `current_line_count -= 1`, `turn_no += 1`。`result = 'safe'` なら次のプレイヤーへ `current_player_id` を回し `turn_deadline_at` を再セット。`result` が `'out'` / `'timeout'` なら `status = 'finished'`, `loser_id = そのプレイヤー`, `finish_reason`, `finished_at = now()` を設定
+     2. `turns` へ `code_before` / `code_after` / `turn_difficulty`（この手に適用されていた難易度） / `result` / `test_run_id` を INSERT
+     3. `games` を UPDATE: `current_code = code_after`, `current_line_count -= 1`, `turn_no += 1`。`result = 'safe'` なら次のプレイヤーへ `current_player_id` を回し、`turn_deadline_at` を再セットし、`rollTurnDifficulty(code_after)` で次ターンの `current_turn_difficulty` を抽選する。`result` が `'out'` / `'timeout'` なら `status = 'finished'`, `loser_id = そのプレイヤー`, `finish_reason`, `finished_at = now()` を設定（`current_turn_difficulty` は最後の値を残す）
 
 6. **決着後**
    - `rooms.status` は `'waiting'` に戻す（再戦可能にする）か、ホストが締めたら `'closed'` にする
@@ -689,6 +699,31 @@ alter publication supabase_realtime add table public.game_players;
 alter publication supabase_realtime add table public.turns;
 ```
 
+以下は `add_turn_difficulty` マイグレーションの内容（ランダム難易度ルーレット。上記の初期スキーマに対する追加分）。
+
+```sql
+-- ターンごとの削除制限（ランダム難易度ルーレット）。
+-- problems.difficulty（お題自体の難易度・text）とは別概念のため turn_ 接頭辞を付ける。
+create type turn_difficulty as enum ('easy', 'normal', 'hard');
+
+-- 非正規化キャッシュ: 現在進行中のターンに適用中の縛り。
+-- 真実は turns.turn_difficulty 側。current_code / current_line_count と同じ扱いで、
+-- 更新は必ず turns の INSERT と同一トランザクションで行うこと。
+-- 手番がない間（waiting / generating）は NULL。
+alter table public.games
+  add column current_turn_difficulty turn_difficulty;
+
+-- その手に実際に適用されていた縛りのスナップショット（履歴・リプレイ用）。
+-- DEFAULT を付けないのは、渡し忘れを Insert 型と NOT NULL 制約で検出させるため。
+alter table public.turns
+  add column turn_difficulty turn_difficulty not null;
+
+comment on column public.games.current_turn_difficulty is
+  '現在のターンに適用中の削除制限。サーバーがターン開始時に EASY/NORMAL/HARD から均等に抽選する。';
+comment on column public.turns.turn_difficulty is
+  'この手に適用されていた削除制限のスナップショット。';
+```
+
 ---
 
 ## 9. 実装状況
@@ -699,8 +734,9 @@ Supabase プロジェクト `code-jenga`（ref: `twkuapsjczmlfldgjgot`）に上�
 | --- | --- |
 | `20260914061141_init_schema` | ENUM 7種・テーブル7つ・RLS・`is_game_participant()` / `join_room()` 関数・Realtime publication 登録 |
 | `20260914061323_tune_indexes_and_rls` | Supabase Advisor 指摘への対応（未インデックス外部キー5件の追加、`set_updated_at()` の `search_path` 固定、`profiles_update_own` / `rooms_select_participant` ポリシーの `auth.uid()` 呼び出しを `(select auth.uid())` に変更して initplan 最適化） |
+| `20260914093123_add_turn_difficulty` | ランダム難易度ルーレット: ENUM `turn_difficulty`（`easy`/`normal`/`hard`）を新設し、`games.current_turn_difficulty`（NULL可・非正規化キャッシュ）と `turns.turn_difficulty`（NOT NULL・履歴スナップショット）を追加 |
 
-上記と同内容を `supabase/migrations/20260914061141_init_schema.sql` / `supabase/migrations/20260914061323_tune_indexes_and_rls.sql` としてリポジトリにも保存済み。ただし本リポジトリはまだ `supabase init` / `supabase link` を行っていないため（`supabase/config.toml` が無い）、Supabase CLI の `supabase db push` 等でこれらのファイルをそのまま適用することはできない。ローカル開発環境を構築する場合は別途セットアップが必要。
+上記と同内容を `supabase/migrations/20260914061141_init_schema.sql` / `supabase/migrations/20260914061323_tune_indexes_and_rls.sql` / `supabase/migrations/20260914093123_add_turn_difficulty.sql` としてリポジトリにも保存済み。ただし本リポジトリはまだ `supabase init` / `supabase link` を行っていないため（`supabase/config.toml` が無い）、Supabase CLI の `supabase db push` 等でこれらのファイルをそのまま適用することはできない。ローカル開発環境を構築する場合は別途セットアップが必要。
 
 適用後に残っている Advisor の指摘（対応見送り、理由は以下）:
 
@@ -711,7 +747,7 @@ Supabase プロジェクト `code-jenga`（ref: `twkuapsjczmlfldgjgot`）に上�
 
 ## 10. 未決事項・拡張余地
 
-- **空行・コメント行の削除の扱い**: 現状は制約で禁止していない。ゲーム性を考えると `deleted_line_text` が空白のみ・コメントのみの行の削除を禁止する CHECK 制約、または `problems` 側でそもそも空行を含めない前処理のどちらかを検討する必要がある。
+- **空行・コメント行の削除の扱い**: ランダム難易度ルーレット（`turn_difficulty`）で解決済み。CHECK 制約による一律禁止ではなく、ターンごとに EASY/NORMAL/HARD を均等抽選し、NORMAL 以上では空行・コメント行・記号だけの行の削除を禁止する（縛りは EASY ⊇ NORMAL ⊇ HARD の単調な包含関係）。判定ロジックは `src/lib/shared/difficulty.ts`（行分類は `classifyLine`、抽選は `rollTurnDifficulty`）。既知の制限: 字句解析はせず行単位のパターンマッチのみのため、ブロックコメント（`/* ... */`）内部で `*` から始まらない継続行はコメントと判定できず `expression` 扱いになる（削除可能側に倒れるため、誤判定してもテストが通る＝安全側）。抽選した難易度で削除可能な行が1行もない場合は EASY にフォールバックし、詰みを防ぐ。
 - **制限時間超過の検知方法**: `games.turn_deadline_at` を用意したが、超過を誰がどう検知するかは未設計（クライアントからのポーリング通知 / `pg_cron` による定期チェック / Vercel Cron など）。
 - **`test_run_status = 'error'` 時のリトライ方針**: 何回までリトライするか、それでも失敗した場合にターンをどう扱うか（お題差し替え・引き分け等）は未決定。
 - **対戦履歴の集計**: 勝率・対戦回数などの集計ビューは、必要になった時点で `turns` / `games` を元にした View または関数として追加する（現時点ではテーブルを増やさない）。

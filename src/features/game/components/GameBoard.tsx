@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { apiClient } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/Spinner";
+import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT, isDeletableUnder } from "@/lib/shared/difficulty";
 import { useGameRealtime } from "../hooks/useGameRealtime";
 import { JengaTower } from "./JengaTower";
 import { LineDeleteControls } from "./LineDeleteControls";
@@ -34,14 +35,16 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   const isMyTurn = game.current_player_id === currentUserId;
   const latestTurn = turns.at(-1) ?? null;
 
-  // 「崩れた見た目を出すか」と「操作を止めるか」は別物。
-  // 崩壊の演出は直前の手の判定、操作可否はサーバーが持つ games.status で決める
-  // （no_lines_left / aborted は最終手が safe のまま終局するため）。
-  const hasCollapsed = latestTurn !== null && latestTurn.result !== "safe";
-  const isFinished = game.status === "finished" || game.status === "aborted";
+  const selectedLineText =
+    selectedLineNo === null ? null : (game.current_code ?? "").split("\n")[selectedLineNo - 1] ?? null;
+  const difficulty = game.current_turn_difficulty;
+  const blockedReason =
+    difficulty && selectedLineText !== null && !isDeletableUnder(difficulty, selectedLineText)
+      ? `${DIFFICULTY_LABEL[difficulty]} ではこの行は削除できません。${DIFFICULTY_RULE_TEXT[difficulty]}`
+      : null;
 
   async function handleDeleteLine() {
-    if (selectedLineNo === null) {
+    if (selectedLineNo === null || blockedReason !== null) {
       return;
     }
     setIsSubmitting(true);
@@ -64,14 +67,15 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
         code={game.current_code ?? ""}
         selectedLineNo={selectedLineNo}
         onSelectLine={setSelectedLineNo}
-        interactive={isMyTurn && !isSubmitting && !isFinished}
-        collapsed={hasCollapsed}
+        interactive={isMyTurn && !isSubmitting}
+        collapsed={latestTurn !== null && latestTurn.result !== "safe"}
       />
-      {isMyTurn && !isFinished ? (
+      {isMyTurn ? (
         <LineDeleteControls
           selectedLineNo={selectedLineNo}
           isSubmitting={isSubmitting}
           errorMessage={submitError}
+          blockedReason={blockedReason}
           onConfirm={handleDeleteLine}
         />
       ) : null}

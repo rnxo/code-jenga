@@ -1,71 +1,45 @@
 "use client";
 
-import type { Game } from "@/types/game";
+import type { Game, TurnDifficulty } from "@/types/game";
+import { DIFFICULTY_LABEL, DIFFICULTY_RULE_TEXT } from "@/lib/shared/difficulty";
 import { useTurnTimer } from "../hooks/useTurnTimer";
 
-// 手番表示＋残り時間。担当: FE-B
-//
-// タワーと同じ言語で組む（mono の小さな見出し + 木の色のアクセント）。
-// 自分の番のときだけ左端に木の色が入り、盤面を見ずとも手番が分かるようにする。
+// 手番表示＋残り時間＋ランダム難易度ルーレットのバッジ。担当: FE-B
 
 export interface TurnIndicatorProps {
   game: Game;
   isMyTurn: boolean;
 }
 
-/** 残り時間がこの割合を切ったら警告色にする */
-const DANGER_RATIO = 0.25;
+const DIFFICULTY_BADGE_CLASS: Record<TurnDifficulty, string> = {
+  easy: "border-green-300 bg-green-50 text-green-800",
+  normal: "border-amber-300 bg-amber-50 text-amber-800",
+  hard: "border-red-300 bg-red-50 text-red-800",
+};
 
 export function TurnIndicator({ game, isMyTurn }: TurnIndicatorProps) {
   const remainingSeconds = useTurnTimer(game.turn_deadline_at);
-
-  const limitSeconds = game.turn_time_limit_seconds;
-  const ratio = limitSeconds > 0 ? Math.min(1, Math.max(0, remainingSeconds / limitSeconds)) : 0;
-  const isDanger = ratio <= DANGER_RATIO;
+  const difficulty = game.current_turn_difficulty;
 
   return (
-    <div
-      className={`rounded-lg border border-l-4 px-4 py-3 ${
-        isMyTurn
-          ? "border-amber-300 border-l-amber-500 bg-amber-50/60 dark:border-amber-900 dark:border-l-amber-600 dark:bg-amber-950/30"
-          : "border-gray-200 border-l-gray-300 dark:border-gray-800 dark:border-l-gray-700"
-      }`}
-    >
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="font-mono text-[10px] tracking-[0.2em] text-gray-500 uppercase">
-          turn {game.turn_no}
+    <div className="flex flex-col gap-2 rounded-md border border-gray-200 px-3 py-2">
+      <div className="flex items-center justify-between">
+        <span className={isMyTurn ? "font-semibold text-blue-600" : "text-gray-600"}>
+          {isMyTurn ? "あなたの手番です" : "相手の手番です"}（{game.turn_no} 手目 / 残り{" "}
+          {game.current_line_count ?? "-"} 行）
         </span>
-        <span className="font-mono text-[10px] tracking-[0.2em] text-gray-500 uppercase">
-          残り {game.current_line_count ?? "-"} 行
-        </span>
+        <span className="tabular-nums text-gray-500">残り {remainingSeconds} 秒</span>
       </div>
-
-      <p
-        className={`mt-1 text-lg font-bold ${
-          isMyTurn ? "text-amber-700 dark:text-amber-400" : "text-gray-700 dark:text-gray-300"
-        }`}
-      >
-        {isMyTurn ? "あなたの番です" : "相手の番です"}
-      </p>
-
-      <div className="mt-2 flex items-center gap-3">
-        {/* 残り時間。減っていくのが目で分かるようにバーで出す */}
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
-          <div
-            className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${
-              isDanger ? "bg-red-500" : "bg-amber-500"
-            }`}
-            style={{ width: `${ratio * 100}%` }}
-          />
+      {difficulty ? (
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${DIFFICULTY_BADGE_CLASS[difficulty]}`}
+          >
+            {DIFFICULTY_LABEL[difficulty]}
+          </span>
+          <span className="text-xs text-gray-500">{DIFFICULTY_RULE_TEXT[difficulty]}</span>
         </div>
-        <span
-          className={`font-mono text-sm tabular-nums ${
-            isDanger ? "font-bold text-red-600 dark:text-red-400" : "text-gray-500"
-          }`}
-        >
-          {remainingSeconds}s
-        </span>
-      </div>
+      ) : null}
     </div>
   );
 }

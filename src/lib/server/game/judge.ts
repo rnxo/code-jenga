@@ -15,5 +15,11 @@ export type TurnJudgement =
 
 /** テスト実行結果（test_run_status）から1手の判定結果を決める。 */
 export function judgeTurnResult(testRunStatus: TestRunStatus): TurnJudgement {
-  throw new Error(`未実装: judgeTurnResult(${testRunStatus})`);
+  if (testRunStatus === "passed") {
+    return { judged: true, result: "safe" };
+  }
+  if (testRunStatus === "failed") {
+    return { judged: true, result: "out" };
+  }
+  return { judged: false, reason: "テスト実行に失敗したため、手番を確定できません。" };
 }

@@ -21,6 +21,8 @@ const STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   GAME_NOT_FOUND: 404,
   GAME_NOT_PLAYING: 409,
   INVALID_LINE: 400,
+  // 行番号は範囲内だが、その手のターン難易度（縛り）では削除できない行を指定した場合。
+  LINE_NOT_DELETABLE: 400,
   // Piston 呼び出し自体の失敗は「テスト失敗」と区別する（DB_DESIGN.md 3章）。
   TEST_RUN_ERROR: 502,
   PROBLEM_GENERATION_FAILED: 502,
