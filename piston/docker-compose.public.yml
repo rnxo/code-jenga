@@ -1,0 +1,56 @@
+# Piston を外部（Vercel）から使えるように公開するための定義。Caddy を前段に置き、共有キー（X-Piston-Key）で守る。
+# ローカル開発で直接叩くだけなら piston/docker-compose.yml を使う。
+# override ではなく単体で完結させている（override だと ports が追記マージされ 2000 番が外部公開されたままになるため）。
+#
+#   # デモ用（ローカル Docker + cloudflared Quick Tunnel）。起動〜Vercel 環境変数の更新までを一括で行う
+#   pwsh scripts/start-demo-tunnel.ps1
+#
+#   # VPS などで手動起動する場合（PISTON_API_KEY は Vercel 側と同じ値を設定する）
+#   export PISTON_API_KEY='<長いランダム文字列>'
+#   COMPOSE_FILE=piston/docker-compose.public.yml bash scripts/setup-piston.sh
+#
+#   # 動作確認（キー無しは 401、キー有りは 200）
+#   curl -i http://127.0.0.1/api/v2/runtimes
+#   curl -i -H "X-Piston-Key: $PISTON_API_KEY" http://127.0.0.1/api/v2/runtimes
+#
+# Vercel には PISTON_API_URL=<公開URL>/api/v2 と PISTON_API_KEY を設定する。
+services:
+  piston:
+    image: ghcr.io/engineer-man/piston
+    container_name: piston_api
+    restart: unless-stopped
+    privileged: true
+    # 値は piston/docker-compose.yml と同じ（意味はそちらのコメント参照）。
+    environment:
+      PISTON_RUN_TIMEOUT: "3000"
+      PISTON_COMPILE_TIMEOUT: "10000"
+      PISTON_OUTPUT_MAX_SIZE: "65536"
+      PISTON_MAX_CONCURRENT_JOBS: "64"
+      PISTON_MAX_PROCESS_COUNT: "64"
+      PISTON_LOG_LEVEL: "INFO"
+    # 外部から直接叩けないよう loopback のみに束縛する。VPS 内での /runtimes 確認・deno 導入にはこの口を使う。
+    ports:
+      - "127.0.0.1:2000:2000"
+    volumes:
+      - piston_data:/piston
+    tmpfs:
+      - /piston/jobs:exec,uid=1000,gid=1000,mode=711
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: piston_caddy
+    restart: unless-stopped
+    depends_on:
+      - piston
+    environment:
+      # 未設定なら起動時にエラーにする（無認証で公開してしまう事故を防ぐ）。
+      PISTON_API_KEY: "${PISTON_API_KEY:?PISTON_API_KEY を設定してください（Vercel 側と同じ値）}"
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+
+volumes:
+  piston_data:
+  caddy_data:

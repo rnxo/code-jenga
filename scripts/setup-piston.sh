@@ -4,10 +4,12 @@
 #
 #   bash scripts/setup-piston.sh
 #   PISTON_URL=http://127.0.0.1:2000/api/v2 DENO_VERSION=1.32.3 bash scripts/setup-piston.sh
+#   # 公開版（Caddy + 共有キー、VPS や Quick Tunnel 用）。Piston 本体は 127.0.0.1:2000 に束縛されるので PISTON_URL は既定のままでよい。
+#   PISTON_API_KEY=... COMPOSE_FILE=piston/docker-compose.public.yml bash scripts/setup-piston.sh
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="${SCRIPT_DIR}/../piston/docker-compose.yml"
+COMPOSE_FILE="${COMPOSE_FILE:-${SCRIPT_DIR}/../piston/docker-compose.yml}"
 PISTON_URL="${PISTON_URL:-http://127.0.0.1:2000/api/v2}"
 PISTON_URL="${PISTON_URL%/}"
 DENO_VERSION="${DENO_VERSION:-1.32.3}"
@@ -62,4 +64,8 @@ if ! has_deno "${runtimes}"; then
   echo "インストール後も deno が /runtimes に現れません。" >&2
   exit 1
 fi
-echo "完了。PISTON_API_URL=${PISTON_URL} を .env.local に設定してください。"
+if [[ "${COMPOSE_FILE}" == *docker-compose.public.yml ]]; then
+  echo "完了。Vercel の環境変数に PISTON_API_URL=<公開URL>/api/v2 と PISTON_API_KEY（compose に渡した値）を設定してください。"
+else
+  echo "完了。PISTON_API_URL=${PISTON_URL} を .env.local に設定してください。"
+fi

@@ -1,0 +1,9 @@
+# VPS 公開用のリバースプロキシ（piston/docker-compose.public.yml から使う）。
+# Piston 自体に認証機能が無いため、X-Piston-Key ヘッダーが PISTON_API_KEY と一致しない
+# リクエストは 401 で弾く。ヘッダー名はアプリ側（src/lib/server/piston/run.ts の API_KEY_HEADER）と一致させること。
+:80 {
+	@unauth not header X-Piston-Key "{$PISTON_API_KEY}"
+	respond @unauth 401
+
+	reverse_proxy piston:2000
+}

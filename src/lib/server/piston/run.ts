@@ -56,8 +56,13 @@ const MIN_REQUEST_TIMEOUT_MS = 10_000;
 const RETRY_DELAYS_MS = [300, 900] as const;
 const MAX_ERROR_BODY_CHARS = 500;
 
+// 公開時（piston/docker-compose.public.yml）に前段の Caddy が要求する共有キーのヘッダー名。
+const API_KEY_HEADER = "X-Piston-Key";
+
 interface PistonConfig {
   executeUrl: string;
+  /** 未設定（ローカル直結）なら undefined。設定時は X-Piston-Key ヘッダーで送る。 */
+  apiKey: string | undefined;
   language: string;
   version: string;
   /** Piston に渡す run ステージの制限時間（ms） */
@@ -95,6 +100,7 @@ function resolveConfig(input: PistonRunInput): PistonConfig {
   const requestTimeoutMs = Math.max(MIN_REQUEST_TIMEOUT_MS, runTimeoutMs + compileTimeoutMs + REQUEST_TIMEOUT_MARGIN_MS);
   return {
     executeUrl: `${base}/execute`,
+    apiKey: process.env.PISTON_API_KEY?.trim() || undefined,
     language,
     version,
     runTimeoutMs,
@@ -128,11 +134,12 @@ async function httpErrorToPistonError(response: Response, config: PistonConfig):
   const body = (await response.text().catch(() => "")).slice(0, MAX_ERROR_BODY_CHARS);
   const { status } = response;
   if (status === 401 || status === 403) {
-    return new PistonError(
-      "unauthorized",
-      `Piston が認証を要求しています（HTTP ${status}）。公開インスタンス emkc.org は 2026/2/15 からホワイトリスト制です。piston/docker-compose.yml でセルフホストしたものを PISTON_API_URL に設定してください。: ${body}`,
-      { status },
-    );
+    const hint = config.apiKey
+      ? `PISTON_API_KEY が Piston 側（piston/docker-compose.public.yml に渡した PISTON_API_KEY）と一致しているか確認してください。`
+      : `PISTON_API_KEY が未設定です。公開版（piston/docker-compose.public.yml）を使う場合は同じキーを設定してください。公開インスタンス emkc.org は 2026/2/15 からホワイトリスト制のため使えません。`;
+    return new PistonError("unauthorized", `Piston が認証を要求しています（HTTP ${status}）。${hint}: ${body}`, {
+      status,
+    });
   }
   if (status === 429) {
     return new PistonError("rate_limited", `Piston のレート制限に達しました（HTTP 429）: ${body}`, { status });
@@ -152,7 +159,10 @@ async function executeOnce(config: PistonConfig, program: string): Promise<unkno
   try {
     response = await fetch(config.executeUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(config.apiKey ? { [API_KEY_HEADER]: config.apiKey } : {}),
+      },
       body: JSON.stringify({
         language: config.language,
         version: config.version,
