@@ -4,7 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { pickMascotLine, type MascotLine } from "../mascot-lines";
 import { Mascot } from "./Mascot";
 
-// タイトル画面の右下に常駐するマスコット（#42）。
+// タイトル画面のマスコット（#42）。「始める」に被さって邪魔をする（置き場所は page.tsx が決める）。
 // セリフはランダムなので、SSR では絵だけ出し、クライアントで初めて選ぶ（hydration のズレを避ける）。
 // 選んだセリフはアンマウント時に捨て、タイトルに戻ってくるたびに選び直す。
 // 吹き出しをクリックすると次のセリフに送る。
@@ -30,7 +30,7 @@ export function TitleMascot() {
     <Mascot
       message={line?.message ?? null}
       mood={line?.mood ?? "idle"}
-      bubblePlacement="top"
+      anchored={false}
       onBubbleClick={() => setNextLine(pickMascotLine("title", line?.message ?? null))}
     />
   );

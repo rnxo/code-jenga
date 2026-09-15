@@ -7,7 +7,7 @@ import { TitleMascot } from "@/features/game";
 
 export default function HomePage() {
   return (
-    <main className="relative flex min-h-screen w-full flex-col gap-8 overflow-hidden px-4 pt-12 pb-52 md:pb-40">
+    <main className="relative flex min-h-screen w-full flex-col gap-8 overflow-hidden px-4 py-12">
       {/* おせっかい君の背景 */}
       <OsekkaikunBackground />
 
@@ -29,17 +29,22 @@ export default function HomePage() {
       <Stack />
 
       {/* ゲーム開始 */}
-      <div className="flex justify-center">
+      <div className="relative flex justify-center">
         <Link
           href="/roomhome"
           className="rounded-lg bg-black px-10 py-4 text-lg font-bold text-white transition hover:scale-105 hover:bg-gray-800 active:scale-95 dark:bg-white dark:text-black dark:hover:bg-gray-200"
         >
           始める
         </Link>
-      </div>
 
-      {/* 右下に常駐するマスコット（#42） */}
-      <TitleMascot />
+        {/*
+         * おせっかいくん（#42）。ボタンに吹き出しを被せて、わざと押しにくくする。
+         * 「黙らせる」で退くと押しやすくなる。キャラはボタンの右に立ち、吹き出しが左へ伸びて被る
+         */}
+        <div className="absolute top-1/2 right-1/2 translate-x-[8.5rem] -translate-y-1/2">
+          <TitleMascot />
+        </div>
+      </div>
     </main>
   );
 }

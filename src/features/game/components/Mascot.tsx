@@ -11,13 +11,15 @@ import type { MascotMood } from "../mascot-lines";
 export interface MascotProps {
   message: string | null;
   mood: MascotMood;
-  /**
-   * 吹き出しの位置。盤面はキャラの左（横並び）、タイトルはキャラの上（縦並び）。
-   * 上に出すと右端の細い列に収まり、中央のボタンを隠さない。
-   */
+  /** 吹き出しの位置。キャラの左（横並び）か上（縦並び） */
   bubblePlacement?: "left" | "top";
   /** 吹き出しをクリックしたときの処理。渡すとクリックできる見た目になる（タイトルでセリフ送り） */
   onBubbleClick?: () => void;
+  /**
+   * 画面右下に固定するか。false なら親が置き場所を決める
+   * （タイトルでは「始める」に被せて、わざと邪魔をする）。
+   */
+  anchored?: boolean;
 }
 
 const FACE: Record<MascotMood, { src: string; emoji: string; animated: boolean }> = {
@@ -32,22 +34,29 @@ const BUBBLE_CLASS: Record<MascotMood, string> = {
   panic: "border-red-400 bg-red-50 text-red-800",
 };
 
-export function Mascot({ message, mood, bubblePlacement = "left", onBubbleClick }: MascotProps) {
+export function Mascot({
+  message,
+  mood,
+  bubblePlacement = "left",
+  onBubbleClick,
+  anchored = true,
+}: MascotProps) {
   const [isMuted, setIsMuted] = useState(false);
   /** 読み込みに失敗した表情。その表情だけ絵文字に戻す */
   const [failedMoods, setFailedMoods] = useState<Partial<Record<MascotMood, true>>>({});
   const face = FACE[mood];
   const motionClass = mood === "panic" ? "animate-bounce" : "animate-pulse";
+  const anchorClass = anchored ? "fixed right-4 bottom-4 z-40" : "relative z-40";
 
   if (isMuted) {
     return (
       <button
         type="button"
         onClick={() => setIsMuted(false)}
-        className="fixed right-4 bottom-4 z-40 rounded-full border border-amber-300 bg-white/90 px-3 py-1 text-xs text-amber-900/70 shadow hover:bg-amber-50"
+        className={`${anchorClass} rounded-full border border-amber-300 bg-white/90 px-3 py-1 text-xs text-amber-900/70 shadow hover:bg-amber-50`}
         aria-label="マスコットを戻す"
       >
-        🐭 戻す
+        戻す
       </button>
     );
   }
@@ -71,7 +80,7 @@ export function Mascot({ message, mood, bubblePlacement = "left", onBubbleClick 
     // スマホ幅では吹き出しが画面いっぱいに広がり、盤面の下（判定・退出ボタン）に
     // 重なる。狭いときだけ幅を絞る
     <div
-      className={`pointer-events-none fixed right-4 bottom-4 z-40 flex gap-2 ${
+      className={`pointer-events-none ${anchorClass} flex gap-2 ${
         isTop ? "max-w-[60vw] flex-col items-end sm:max-w-[16rem]" : "max-w-[70vw] items-end sm:max-w-xs"
       }`}
     >
