@@ -54,6 +54,10 @@ export function toSuccessResponse<T>(data: T, status = 200): Response {
 /** 例外を ApiResult<never> の失敗レスポンスに変換する。握りつぶさない（CLAUDE.md）。 */
 export function toErrorResponse(error: unknown): Response {
   const apiError = toApiError(error);
+  if (apiError.code === "INTERNAL_ERROR") {
+    // 想定外の例外はレスポンスに載せるだけでは追えないので、スタックをサーバーログに残す（backend-todo 6-4）。
+    console.error("[api] INTERNAL_ERROR:", error instanceof Error ? (error.stack ?? error.message) : error);
+  }
   const body: ApiResult<never> = { ok: false, error: apiError };
   return Response.json(body, { status: STATUS_BY_CODE[apiError.code] });
 }

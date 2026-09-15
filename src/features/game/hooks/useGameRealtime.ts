@@ -36,7 +36,9 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
     const supabase = createClient();
     let isMounted = true;
 
-    async function loadInitialState() {
+    // 初回ロードと再接続時の補完で共用する。Realtime の切断中に INSERT された turns は
+    // 購読では届かないため、再接続（SUBSCRIBED の2回目以降）で全件を取り直して上書きする。
+    async function loadState() {
       const [gameResult, turnsResult] = await Promise.all([
         supabase.from("games").select("*").eq("id", gameId).single(),
         supabase
@@ -65,7 +67,8 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
       setIsLoading(false);
     }
 
-    void loadInitialState();
+    void loadState();
+    let hasSubscribedOnce = false;
 
     const channel = supabase
       .channel(`game:${gameId}`)
@@ -83,10 +86,24 @@ export function useGameRealtime(gameId: string): UseGameRealtimeResult {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "turns", filter: `game_id=eq.${gameId}` },
         (payload) => {
-          setTurns((prev) => [...prev, payload.new as Turn]);
+          const turn = payload.new as Turn;
+          // 再接続時の再取得と重複した場合に二重追加しない
+          setTurns((prev) => (prev.some((t) => t.id === turn.id) ? prev : [...prev, turn]));
         },
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === "SUBSCRIBED") {
+          if (hasSubscribedOnce) {
+            // 再接続: 切断中に取りこぼした手を補完する
+            void loadState();
+          }
+          hasSubscribedOnce = true;
+          return;
+        }
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.error(`Realtime 購読でエラーが発生しました (${status})`, err);
+        }
+      });
 
     return () => {
       isMounted = false;
