@@ -36,20 +36,53 @@ const DEFAULT_RY = -14;
  * 縦スクロールにしないのは、ドラッグ回転と操作が競合するため。
  * 読む用途は下の CodeViewer が担うので、こちらは全体像を優先する。
  */
+/**
+ * perLine は「その詰め方での1段ぶんの高さ（木片＋隙間）」の実測値。
+ * 何行でどれだけの高さになるかを、DOM を測らずに見積もるために持つ。
+ */
 const DENSITY_STEPS = [
-  { maxLines: 10, minHeight: "44px", padding: "0.5rem 0.75rem", fontSize: "13px", gap: "0.75rem" },
-  { maxLines: 16, minHeight: "36px", padding: "0.375rem 0.75rem", fontSize: "12px", gap: "0.5rem" },
-  { maxLines: 24, minHeight: "30px", padding: "0.25rem 0.625rem", fontSize: "11px", gap: "0.375rem" },
-  { maxLines: Infinity, minHeight: "24px", padding: "0.125rem 0.5rem", fontSize: "10px", gap: "0.25rem" },
+  { maxLines: 10, minHeight: "44px", padding: "0.5rem 0.75rem", fontSize: "13px", lineHeight: "1.5", gap: "0.75rem", perLine: 65 },
+  { maxLines: 16, minHeight: "36px", padding: "0.375rem 0.75rem", fontSize: "12px", lineHeight: "1.5", gap: "0.5rem", perLine: 53 },
+  { maxLines: 24, minHeight: "30px", padding: "0.25rem 0.625rem", fontSize: "11px", lineHeight: "1.4", gap: "0.375rem", perLine: 44 },
+  { maxLines: 34, minHeight: "24px", padding: "0.125rem 0.5rem", fontSize: "10px", lineHeight: "1.3", gap: "0.25rem", perLine: 36 },
+  { maxLines: 44, minHeight: "20px", padding: "0 0.5rem", fontSize: "10px", lineHeight: "1.2", gap: "3px", perLine: 30 },
+  { maxLines: Infinity, minHeight: "16px", padding: "0 0.4rem", fontSize: "9px", lineHeight: "1.15", gap: "2px", perLine: 25 },
 ] as const;
 
+/**
+ * タワーがこれ以上高くなるなら縮める。
+ *
+ * タワーは内部スクロールしない（ドラッグ回転と competing するため）ので、
+ * 行数が増えるとそのままページが下に伸び、削除ボタンや判定が画面外へ行く。
+ * Brainfuck のお題は 15〜50 行あり、詰めるだけでは 50 行で 1250px 残る。
+ */
+const MAX_TOWER_PX = 900;
+/** これ以上小さくすると、木片が積み木に見えなくなる */
+const MIN_ZOOM = 0.6;
+
+/**
+ * 行数から縮小率を出す。zoom はレイアウトの高さごと縮むので、
+ * transform: scale と違ってページの下の要素がちゃんと上がってくる。
+ */
+function towerZoom(lineCount: number, step: (typeof DENSITY_STEPS)[number]): number {
+  const naturalHeight = lineCount * step.perLine;
+  if (naturalHeight <= MAX_TOWER_PX) {
+    return 1;
+  }
+  return Math.max(MIN_ZOOM, MAX_TOWER_PX / naturalHeight);
+}
+
 function densityStyle(lineCount: number): CSSProperties {
-  const step = DENSITY_STEPS.find((candidate) => lineCount <= candidate.maxLines) ?? DENSITY_STEPS[3];
+  const step =
+    DENSITY_STEPS.find((candidate) => lineCount <= candidate.maxLines) ??
+    DENSITY_STEPS[DENSITY_STEPS.length - 1];
   return {
     "--piece-min-height": step.minHeight,
     "--piece-padding": step.padding,
     "--piece-font-size": step.fontSize,
+    "--piece-line-height": step.lineHeight,
     "--tower-gap": step.gap,
+    "--tower-zoom": towerZoom(lineCount, step),
   } as CSSProperties;
 }
 
