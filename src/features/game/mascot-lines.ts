@@ -65,9 +65,75 @@ const LINES: Record<MascotSituation, MascotLine[]> = {
   ],
 };
 
+/**
+ * 煽り（毒舌）のセリフ。上の LINES に混ぜて使う。
+ *
+ * おせっかいくんは「おせっかい」なので、当たりが強いほど芝居として成立する。
+ * ただし刺すのは**そのプレイと、AI が書いたコードだけ**にしてある。
+ * 人となりや見た目の話には踏み込まない（遊んでいる本人が2人しかいない場で、
+ * 笑えなくなった瞬間に台無しになるため）。
+ *
+ * 声は smug（低くゆっくり）が煽りに合うので、ほとんどを smug にしている。
+ *
+ * 強すぎると感じたら、下の LINES との合成をやめれば元の当たりに戻る。
+ */
+const TAUNT_LINES: Record<MascotSituation, MascotLine[]> = {
+  my_turn: [
+    { message: "また君の番か。さっきの手、正直ひどかったよ。", mood: "smug" },
+    { message: "考えるフリはいいから、早く抜いてよ。", mood: "smug" },
+  ],
+  selected: [
+    { message: "その行？ 本気？ ボクは何も言ってないからね。", mood: "smug" },
+    { message: "いい度胸だね。実力じゃなくて度胸ね。", mood: "smug" },
+    { message: "おー、そこ選ぶんだ。センスって教えられないんだなあ。", mood: "smug" },
+  ],
+  blocked: [
+    { message: "ルールも読まずにコード消そうとしてる。すごいね、逆に。", mood: "smug" },
+    { message: "はい違反。落ち着いて、深呼吸して、もう一回読もうか。", mood: "smug" },
+  ],
+  hurry: [
+    { message: "まだ悩んでるの？ その時間で1本書けたよ。", mood: "panic" },
+    { message: "時間切れで負けるの、いちばんダサいやつだからね！", mood: "panic" },
+  ],
+  waiting: [
+    { message: "相手のほうが慎重だね。君と違って。", mood: "smug" },
+    { message: "いま代わってあげようか？ ボクのほうが上手いと思う。", mood: "smug" },
+  ],
+  safe_mine: [
+    { message: "生き残ったね。実力じゃなくて運だけど。", mood: "smug" },
+    { message: "たまたまだよ、たまたま。次はないから。", mood: "smug" },
+  ],
+  safe_opponent: [
+    { message: "相手は余裕だったね。さて、君の番だけど……がんばって。", mood: "smug" },
+    { message: "ほら、ああいうのを上手いって言うんだよ。覚えとこうね。", mood: "smug" },
+  ],
+  idle: [
+    { message: "静かだね。考えてる？ それとも固まってる？", mood: "smug" },
+    { message: "そんなに悩む場面じゃないと思うんだけどなあ。", mood: "smug" },
+    { message: "このコード、AI が書いたやつのほうが読みやすいね。", mood: "smug" },
+  ],
+  title: [
+    { message: "来たね。前回の惨敗、まだ覚えてる？", mood: "smug" },
+    { message: "今日は何回崩すつもり？ 一応数えておくね。", mood: "smug" },
+  ],
+};
+
+/**
+ * 実際に使う候補。ふつうのセリフに煽りを混ぜる。
+ *
+ * 混ぜるだけなので、当たりを元に戻したいときはこの合成をやめて
+ * LINES をそのまま使えばよい。
+ */
+const ALL_LINES: Record<MascotSituation, MascotLine[]> = Object.fromEntries(
+  (Object.keys(LINES) as MascotSituation[]).map((situation) => [
+    situation,
+    [...LINES[situation], ...TAUNT_LINES[situation]],
+  ]),
+) as Record<MascotSituation, MascotLine[]>;
+
 /** 状況に合うセリフを1つ選ぶ。直前と同じセリフは避ける（候補が1つしかない場合を除く）。 */
 export function pickMascotLine(situation: MascotSituation, previous: string | null = null): MascotLine {
-  const candidates = LINES[situation].filter((line) => line.message !== previous);
-  const pool = candidates.length > 0 ? candidates : LINES[situation];
+  const candidates = ALL_LINES[situation].filter((line) => line.message !== previous);
+  const pool = candidates.length > 0 ? candidates : ALL_LINES[situation];
   return pool[Math.floor(Math.random() * pool.length)];
 }
