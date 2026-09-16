@@ -580,6 +580,7 @@
     animation: none;
     opacity: 1;
   }
+
 }
 
 
@@ -689,9 +690,50 @@
 }
 
 /* 自分の側でないほうは引っ込める */
-.monumentDimmed {
-  opacity: 0.4;
-  filter: grayscale(0.55);
+/* 1体だけのときは真ん中に据える（2体のときは左右へ振り分ける） */
+.monumentsSingle {
+  justify-content: center;
+}
+
+/*
+ * 勝敗が決まったあと、奥から手前へ「バン」と飛び出す。
+ *
+ * 2体並べて片方を暗くしていた頃の、下からせり上がる動き（monumentRise）とは
+ * 別にしてある。あちらは「静かに現れる」だが、こちらは結果を突きつける場面
+ * なので、小さく遠いところから一気に来て、行き過ぎてから収まる。
+ */
+.monumentSolo {
+  animation-name: monumentBurst;
+  animation-duration: 0.62s;
+  /* 立ち上がりを鋭く。じわっと出ると「バン」にならない */
+  animation-timing-function: cubic-bezier(0.16, 1.2, 0.3, 1);
+  animation-delay: 0.85s;
+}
+
+@keyframes monumentBurst {
+  0% {
+    opacity: 0;
+    /* 奥にいる＝小さい */
+    transform: scale(0.16);
+  }
+  45% {
+    opacity: 1;
+    /* 行き過ぎる。ここが「バン」の瞬間 */
+    transform: scale(1.14);
+  }
+  62% {
+    transform: scale(0.95) rotate(-1.2deg);
+  }
+  76% {
+    transform: scale(1.05) rotate(0.8deg);
+  }
+  88% {
+    transform: scale(0.99) rotate(-0.3deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
 }
 
 .monumentsFullscreen .verdictText {
@@ -943,5 +985,18 @@
 
   .eyeBeam {
     opacity: 1;
+  }
+}
+
+/*
+ * 動きを控えたい設定では飛び出さない。
+ * 打ち消しは .monumentSolo の定義より後ろに置くこと（同じ詳細度なので、
+ * 前に置くと後ろの定義に負けて効かない）。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .monumentSolo {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
