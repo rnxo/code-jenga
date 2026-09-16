@@ -193,12 +193,18 @@ function DaibutsuSvg() {
 /** 見ている人の勝敗。null なら勝敗を出さず、像だけ立てる */
 export type CollapseVerdict = "win" | "lose";
 
-/** 着弾の衝撃波。足もとから輪が広がって消える。2 枚重ねて厚みを出す */
-function ShockWave() {
+/**
+ * 着弾の演出。
+ *   閃光 … 衝撃の「瞬間」を出す。像の後ろで一瞬だけ白く飛ばす
+ *   衝撃波 … 「広がり」を出す。足もとから輪が 3 枚、少しずつ遅れて広がる
+ */
+function Impact() {
   return (
     <>
+      <span className={styles.monumentFlash} />
       <span className={styles.monumentShock} />
       <span className={`${styles.monumentShock} ${styles.monumentShockLate}`} />
+      <span className={`${styles.monumentShock} ${styles.monumentShockLatest}`} />
     </>
   );
 }
@@ -230,6 +236,8 @@ export function CollapseMonuments({
         compact ? styles.monumentsCompact : styles.monumentsFullscreen,
         // 1体だけのときは真ん中に据える（2体のときは左右に振り分ける）
         isSingle ? styles.monumentsSingle : "",
+        // 着弾で画面を揺らす。揺れるのはこの層だけで、本文のレイアウトには触らない
+        isSingle ? styles.monumentsQuake : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -247,7 +255,7 @@ export function CollapseMonuments({
       >
         {/* 掲げた銘板の位置に札を重ねて、女神が持っているように見せる */}
         <span className={styles.monumentBody}>
-          {isSingle ? <ShockWave /> : null}
+          {isSingle ? <Impact /> : null}
           <LibertySvg />
           <span
             className={`${styles.verdictBadge} ${styles.verdictWin} ${styles.verdictOnLiberty}`}
@@ -272,7 +280,7 @@ export function CollapseMonuments({
       >
         {/* 印を結んだ手のあたりに札を重ねて、大仏が掲げているように見せる */}
         <span className={styles.monumentBody}>
-          {isSingle ? <ShockWave /> : null}
+          {isSingle ? <Impact /> : null}
           <DaibutsuSvg />
           <span
             className={`${styles.verdictBadge} ${styles.verdictLose} ${styles.verdictOnBuddha}`}
