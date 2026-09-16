@@ -3,13 +3,20 @@
 import { useState, type ReactNode } from "react";
 import styles from "./BoardStack.module.css";
 
-// 盤面の 3D タワーと 2D のコードを縦に並べる入れもの。担当: ようた（見た目）
+// 盤面の 3D タワーと 2D のコードを並べる入れもの。担当: ようた（見た目）
 //
-// 2つ並べると縦に長くなり、画面が低い端末では下の操作まで届かない。
-// 既定（auto）では画面の高さで 2D のコードを畳み、必要なら手で切り替えられるようにする。
-// 高さの判定は CSS のメディアクエリでやるので、要素の実測は持たない。
+// 同じソースコードの見せ方が2つある（積み木と Monaco）。どちらも要るが、
+// 縦に積むと盤面が長くなりすぎて、下の削除ボタンや判定まで届かない。
+//
+// なので横幅で出し分ける。
+//   広い画面 … 横に2つ並べる。両方いっぺんに見える
+//   狭い画面 … どちらか片方だけ。ボタン1つで入れ替える
+//
+// どちらに転ぶかは CSS のメディアクエリが決める。要素を実測して state に
+// 入れる形は、このリポジトリの react-hooks/set-state-in-effect に引っかかる。
 
-export type BoardView = "auto" | "both" | "tower" | "code";
+/** 狭い画面でどちらを出しているか。広い画面では両方出るので使われない */
+export type BoardView = "tower" | "code";
 
 export interface BoardStackProps {
   /** 3D のタワー */
@@ -18,52 +25,32 @@ export interface BoardStackProps {
   code: ReactNode;
 }
 
-const OPTIONS: readonly { value: Exclude<BoardView, "auto">; label: string }[] = [
-  { value: "both", label: "両方" },
-  { value: "tower", label: "3D" },
-  { value: "code", label: "コード" },
-] as const;
+const LABEL: Record<BoardView, string> = {
+  // ボタンには「次に出るほう」を書く。いま出ているものを書くと、押した結果と読めてしまう
+  tower: "コードで見る",
+  code: "タワーで見る",
+};
 
 export function BoardStack({ tower, code }: BoardStackProps) {
-  const [view, setView] = useState<BoardView>("auto");
-
-  const towerClassName = [styles.pane, view === "code" ? styles.hidden : ""]
-    .filter(Boolean)
-    .join(" ");
-
-  const codeClassName = [
-    styles.pane,
-    view === "tower" ? styles.hidden : "",
-    // auto のときだけ、画面が低ければ CSS 側で畳む
-    view === "auto" ? styles.autoHidden : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const [view, setView] = useState<BoardView>("tower");
 
   return (
-    <div className={styles.stack}>
-      <div className={styles.switch}>
-        <span className={styles.switchLabel}>view</span>
-        {OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={view === option.value}
-            className={[
-              styles.switchButton,
-              view === option.value ? styles.switchButtonActive : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            onClick={() => setView(view === option.value ? "auto" : option.value)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+    <div className={styles.stack} data-view={view}>
+      {/* 狭い画面でだけ出る。広い画面では両方見えているので、切り替える意味がない */}
+      <button
+        type="button"
+        className={styles.toggle}
+        onClick={() => setView(view === "tower" ? "code" : "tower")}
+      >
+        {LABEL[view]}
+      </button>
 
-      <div className={towerClassName}>{tower}</div>
-      <div className={codeClassName}>{code}</div>
+      <div className={styles.pane} data-pane="tower">
+        {tower}
+      </div>
+      <div className={styles.pane} data-pane="code">
+        {code}
+      </div>
     </div>
   );
 }
