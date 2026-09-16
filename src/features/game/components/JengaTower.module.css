@@ -704,35 +704,87 @@
  */
 .monumentSolo {
   animation-name: monumentBurst;
-  animation-duration: 0.62s;
+  animation-duration: 0.86s;
   /* 立ち上がりを鋭く。じわっと出ると「バン」にならない */
-  animation-timing-function: cubic-bezier(0.16, 1.2, 0.3, 1);
+  animation-timing-function: cubic-bezier(0.14, 1.4, 0.28, 1);
   animation-delay: 0.85s;
 }
 
+/*
+ * 奥から手前へ飛び出す。
+ *
+ * 点のような大きさ（0.05）から一気に来て、等身大を大きく飛び越え（1.42）、
+ * そこから 4 回ゆれて収まる。ゆれのたびに傾きの向きを変えているのは、
+ * 大きさの上下だけだと「弾んでいる」ようにしか見えないため。
+ */
 @keyframes monumentBurst {
   0% {
     opacity: 0;
-    /* 奥にいる＝小さい */
-    transform: scale(0.16);
+    /* ほぼ点。ここからの落差が「バン」の量になる */
+    transform: scale(0.05) rotate(-6deg);
   }
-  45% {
+  38% {
     opacity: 1;
-    /* 行き過ぎる。ここが「バン」の瞬間 */
-    transform: scale(1.14);
+    /* 着弾。行き過ぎるほど強く見える */
+    transform: scale(1.42) rotate(2.5deg);
+  }
+  50% {
+    transform: scale(0.84) rotate(-3.4deg);
   }
   62% {
-    transform: scale(0.95) rotate(-1.2deg);
+    transform: scale(1.22) rotate(2.2deg);
   }
-  76% {
-    transform: scale(1.05) rotate(0.8deg);
+  74% {
+    transform: scale(0.92) rotate(-1.4deg);
   }
-  88% {
-    transform: scale(0.99) rotate(-0.3deg);
+  85% {
+    transform: scale(1.08) rotate(0.7deg);
+  }
+  93% {
+    transform: scale(0.97) rotate(-0.3deg);
   }
   100% {
     opacity: 1;
     transform: scale(1) rotate(0deg);
+  }
+}
+
+/*
+ * 着弾の衝撃波。像の足もとから輪が広がって消える。
+ * 像そのものは動きで見せているので、こちらは「どこに落ちたか」を示す係。
+ *
+ * 飛び出しの 38%（＝0.86s の 0.33s）で着くので、
+ * 遅延は 0.85 + 0.33 に合わせてある。
+ */
+.monumentShock {
+  position: absolute;
+  left: 50%;
+  bottom: 4%;
+  width: 14vmin;
+  height: 14vmin;
+  margin-left: -7vmin;
+  border-radius: 9999px;
+  border: 0.6vmin solid currentColor;
+  opacity: 0;
+  pointer-events: none;
+  animation: monumentShock 0.55s cubic-bezier(0.1, 0.8, 0.3, 1) 1.18s forwards;
+}
+
+/* 2 枚目。少し遅らせて重ねると、一発の衝撃が厚くなる */
+.monumentShockLate {
+  animation-delay: 1.3s;
+  animation-duration: 0.62s;
+  border-width: 0.35vmin;
+}
+
+@keyframes monumentShock {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.15) scaleY(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3.4) scaleY(0.4);
   }
 }
 
@@ -998,5 +1050,11 @@
     animation: none;
     opacity: 1;
     transform: none;
+  }
+
+  /* 衝撃波は飾りきりなので、動きを控える設定では出さない */
+  .monumentShock {
+    animation: none;
+    opacity: 0;
   }
 }
