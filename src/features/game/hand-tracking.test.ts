@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  advancePinch,
-  consumePinch,
-  isPinching,
-  PINCH_HOLD_MS,
-  resetPinch,
+  advanceDwell,
+  consumeDwell,
+  DWELL_MS,
+  resetDwell,
   toScreenRatio,
 } from "./hand-tracking";
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
@@ -13,21 +12,6 @@ import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 
 function point(x: number, y: number): NormalizedLandmark {
   return { x, y, z: 0, visibility: 1 };
-}
-
-/** 21点のうち、つまみ判定で使う 0 / 4 / 8 / 9 だけ埋めた手 */
-function hand(options: {
-  wrist: [number, number];
-  thumbTip: [number, number];
-  indexTip: [number, number];
-  middleMcp: [number, number];
-}): NormalizedLandmark[] {
-  const landmarks = Array.from({ length: 21 }, () => point(0, 0));
-  landmarks[0] = point(...options.wrist);
-  landmarks[4] = point(...options.thumbTip);
-  landmarks[8] = point(...options.indexTip);
-  landmarks[9] = point(...options.middleMcp);
-  return landmarks;
 }
 
 describe("toScreenRatio", () => {
@@ -67,98 +51,114 @@ describe("toScreenRatio", () => {
   });
 });
 
-describe("isPinching", () => {
-  const open = {
-    wrist: [0.5, 0.9] as [number, number],
-    middleMcp: [0.5, 0.7] as [number, number],
-    thumbTip: [0.38, 0.6] as [number, number],
-    indexTip: [0.56, 0.5] as [number, number],
-  };
 
-  it("指が開いていればつまんでいない", () => {
-    expect(isPinching(hand(open))).toBe(false);
-  });
-
-  it("親指と人差し指が近づいたらつまんでいる", () => {
-    expect(isPinching(hand({ ...open, thumbTip: [0.555, 0.505] }))).toBe(true);
-  });
-
-  it("カメラから離れても同じ判定になる（手の大きさで割っているため）", () => {
-    // 手全体を半分の大きさにしても、つまみ具合は変わらない
-    const half = (p: [number, number]): [number, number] => [
-      0.5 + (p[0] - 0.5) / 2,
-      0.5 + (p[1] - 0.5) / 2,
-    ];
-    const pinched = { ...open, thumbTip: [0.555, 0.505] as [number, number] };
-    expect(
-      isPinching(
-        hand({
-          wrist: half(pinched.wrist),
-          middleMcp: half(pinched.middleMcp),
-          thumbTip: half(pinched.thumbTip),
-          indexTip: half(pinched.indexTip),
-        }),
-      ),
-    ).toBe(true);
-  });
-
-  it("手の大きさが取れないときはつまんでいない扱い", () => {
-    expect(
-      isPinching(hand({ ...open, wrist: [0.5, 0.7], middleMcp: [0.5, 0.7] })),
-    ).toBe(false);
-  });
-});
-
-describe("advancePinch", () => {
+describe("advanceDwell", () => {
   // モジュールに状態を持つので、毎回まっさらから始める
   beforeEach(() => {
-    resetPinch();
+    resetDwell();
   });
 
-  it("つまんでいなければ 0 のまま", () => {
-    expect(advancePinch(false, 0)).toBe(0);
-    expect(advancePinch(false, 5_000)).toBe(0);
-  });
+  /** 同じ場所に指を置き続ける。fps ごとに1回呼び、最後は seconds ちょうどで呼ぶ */
+  function stayStill(key: string, seconds: number, fps = 30): number {
+    let progress = 0;
+    const frames = Math.round(seconds * fps);
+    for (let frame = 0; frame <= frames; frame += 1) {
+      progress = advanceDwell(key, 500, 400, Math.min(frame / fps, seconds) * 1000);
+    }
+    return progress;
+  }
 
-  it("つまみ始めてから時間に応じて 1 まで満ちる", () => {
-    expect(advancePinch(true, 1_000)).toBe(0);
-    expect(advancePinch(true, 1_000 + PINCH_HOLD_MS / 2)).toBeCloseTo(0.5, 5);
-    expect(advancePinch(true, 1_000 + PINCH_HOLD_MS)).toBe(1);
+  it("指を止め続けると、時間に応じて 1 まで満ちる", () => {
+    expect(advanceDwell("3", 500, 400, 0)).toBe(0);
+    expect(advanceDwell("3", 500, 400, DWELL_MS / 2)).toBeCloseTo(0.5, 5);
+    expect(advanceDwell("3", 500, 400, DWELL_MS)).toBe(1);
   });
 
   it("満ちても 1 を超えない", () => {
-    advancePinch(true, 0);
-    expect(advancePinch(true, PINCH_HOLD_MS * 10)).toBe(1);
+    advanceDwell("3", 500, 400, 0);
+    expect(advanceDwell("3", 500, 400, DWELL_MS * 10)).toBe(1);
   });
 
-  it("確定したら、つまんだままでは二度と溜まらない（#49 レビュー 2）", () => {
-    advancePinch(true, 0);
-    expect(advancePinch(true, PINCH_HOLD_MS)).toBe(1);
-    consumePinch();
+  it("指が動いたら数え直す（止まっていないと決まらない）", () => {
+    advanceDwell("3", 500, 400, 0);
+    expect(advanceDwell("3", 500, 400, DWELL_MS * 0.9)).toBeCloseTo(0.9, 5);
 
-    // 指を離さずに別の行へ流れても、勝手にもう一度確定しない
-    expect(advancePinch(true, PINCH_HOLD_MS * 2)).toBe(0);
-    expect(advancePinch(true, PINCH_HOLD_MS * 5)).toBe(0);
+    // 大きく動かす
+    expect(advanceDwell("3", 560, 400, DWELL_MS * 0.9 + 10)).toBe(0);
+    // 動いた先から数え直しなので、すぐには満ちない
+    expect(advanceDwell("3", 560, 400, DWELL_MS * 0.9 + 20)).toBeLessThan(0.1);
   });
 
-  it("指を一度離せば、次のつまみは数え直せる", () => {
-    advancePinch(true, 0);
-    advancePinch(true, PINCH_HOLD_MS);
-    consumePinch();
-
-    expect(advancePinch(false, PINCH_HOLD_MS + 10)).toBe(0);
-    expect(advancePinch(true, PINCH_HOLD_MS + 20)).toBe(0);
-    expect(advancePinch(true, PINCH_HOLD_MS * 2 + 20)).toBe(1);
+  it("手の細かい震えくらいでは数え直さない", () => {
+    advanceDwell("3", 500, 400, 0);
+    // 数 px のぶれは「止まっている」に入れる
+    expect(advanceDwell("3", 508, 405, DWELL_MS * 0.5)).toBeCloseTo(0.5, 5);
+    expect(advanceDwell("3", 495, 396, DWELL_MS)).toBe(1);
   });
 
-  it("ねらわせない間にリセットすれば、溜めた時間は持ち越さない（#49 レビュー 3）", () => {
-    advancePinch(true, 0);
-    expect(advancePinch(true, PINCH_HOLD_MS * 0.9)).toBeCloseTo(0.9, 5);
+  it("別の行へ移ったら数え直す", () => {
+    advanceDwell("3", 500, 400, 0);
+    expect(advanceDwell("3", 500, 400, DWELL_MS * 0.9)).toBeCloseTo(0.9, 5);
+    // 座標はほぼ同じでも、指している木片が変わったら 0 から
+    expect(advanceDwell("4", 500, 402, DWELL_MS * 0.9 + 10)).toBe(0);
+  });
 
-    // 相手の手番のあいだは毎フレームここを通す
-    resetPinch();
+  it("確定したら、その場を離れるまで二度目が走らない", () => {
+    expect(stayStill("3", DWELL_MS / 1000)).toBe(1);
+    consumeDwell();
 
-    // 手番が戻った最初のフレームで、いきなり確定しない
-    expect(advancePinch(true, PINCH_HOLD_MS * 0.95)).toBe(0);
+    // 置きっぱなしでも、もう満ちない
+    expect(stayStill("3", 3)).toBe(0);
+  });
+
+  it("確定したあと、指を動かせば次の行を選べる", () => {
+    stayStill("3", DWELL_MS / 1000);
+    consumeDwell();
+
+    // 別の行へ移る
+    expect(advanceDwell("4", 500, 500, 10_000)).toBe(0);
+    expect(advanceDwell("4", 500, 500, 10_000 + DWELL_MS)).toBe(1);
+  });
+
+  it("木片から外れたら、猶予を過ぎた時点で数えたぶんが消える", () => {
+    advanceDwell("3", 500, 400, 0);
+    expect(advanceDwell("3", 500, 400, DWELL_MS * 0.6)).toBeCloseTo(0.6, 5);
+
+    // 外れて見えた瞬間の値で止まる（そこから進まない）
+    expect(advanceDwell(null, 0, 0, DWELL_MS * 0.6)).toBeCloseTo(0.6, 5);
+    expect(advanceDwell(null, 0, 0, DWELL_MS * 0.6 + 100)).toBeCloseTo(0.6, 5);
+    // 猶予を過ぎたら消える
+    expect(advanceDwell(null, 0, 0, DWELL_MS * 0.6 + 400)).toBe(0);
+  });
+
+  it("猶予だけで満ちることはない（指を外したのに削除されない）", () => {
+    advanceDwell("3", 500, 400, 0);
+    advanceDwell("3", 500, 400, DWELL_MS * 0.95);
+    for (const t of [10, 50, 100, 150, 210]) {
+      expect(advanceDwell(null, 0, 0, DWELL_MS * 0.95 + t)).toBeLessThan(1);
+    }
+  });
+
+  it("検出が2割すべっても、指を止めていれば決まる", () => {
+    for (let seed = 1; seed <= 30; seed += 1) {
+      resetDwell();
+      let random = seed;
+      const next = () => {
+        random = (random * 1664525 + 1013904223) % 4294967296;
+        return random / 4294967296;
+      };
+      let done = false;
+      for (let frame = 0; frame < 30 * 3 && !done; frame += 1) {
+        const now = (frame / 30) * 1000;
+        const detected = next() >= 0.2;
+        const progress = detected
+          ? advanceDwell("3", 500, 400, now)
+          : advanceDwell(null, 0, 0, now);
+        if (progress >= 1) {
+          done = true;
+        }
+      }
+      expect(done, `seed ${seed}`).toBe(true);
+    }
   });
 });

@@ -99,23 +99,24 @@
 }
 
 /*
- * つまんでいる時間をリングの太さで見せる。--hold は 0→1 で入ってくる。
- * 満ちたら決定なので、そこまでの経過が分かるようにしておく。
+ * 指が止まっている時間をリングで見せる。--dwell は 0→1 で入ってくる。
+ * 満ちたらその行が消えるので、待っているあいだに気づけるようにする。
  */
 .cursorRing {
   width: 38px;
   height: 38px;
   border: 3px solid rgb(180 83 9 / 0.35);
-  opacity: calc(0.35 + var(--hold, 0) * 0.65);
-  scale: calc(1 - var(--hold, 0) * 0.45);
+  opacity: calc(0.35 + var(--dwell, 0) * 0.65);
+  scale: calc(1 - var(--dwell, 0) * 0.45);
 }
 
-.cursor[data-pinching="true"] .cursorRing {
-  border-color: #b45309;
+/* 木片の上にいる＝止まれば消える場所なので、赤で知らせる */
+.cursor[data-target="line"] .cursorRing {
+  border-color: rgb(220 38 38 / calc(0.35 + var(--dwell, 0) * 0.65));
 }
 
-.cursor[data-pinching="true"] .cursorDot {
-  background: #7c2d12;
+.cursor[data-target="line"] .cursorDot {
+  background: #dc2626;
 }
 
 @media (prefers-reduced-motion: reduce) {
