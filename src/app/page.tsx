@@ -8,8 +8,24 @@ import { TitleMascot } from "@/features/game";
 export default function HomePage() {
   return (
     <main className="relative flex min-h-screen w-full flex-col gap-8 overflow-hidden px-4 py-12">
-      {/* おせっかい君の背景 */}
-      <OsekkaikunBackground />
+      {/*
+       * 背景は洋楽のジャケットふうの1枚。正方形に切ってあるので、
+       * レコードのジャケットのように大きめに据える。
+       *
+       * 出どころ: Unsplash / Pawel Czerwinski
+       *   https://unsplash.com/photos/sE97eb0WhGI
+       *   Unsplash License（商用可・クレジット不要）
+       *   https://unsplash.com/license
+       *
+       * 実在のアーティストのジャケットは著作権があるので使えない。
+       * 「ジャケットに見える絵」を自由に使えるところから持ってきている。
+       */}
+      <OsekkaikunBackground
+        src="/images/backgrounds/jacket.jpg"
+        opacity={0.3}
+        maxSizePx={760}
+        blend="normal"
+      />
 
       <header className="text-center">
         <p className="mb-1 font-mono text-[11px] tracking-[0.3em] text-amber-600/80 uppercase">
