@@ -57,22 +57,48 @@ const DENSITY_STEPS = [
  * Brainfuck のお題は 15〜50 行あり、詰めるだけでは 50 行で 1250px 残る。
  */
 const MAX_TOWER_PX = 900;
+/**
+ * 崩れたタワー（compact）の高さは、積んでいるときより低い。
+ * 散らばりを 0.34 に詰めているぶん、同じ行数でも縦に食わない。
+ *
+ * 実測（7行・モックの結果画面）で 261px。perLine からの見積もりは 455px
+ * だったので、その比を掛けて合わせている。見積もりが大きいぶんには
+ * 小さく描くだけなので、外しても溢れる側には転ばない。
+ */
+const COMPACT_HEIGHT_FACTOR = 0.58;
 /** これ以上小さくすると、木片が積み木に見えなくなる */
 const MIN_ZOOM = 0.6;
+/**
+ * 高さの予算を明示された（結果画面）ときの下限。
+ * 「小さくても入っている」ほうが「はみ出して操作できない」より良いので、
+ * 盤面よりは踏み込む。
+ */
+const MIN_ZOOM_WITH_BUDGET = 0.4;
 
 /**
  * 行数から縮小率を出す。zoom はレイアウトの高さごと縮むので、
  * transform: scale と違ってページの下の要素がちゃんと上がってくる。
  */
-function towerZoom(lineCount: number, step: (typeof DENSITY_STEPS)[number]): number {
-  const naturalHeight = lineCount * step.perLine;
-  if (naturalHeight <= MAX_TOWER_PX) {
+function towerZoom(
+  lineCount: number,
+  step: (typeof DENSITY_STEPS)[number],
+  compact: boolean,
+  maxHeightPx: number | null,
+): number {
+  const naturalHeight = lineCount * step.perLine * (compact ? COMPACT_HEIGHT_FACTOR : 1);
+  const budget = maxHeightPx ?? MAX_TOWER_PX;
+  if (naturalHeight <= budget) {
     return 1;
   }
-  return Math.max(MIN_ZOOM, MAX_TOWER_PX / naturalHeight);
+  const floor = maxHeightPx === null ? MIN_ZOOM : MIN_ZOOM_WITH_BUDGET;
+  return Math.max(floor, budget / naturalHeight);
 }
 
-function densityStyle(lineCount: number): CSSProperties {
+function densityStyle(
+  lineCount: number,
+  compact: boolean,
+  maxHeightPx: number | null,
+): CSSProperties {
   const step =
     DENSITY_STEPS.find((candidate) => lineCount <= candidate.maxLines) ??
     DENSITY_STEPS[DENSITY_STEPS.length - 1];
@@ -82,7 +108,7 @@ function densityStyle(lineCount: number): CSSProperties {
     "--piece-font-size": step.fontSize,
     "--piece-line-height": step.lineHeight,
     "--tower-gap": step.gap,
-    "--tower-zoom": towerZoom(lineCount, step),
+    "--tower-zoom": towerZoom(lineCount, step, compact, maxHeightPx),
   } as CSSProperties;
 }
 
@@ -117,6 +143,11 @@ export interface JengaTowerProps {
    */
   compact?: boolean;
   /**
+   * タワーに割ける高さ（px）。渡すと、その中に収まるように縮める。
+   * 結果画面が画面の高さから計算して渡す（#58）。渡さなければ既定の上限を使う。
+   */
+  maxHeightPx?: number | null;
+  /**
    * 外からねらっている行を渡す口（#44 のカメラのスワイプなど）。
    * 渡さなければ、下の HandPointer が見つけた行を自分で使う。
    * selectedLineNo（確定した選択）とは別で、こちらは「いまここを指している」の下見。
@@ -133,6 +164,7 @@ export function JengaTower({
   silent = false,
   verdict = null,
   compact = false,
+  maxHeightPx = null,
   aimedLineNo,
 }: JengaTowerProps) {
   const lines = code.length > 0 ? code.split("\n") : [];
@@ -314,7 +346,7 @@ export function JengaTower({
           {
             "--rx": `${angle.rx}deg`,
             "--ry": `${angle.ry}deg`,
-            ...densityStyle(lines.length),
+            ...densityStyle(lines.length, compact, maxHeightPx),
           } as CSSProperties
         }
         onPointerDown={handlePointerDown}

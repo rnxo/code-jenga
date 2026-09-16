@@ -1,8 +1,14 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { JengaTower, type CollapseVerdict } from "@/features/game";
+import {
+  getServerViewportHeight,
+  getViewportHeight,
+  subscribeViewportHeight,
+} from "../viewport-height";
 import type { Game, GameFinishReason } from "@/types/game";
 
 // 敗者表示＋再戦ボタン。担当: ようた（#21 で FE-B から移管）
@@ -102,6 +108,23 @@ const RUBBLE = [
   },
 ] as const;
 
+/**
+ * 崩れたタワー以外が使う高さ（px）。実測で 387px（低い画面の詰めた余白のとき）。
+ * 見出し・敗者名・終了理由・土下座ボタン・再戦まわり・枠と外側の余白の合計。
+ */
+const FIXED_CHROME_PX = 387;
+/**
+ * 説明の2行（「タワーを崩したのはこの人です」と終了理由の本文）を畳んだときの値。
+ * どちらも無くても、敗者名と終了理由のラベルで筋は通る。
+ */
+const FIXED_CHROME_TRIMMED_PX = 365;
+/** この高さを下回ったら説明の2行を畳む。CSS 側のしきい値と必ず揃えること */
+const TRIM_TEXT_BELOW_PX = 560;
+/** ぴったりに詰めると、文字の折り返しで溢れる。少しだけ余らせる */
+const SAFETY_PX = 12;
+/** これ以下にするとタワーが何だか分からなくなる。そこまで低い画面は諦める */
+const MIN_TOWER_PX = 90;
+
 export function ResultDialog({
   game,
   loserNickname,
@@ -129,6 +152,22 @@ export function ResultDialog({
   }
 
   // 敗者が分かっていて、かつ見ている人が誰か分かるときだけ勝敗を出す
+  // 画面の高さから、崩れたタワーに割ける高さを決める。
+  // 固定の px でメディアクエリを刻む形だと、行数によってタワーの素の高さが
+  // 261px〜1700px と変わるので合わせきれない（#58 のレビュー）。
+  const viewportHeight = useSyncExternalStore(
+    subscribeViewportHeight,
+    getViewportHeight,
+    getServerViewportHeight,
+  );
+  // サーバー側（0）では制限しない。クライアントで描き直したときに効く
+  const chromePx =
+    viewportHeight < TRIM_TEXT_BELOW_PX ? FIXED_CHROME_TRIMMED_PX : FIXED_CHROME_PX;
+  const towerBudgetPx =
+    viewportHeight === 0
+      ? null
+      : Math.max(MIN_TOWER_PX, viewportHeight - chromePx - SAFETY_PX);
+
   const verdict: CollapseVerdict | null =
     game.loser_id === null || currentUserId === null
       ? null
@@ -179,6 +218,7 @@ export function ResultDialog({
             compact
             silent
             verdict={verdict}
+            maxHeightPx={towerBudgetPx}
           />
         </div>
       ) : (
@@ -201,7 +241,8 @@ export function ResultDialog({
           {loserNickname ? `${loserNickname} の負け！` : "対戦終了"}
         </h2>
         {loserNickname ? (
-          <p className="text-sm text-amber-900/70">
+          // 低い画面では畳む。敗者名だけで意味は通る（しきい値は TRIM_TEXT_BELOW_PX と揃える）
+          <p className="text-sm text-amber-900/70 [@media(max-height:560px)]:hidden">
             タワーを崩したのはこの人です
           </p>
         ) : null}
