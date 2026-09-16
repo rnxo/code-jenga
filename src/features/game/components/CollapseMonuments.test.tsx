@@ -45,4 +45,24 @@ describe("CollapseMonuments", () => {
       expect(figure.className).not.toMatch(/monumentSolo/);
     }
   });
+
+  it("盤面（compact でない）で1体のときだけ、前面の衝撃が出る", () => {
+    const 盤面 = render(<CollapseMonuments verdict="win" />);
+    expect(盤面.container.querySelector('[class*="impactOverlay"]')).not.toBeNull();
+
+    // 結果画面のカードは狭いので、画面いっぱいの衝撃は出さない
+    const 結果 = render(<CollapseMonuments verdict="win" compact />);
+    expect(結果.container.querySelector('[class*="impactOverlay"]')).toBeNull();
+
+    // 勝敗が分からず2体並ぶときも出さない（飛び出しそのものが無いため）
+    const 両方 = render(<CollapseMonuments verdict={null} />);
+    expect(両方.container.querySelector('[class*="impactOverlay"]')).toBeNull();
+  });
+
+  it("前面の衝撃はクリックを通す（下のコードとボタンを塞がない）", () => {
+    const { container } = render(<CollapseMonuments verdict="lose" />);
+    const overlay = container.querySelector<HTMLElement>('[class*="impactOverlay"]');
+    // 実際の pointer-events は CSS 側。ここでは aria から外していることを見る
+    expect(overlay?.getAttribute("aria-hidden")).toBe("true");
+  });
 });

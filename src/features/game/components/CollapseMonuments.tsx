@@ -194,9 +194,10 @@ function DaibutsuSvg() {
 export type CollapseVerdict = "win" | "lose";
 
 /**
- * 着弾の演出。
- *   閃光 … 衝撃の「瞬間」を出す。像の後ろで一瞬だけ白く飛ばす
- *   衝撃波 … 「広がり」を出す。足もとから輪が 3 枚、少しずつ遅れて広がる
+ * 着弾の演出。像にくっついて出る、足もとの輪と背後の閃光。
+ *
+ * 像は盤面では本文の後ろ（z-index: -1）に置いてあるので、これだけだと
+ * 盤面では衝撃がほとんど見えない。盤面用の広いほうは ImpactOverlay が持つ。
  */
 function Impact() {
   return (
@@ -206,6 +207,26 @@ function Impact() {
       <span className={`${styles.monumentShock} ${styles.monumentShockLate}`} />
       <span className={`${styles.monumentShock} ${styles.monumentShockLatest}`} />
     </>
+  );
+}
+
+/**
+ * 盤面いっぱいに広がる着弾の演出。
+ *
+ * 像そのものは本文の後ろに置く必要がある（前に出すとコードと削除ボタンを
+ * 覆ってしまう。#39 のレビュー）。一方で衝撃は前に出ないと見えない。
+ * そこで、消えてなくなるものだけをこの層に分けて本文の前に出す。
+ *
+ * pointer-events: none なので、出ている間もクリックは下へ抜ける。
+ */
+function ImpactOverlay() {
+  return (
+    <span aria-hidden className={styles.impactOverlay}>
+      <span className={styles.impactFlash} />
+      <span className={styles.impactRing} />
+      <span className={`${styles.impactRing} ${styles.impactRingLate}`} />
+      <span className={`${styles.impactRing} ${styles.impactRingLatest}`} />
+    </span>
   );
 }
 
@@ -229,6 +250,9 @@ export function CollapseMonuments({
   const isSingle = verdict !== null;
 
   return (
+    <>
+      {/* 盤面では像が本文の後ろなので、衝撃だけを前に出す層をかぶせる */}
+      {isSingle && !compact ? <ImpactOverlay /> : null}
     <div
       aria-hidden
       className={[
@@ -293,5 +317,6 @@ export function CollapseMonuments({
       </figure>
       ) : null}
     </div>
+    </>
   );
 }
