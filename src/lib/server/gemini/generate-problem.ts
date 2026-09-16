@@ -3,6 +3,7 @@ import "server-only";
 import type { CodeLanguage } from "@/types/game";
 import { getServerEnv } from "@/lib/server/env";
 import { DEFAULT_LANGUAGE, normalizeLanguageId } from "@/lib/shared/language";
+import { runBrainfuck } from "@/lib/server/piston/brainfuck-interpreter";
 import { buildProblemGenerationPrompt } from "./prompt";
 
 // 担当: BE-B
@@ -71,6 +72,24 @@ export async function generateProblem(
     throw new Error(
       `Gemini の応答に sourceCode、testCode、language が ${language} として正しく含まれていません。`,
     );
+  }
+  if (language === "brainfuck") {
+    // Brainfuck は testCode を期待標準出力として比較する（testStrategy: "stdout"）。
+    // Gemini は ASCII の加減算を間違えやすく、申告した期待出力が実際の出力とずれることが多いので、
+    // サーバー内のインタプリタで実行した結果を期待出力として採用する（合否判定自体は Piston の検証が行う）。
+    const executed = runBrainfuck(parsed.sourceCode);
+    if (!executed.ok) {
+      throw new Error(`Gemini が生成した Brainfuck コードを実行できませんでした: ${executed.reason}`);
+    }
+    if (executed.output.trim() === "") {
+      throw new Error("Gemini が生成した Brainfuck コードは何も出力しません。");
+    }
+    if (executed.output !== parsed.testCode) {
+      console.warn(
+        `[generate-problem] Brainfuck の期待出力を Gemini の申告（${JSON.stringify(parsed.testCode.slice(0, 40))}）から実行結果（${JSON.stringify(executed.output)}）へ置き換えました。`,
+      );
+    }
+    return { sourceCode: parsed.sourceCode, testCode: executed.output, language, prompt };
   }
   // language は要求値で確定させる（型ガードで一致を確認済み）。Gemini の表記ゆれを DB に持ち込まない。
   return { sourceCode: parsed.sourceCode, testCode: parsed.testCode, language, prompt };
