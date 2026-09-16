@@ -1133,3 +1133,103 @@
     animation: none;
   }
 }
+
+/* ------------------------------------------------------------------
+   盤面いっぱいに広がる着弾の演出（ImpactOverlay）
+
+   像は本文の後ろ（z-index: -1）に置く決まりなので、衝撃までそこに置くと
+   盤面ではほとんど見えない。消えてなくなるものだけをこの層に分けて、
+   本文の前に出す。クリックは pointer-events: none で下へ抜ける。
+   ------------------------------------------------------------------ */
+.impactOverlay {
+  position: fixed;
+  inset: 0;
+  /* 崩壊の光（burstFullscreen, 30）より少しだけ前 */
+  z-index: 31;
+  display: block;
+  pointer-events: none;
+  overflow: clip;
+}
+
+/* 画面ぜんぶを一瞬白く飛ばす */
+.impactFlash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 180vmax;
+  height: 180vmax;
+  margin: -90vmax 0 0 -90vmax;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgb(255 251 235 / 0.85) 0%,
+    rgb(253 230 138 / 0.45) 28%,
+    rgb(251 191 36 / 0.16) 48%,
+    transparent 66%
+  );
+  opacity: 0;
+  animation: impactFlash 0.5s ease-out 1.13s forwards;
+}
+
+@keyframes impactFlash {
+  0% {
+    opacity: 0;
+    transform: scale(0.06);
+  }
+  16% {
+    opacity: 1;
+    transform: scale(0.42);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* 画面の真ん中から広がる輪。3 枚を少しずつ遅らせて厚みを出す */
+.impactRing {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40vmin;
+  height: 40vmin;
+  margin: -20vmin 0 0 -20vmin;
+  border-radius: 9999px;
+  border: 1.1vmin solid rgb(251 191 36 / 0.85);
+  opacity: 0;
+  animation: impactRing 0.85s cubic-bezier(0.06, 0.85, 0.22, 1) 1.13s forwards;
+}
+
+.impactRingLate {
+  animation-delay: 1.26s;
+  animation-duration: 0.95s;
+  border-width: 0.7vmin;
+  border-color: rgb(253 230 138 / 0.8);
+}
+
+.impactRingLatest {
+  animation-delay: 1.38s;
+  animation-duration: 1.05s;
+  border-width: 0.4vmin;
+  border-color: rgb(255 251 235 / 0.7);
+}
+
+@keyframes impactRing {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.06);
+  }
+  100% {
+    opacity: 0;
+    /* 画面の対角より大きくして、輪が枠の外へ抜けていくようにする */
+    transform: scale(7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .impactFlash,
+  .impactRing {
+    animation: none;
+    opacity: 0;
+  }
+}
