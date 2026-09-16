@@ -62,9 +62,9 @@ export function LineDeleteControls({
         className="w-full"
         disabled={!canConfirm}
         onClick={onConfirm}
-        // カメラの手で押せるようにする印（#49 の HandPointer が見る）。
-        // これが無いと、行は手で選べても削除はマウスでしか押せない
-        data-hand-target="confirm-delete"
+        // 指を止めて確定したときに、カメラ操作がこのボタンを押す（HandPointer）。
+        // 盤面が縦に長いとボタンは画面の外なので、指では直接狙えない
+        data-hand-confirm=""
       >
         {isSubmitting ? "判定中..." : "この行を削除する"}
       </Button>

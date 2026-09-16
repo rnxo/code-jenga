@@ -213,7 +213,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
     // 盤面はコードの行幅に合わせて広がるので、他の画面より広めに取る。
     // さらに広い画面では、タワーとコードを横に2つ並べるぶんの幅を許す。
     return (
-      <main className="mx-auto w-full max-w-4xl px-4 py-12 xl:max-w-7xl">
+      <main className="mx-auto flex h-dvh w-full max-w-4xl flex-col px-4 py-6 xl:max-w-7xl [@media(max-height:700px)]:py-3">
         <GameBoard gameId={game.id} currentUserId={userId} />
       </main>
     );
@@ -221,7 +221,8 @@ export default async function RoomPage({ params }: RoomPageProps) {
 
   // status: 'finished' | 'aborted'
   return (
-    <main className="mx-auto max-w-md px-4 py-12">
+    // 結果画面は縦スクロール無しで収めたいので、上下の余白は控えめにする
+    <main className="mx-auto max-w-md px-4 py-6 [@media(max-height:700px)]:py-3">
       <ResultPanel
         game={game}
         loserNickname={loserNickname}

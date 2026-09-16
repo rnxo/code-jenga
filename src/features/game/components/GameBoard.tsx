@@ -92,7 +92,8 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    // min-h-0 が無いと、中身が縮まずに画面の外へ伸びる（flex の既定は min-height: auto）
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <TurnIndicator game={game} isMyTurn={isMyTurn} />
       {/*
        * 3D タワーは「見せ場」担当。行の選択は下の CodeViewer と同じ state を共有するので、

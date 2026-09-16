@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import styles from "./HandPointer.module.css";
 import {
-  consumePinch,
-  resetPinch,
+  advanceDwell,
+  consumeDwell,
+  resetDwell,
   getServerStatusSnapshot,
   getStatusSnapshot,
   isHandTrackingSupported,
@@ -22,25 +23,11 @@ import {
 // どの行をねらっているかは onAim で親へ返し、親がハイライトを出す。
 // 親指と人差し指をつまんだまま少し待つと onCommit（＝その行を選ぶ）。
 //
-// 指の位置は毎フレーム変わるので、カーソルの移動は ref 経由で直接書く。
-// React の state に載せると 3D タワーごと毎フレーム描き直しになる。
-//
-// 1手を手だけで終えられるようにしてある。
-//   1回目のつまみ … その行を選ぶ
-//   選んだ行をもう一度つまむ … 削除を確定する
-// 確定は「この行を削除する」ボタンを実際に押す形にしている。ボタンは縛りや
-// 送信中で disabled になるので、その判断をこちらで持たずに済む。
-//
-// ボタンを直接つまむこともできるが、盤面が縦に長いとボタンは画面の外にあり、
-// 指先は画面の中しか指せない。だから「選んだ行をもう一度つまむ」が主な道。
 
 /** 木片が自分の行番号を名乗る属性。JengaTower 側で付けている */
 export const LINE_NO_ATTRIBUTE = "data-line-no";
-/**
- * つまんで押せるボタンの印。
- * 行を選んだあとの「この行を削除する」まで手で辿り着けるようにするためのもの。
- */
-export const HAND_TARGET_ATTRIBUTE = "data-hand-target";
+/** 「この行を削除する」ボタンの印。LineDeleteControls 側で付けている */
+export const CONFIRM_ATTRIBUTE = "data-hand-confirm";
 
 /** 値が変わらないものを useSyncExternalStore で読むための、何もしない購読 */
 const EMPTY_SUBSCRIBE = () => () => {};
@@ -60,6 +47,8 @@ export function HandPointer({ onAim, onCommit, disabled = false }: HandPointerPr
   const cursorRef = useRef<HTMLDivElement>(null);
   /** 直前に返した行番号。同じ行のあいだは親を再描画しない */
   const aimedRef = useRef<number | null>(null);
+  /** いま色を塗っている木片。別のものへ移ったら消しに戻る */
+  const dwelledRef = useRef<HTMLElement | null>(null);
 
   // カメラの有無はブラウザにしか分からない。描画中に navigator を覗かずに済むよう、
   // 外部ストアとして読む（サーバー側は false ＝ボタンを出さない）。
@@ -85,58 +74,55 @@ export function HandPointer({ onAim, onCommit, disabled = false }: HandPointerPr
     const cursor = cursorRef.current;
 
     if (disabledRef.current) {
-      if (cursor) {
-        cursor.dataset.visible = "false";
-      }
-      // ねらわせない間につまみ時間を溜めない。溜めたままだと、手番が戻った
-      // 最初のフレームで、たまたま指が乗っている行が猶予なしに選ばれる
-      resetPinch();
-      report(aimedRef, onAimRef, null);
+      // ねらわせない間は数えない。溜めたままだと、手番が戻った最初の
+      // フレームで、たまたま指が乗っている行が猶予なしに消える
+      resetDwell();
+      clearAim(cursor, aimedRef, dwelledRef, onAimRef);
       return;
     }
 
     if (!frame.visible) {
-      // 手を見失っただけ。ここでためを捨てると、検出が一瞬すべるたびに
-      // 振り出しに戻る。猶予の判断は hand-tracking 側が持っている
-      if (cursor) {
-        cursor.dataset.visible = "false";
-      }
-      report(aimedRef, onAimRef, null);
+      // 手を見失っただけ。ここで捨てると、検出が一瞬すべるたびに振り出しに
+      // 戻る。猶予の判断は advanceDwell 側が持っている
+      advanceDwell(null, 0, 0, performance.now());
+      clearAim(cursor, aimedRef, dwelledRef, onAimRef);
       return;
     }
 
+    const piece = pieceAt(frame.x, frame.y);
+    const progress = advanceDwell(
+      piece === null ? null : String(piece.lineNo),
+      frame.x,
+      frame.y,
+      performance.now(),
+    );
+
     if (cursor) {
       cursor.dataset.visible = "true";
-      cursor.dataset.pinching = String(frame.pinching);
+      cursor.dataset.target = piece === null ? "none" : "line";
       cursor.style.transform = `translate3d(${frame.x}px, ${frame.y}px, 0)`;
-      cursor.style.setProperty("--hold", String(frame.holdProgress));
+      cursor.style.setProperty("--dwell", String(progress));
     }
 
-    const target = targetAt(frame.x, frame.y);
-    report(aimedRef, onAimRef, target.kind === "line" ? target.lineNo : null);
-
-    if (cursor) {
-      // 次につまんだら何が起きるかで色を変える。
-      // confirm ＝ もう一度つまむと消える、select ＝ 選ぶだけ
-      cursor.dataset.target =
-        target.kind === "button" || (target.kind === "line" && target.isSelected)
-          ? "confirm"
-          : target.kind === "line"
-            ? "select"
-            : "none";
+    // 別の木片へ移ったら、前の木片の色を消す
+    if (dwelledRef.current && dwelledRef.current !== piece?.element) {
+      paintDwell(dwelledRef.current, null);
+      dwelledRef.current = null;
+    }
+    if (piece) {
+      dwelledRef.current = piece.element;
+      paintDwell(piece.element, progress);
     }
 
-    // つまみ切ったら決定。指を離すまで二度目は走らない
-    if (target.kind !== "none" && frame.pinching && frame.holdProgress >= 1) {
-      consumePinch();
-      if (target.kind === "button") {
-        target.button.click();
-      } else if (target.isSelected) {
-        // 選んだ行をもう一度つまんだ ＝ 削除の確定
-        pressConfirmButton();
-      } else {
-        onCommitRef.current(target.lineNo);
-      }
+    report(aimedRef, onAimRef, piece?.lineNo ?? null);
+
+    // 満ちたら削除。その場から離れるまで二度目は走らない
+    if (piece !== null && progress >= 1) {
+      consumeDwell();
+      paintDwell(piece.element, null);
+      // 先に行を選ぶ。ボタンが押せるようになるのを待ってから確定する
+      onCommitRef.current(piece.lineNo);
+      pressConfirmButton();
     }
   }, []);
 
@@ -192,7 +178,7 @@ export function HandPointer({ onAim, onCommit, disabled = false }: HandPointerPr
           {/* 映像は「カメラが生きている」ことを本人に見せるために出す。小さく鏡写しにする */}
           <div className={styles.preview} data-active={isRunning}>
             <video ref={videoRef} className={styles.video} playsInline muted />
-            {isRunning ? <p className={styles.previewHint}>つまむ→選ぶ／もう一度→削除</p> : null}
+            {isRunning ? <p className={styles.previewHint}>指を止めると削除</p> : null}
           </div>
 
           {/* 指先。ポインタを通さないので、下の木片は普通にクリックできる */}
@@ -205,6 +191,21 @@ export function HandPointer({ onAim, onCommit, disabled = false }: HandPointerPr
       )}
     </>
   );
+}
+
+/** 狙いを解く。カーソルを隠し、塗っていた木片の色も消す */
+function clearAim(
+  cursor: HTMLElement | null,
+  aimedRef: { current: number | null },
+  dwelledRef: { current: HTMLElement | null },
+  onAimRef: { current: (lineNo: number | null) => void },
+) {
+  if (cursor) {
+    cursor.dataset.visible = "false";
+  }
+  paintDwell(dwelledRef.current, null);
+  dwelledRef.current = null;
+  report(aimedRef, onAimRef, null);
 }
 
 /** 変わったときだけ親に伝える。毎フレーム呼ぶと盤面が描き直しになる */
@@ -220,45 +221,53 @@ function report(
   onAimRef.current(lineNo);
 }
 
-type HandTarget =
-  | { kind: "line"; lineNo: number; isSelected: boolean }
-  | { kind: "button"; button: HTMLElement }
-  | { kind: "none" };
-
-/** その座標にあるもの。木片か、手で押せる印のついたボタンか、どちらでもないか */
-function targetAt(x: number, y: number): HandTarget {
-  const element = document.elementFromPoint(x, y);
-  if (!element) {
-    return { kind: "none" };
-  }
-
-  // ボタンを先に見る。ボタンが木片の上に重なっている場面は無いが、
-  // 近い将来そうなっても「押す」が優先されるほうが迷わない
-  const button = element.closest<HTMLElement>(`[${HAND_TARGET_ATTRIBUTE}]`);
-  if (button) {
-    return { kind: "button", button };
-  }
-
-  const piece = element.closest(`[${LINE_NO_ATTRIBUTE}]`);
-  const raw = piece?.getAttribute(LINE_NO_ATTRIBUTE);
-  if (!piece || !raw) {
-    return { kind: "none" };
+/** その座標にある木片。木片の上でなければ null */
+function pieceAt(x: number, y: number): { element: HTMLElement; lineNo: number } | null {
+  const element = document
+    .elementFromPoint(x, y)
+    ?.closest<HTMLElement>(`[${LINE_NO_ATTRIBUTE}]`);
+  const raw = element?.getAttribute(LINE_NO_ATTRIBUTE);
+  if (!element || !raw) {
+    return null;
   }
   const lineNo = Number.parseInt(raw, 10);
-  if (Number.isNaN(lineNo)) {
-    return { kind: "none" };
-  }
-  // 木片自身が「選ばれているか」を知っている（aria-pressed）ので、
-  // 選択中の行かどうかを外から渡してもらう必要がない
-  return { kind: "line", lineNo, isSelected: piece.getAttribute("aria-pressed") === "true" };
+  return Number.isNaN(lineNo) ? null : { element, lineNo };
 }
+
+/** ボタンが押せるようになるのを待つ上限。これを過ぎたら諦める */
+const CONFIRM_WAIT_MS = 300;
 
 /**
  * 「この行を削除する」を押す。画面の外にあっても押せる。
- * 縛りや送信中は disabled なので、click しても何も起きない（その判断はボタン側に任せる）。
+ *
+ * 削除できるかどうか（縛り・送信中）はボタンの disabled が持っているので、
+ * click するだけにして、その判断をこちらで抱えない。
+ *
+ * 行を選んだ直後は、React がまだ描き直しておらずボタンが disabled のことが
+ * ある。数フレームだけ待って押す。縛りで本当に押せない行なら、待っても
+ * disabled のままなので、そのまま諦める（連打にはならない）。
  */
-function pressConfirmButton(): void {
-  document
-    .querySelector<HTMLElement>(`[${HAND_TARGET_ATTRIBUTE}="confirm-delete"]`)
-    ?.click();
+function pressConfirmButton(startedAt = performance.now()): void {
+  const button = document.querySelector<HTMLButtonElement>(`[${CONFIRM_ATTRIBUTE}]`);
+  if (button && !button.disabled) {
+    button.click();
+    return;
+  }
+  if (performance.now() - startedAt < CONFIRM_WAIT_MS) {
+    requestAnimationFrame(() => pressConfirmButton(startedAt));
+  }
+}
+
+/** 木片に溜まり具合を書く。消すときは null を渡す */
+function paintDwell(element: HTMLElement | null, progress: number | null): void {
+  if (!element) {
+    return;
+  }
+  if (progress === null) {
+    element.style.removeProperty("--dwell");
+    delete element.dataset.dwelling;
+    return;
+  }
+  element.dataset.dwelling = "true";
+  element.style.setProperty("--dwell", String(progress));
 }
