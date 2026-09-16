@@ -45,7 +45,13 @@ export interface CodeViewerProps {
   onSelectLine: (lineNo: number) => void;
 }
 
-const MAX_HEIGHT_PX = 640;
+/*
+ * Monaco はコードの全部の行ぶんの高さで描く。中でスクロールさせない。
+ *
+ * 中でスクロールすると、横に並んだ 3D タワーとの行のずれが直せない
+ * （あちらはスクロールしないため）。長いコードは、外側の BoardStack が
+ * タワーごとまとめてスクロールする。
+ */
 const RIGHT_PADDING_PX = 24;
 
 interface EditorSize {
@@ -73,11 +79,8 @@ export function CodeViewer({
           contentLeft + editor.getContentWidth() + RIGHT_PADDING_PX,
         ),
 
-        // コードが長くても最大高さを超えないようにする。
-        height: Math.min(
-          MAX_HEIGHT_PX,
-          Math.ceil(editor.getContentHeight()),
-        ),
+        // 全部の行が入る高さ。スクロールは外側に任せる。
+        height: Math.ceil(editor.getContentHeight()),
       };
 
       // サイズが変わっていない場合は不要な再レンダーを避ける。

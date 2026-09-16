@@ -9,6 +9,19 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+
+  /*
+   * 余った高さを受け取り、入り切らないぶんはここでスクロールする。
+   * ページごと伸びると、上に置いた削除ボタンや判定まで流れていってしまう。
+   *
+   * min-height: 0 が要るのは、flex の子の既定が min-height: auto で、
+   * 中身の高さぶんだけ膨らんでしまうため。
+   */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /* 横は切らない。長い行はコード側が自分で横スクロールする */
+  overflow-x: visible;
 }
 
 .pane {
@@ -68,9 +81,4 @@
     display: none;
   }
 
-  /* 並べたときに 2D 側が上に張り付かないよう、高さの基準を揃える */
-  .pane[data-pane="code"] {
-    position: sticky;
-    top: 1rem;
-  }
 }
