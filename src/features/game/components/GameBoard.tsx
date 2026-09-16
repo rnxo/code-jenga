@@ -9,6 +9,7 @@ import { DEFAULT_LANGUAGE } from "@/lib/shared/language";
 import { useGameRealtime } from "../hooks/useGameRealtime";
 import { useGameTimeout } from "../hooks/useGameTimeout";
 import { useLineSelection } from "../hooks/useLineSelection";
+import { useSabotage } from "../hooks/useSabotage";
 import { GameBoardMascot } from "./GameBoardMascot";
 import { GameBoardPlayfield } from "./GameBoardPlayfield";
 import { TurnIndicator } from "./TurnIndicator";
@@ -52,6 +53,8 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
     difficulty,
     language,
   );
+  // 相手の手番に「邪魔する」で相手のタワーを回す。1ターン1回なので turn_no を渡す
+  const sabotage = useSabotage(gameId, currentUserId, game?.turn_no ?? 0);
 
   if (isLoading) {
     return <Spinner label="盤面を読み込み中..." />;
@@ -111,6 +114,11 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
         onSelectLine={selectLine}
         onConfirmDelete={handleDeleteLine}
         verdict={latestTurn === null ? null : latestTurn.player_id === currentUserId ? "lose" : "win"}
+        sabotage={sabotage.incident}
+        canSabotage={sabotage.canSend}
+        sabotageUsedThisTurn={sabotage.usedThisTurn}
+        sabotageError={sabotage.sendError}
+        onSabotage={sabotage.send}
       />
       {/* 誤爆しにくいよう一番下に小さく置く */}
       {leaveError ? (
@@ -127,6 +135,7 @@ export function GameBoard({ gameId, currentUserId }: GameBoardProps) {
         latestTurnResult={latestTurn?.result ?? null}
         latestTurnByMe={latestTurn?.player_id === currentUserId}
         turnNo={game.turn_no}
+        sabotage={sabotage.incident}
       />
     </div>
   );

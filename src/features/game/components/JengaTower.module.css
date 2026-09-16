@@ -16,7 +16,10 @@
   /* 崩壊の光は奥から差すので、木片より手前に来ないようにする */
   z-index: 1;
   transform-style: preserve-3d;
-  transform: perspective(1500px) rotateX(var(--rx)) rotateY(var(--ry));
+  /* --spin は妨害（おせっかいくんが回す）ぶん。JS が rAF で毎フレーム直接書く。
+     ユーザーのドラッグ（--ry）とは別の変数にして加算するので、回されている最中でも
+     ドラッグで取り返せる（お互いを上書きしない） */
+  transform: perspective(1500px) rotateX(var(--rx)) rotateY(calc(var(--ry) + var(--spin, 0deg)));
   transform-origin: 50% 45%;
   /*
    * 行数が多すぎるお題（Brainfuck は 15〜50 行）でタワーが画面を突き抜けないよう縮める。
@@ -46,12 +49,13 @@
 
 /* 手を離しているあいだは、ゆっくり息をするように揺れる */
 @keyframes breathe {
+  /* --spin を足しておかないと、手を離しているあいだの妨害回転がこの揺れに上書きされる */
   0%,
   100% {
-    transform: rotateX(var(--rx)) rotateY(calc(var(--ry) - 2.5deg));
+    transform: rotateX(var(--rx)) rotateY(calc(var(--ry) + var(--spin, 0deg) - 2.5deg));
   }
   50% {
-    transform: rotateX(var(--rx)) rotateY(calc(var(--ry) + 2.5deg));
+    transform: rotateX(var(--rx)) rotateY(calc(var(--ry) + var(--spin, 0deg) + 2.5deg));
   }
 }
 
@@ -269,6 +273,100 @@
 
 .resetButton:hover {
   color: #fbbf24;
+}
+
+/* ------------------------------------------------------------------
+   妨害。おせっかいくんが右から走ってきてタワーを掴んで回し、去っていく。
+   タワーの回転そのもの（--spin）は JS が rAF で書く。ここはキャラの動きだけ。
+   時間は sabotage.ts の SABOTAGE_SCENE_MS（3.2s）と合わせる。
+   ------------------------------------------------------------------ */
+.sabotageMascot {
+  position: absolute;
+  /* タワー（max-width 30rem・中央寄せ）の右脇。狭い画面では右端に寄る */
+  right: max(0px, calc(50% - 17.5rem));
+  top: 40%;
+  z-index: 2;
+  width: 4rem;
+  height: 4rem;
+  object-fit: contain;
+  /* 左向きに走るので絵を反転する */
+  transform: scaleX(-1) translateX(-220%);
+  filter: drop-shadow(0 6px 10px rgb(28 25 23 / 0.35));
+  pointer-events: none;
+  user-select: none;
+  animation: sabotageRun 3.2s linear forwards;
+}
+
+/* 絵文字の代用（画像が 404 のとき） */
+.sabotageMascotEmoji {
+  display: grid;
+  place-items: center;
+  font-size: 2.75rem;
+  line-height: 1;
+}
+
+@keyframes sabotageRun {
+  /* 登場: 右の外から走ってくる */
+  0% {
+    opacity: 0;
+    transform: scaleX(-1) translateX(-220%) translateY(0);
+  }
+  4% {
+    opacity: 1;
+  }
+  16% {
+    transform: scaleX(-1) translateX(0) translateY(0);
+  }
+  /* 掴んで回している: 力を入れて小刻みに揺れる */
+  20% {
+    transform: scaleX(-1) translateX(0) translateY(-6px) rotate(-8deg);
+  }
+  30% {
+    transform: scaleX(-1) translateX(-6%) translateY(2px) rotate(6deg);
+  }
+  40% {
+    transform: scaleX(-1) translateX(0) translateY(-6px) rotate(-8deg);
+  }
+  50% {
+    transform: scaleX(-1) translateX(-6%) translateY(2px) rotate(6deg);
+  }
+  60% {
+    transform: scaleX(-1) translateX(0) translateY(-6px) rotate(-8deg);
+  }
+  70% {
+    transform: scaleX(-1) translateX(-6%) translateY(2px) rotate(6deg);
+  }
+  80% {
+    transform: scaleX(-1) translateX(0) translateY(0) rotate(0deg);
+  }
+  /* 退場: 来た方へ逃げる */
+  88% {
+    opacity: 1;
+    transform: scaleX(1) translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1) translateX(220%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 走らせない。タワー脇に出て、消えるだけ */
+  .sabotageMascot {
+    animation: sabotageStill 3.2s linear forwards;
+    transform: scaleX(-1);
+  }
+}
+
+@keyframes sabotageStill {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  10%,
+  85% {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -12,6 +12,8 @@ const SITUATIONS: MascotSituation[] = [
   "safe_mine",
   "safe_opponent",
   "idle",
+  "sabotaged",
+  "sabotaging",
   "title",
 ];
 

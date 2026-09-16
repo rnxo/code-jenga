@@ -16,6 +16,7 @@ import {
   PIECE_HEIGHT_PX,
 } from "../board-metrics";
 import { playCollapseSound } from "../collapse-sound";
+import { SPIN_DURATION_MS, spinAngleAt, type SabotageIncident } from "../sabotage";
 import {
   getServerSoundMuted,
   isSoundMuted,
@@ -182,6 +183,11 @@ export interface JengaTowerProps {
    * selectedLineNo（確定した選択）とは別で、こちらは「いまここを指している」の下見。
    */
   aimedLineNo?: number | null;
+  /**
+   * 進行中の妨害。渡されるとおせっかいくんが走ってきてタワーを一回転させる。
+   * id が変わるたびに新しい演出として始める。null なら何もしない。
+   */
+  sabotage?: SabotageIncident | null;
 }
 
 export function JengaTower({
@@ -196,8 +202,45 @@ export function JengaTower({
   lineAligned = false,
   maxHeightPx = null,
   aimedLineNo,
+  sabotage = null,
 }: JengaTowerProps) {
   const lines = code.length > 0 ? code.split("\n") : [];
+  const towerRef = useRef<HTMLDivElement | null>(null);
+  /** 妨害キャラの画像が読めなかったら絵文字で代用する（Mascot.tsx と同じ流儀） */
+  const [mascotImageFailed, setMascotImageFailed] = useState(false);
+  const sabotageId = sabotage?.id ?? null;
+  const sabotageSeed = sabotage?.seed ?? 0;
+
+  // 妨害の回転。--spin を rAF で毎フレーム直接書く。
+  // React の state に載せると全木片が 60fps で描き直しになる（--dwell と同じ理由）。
+  // ユーザーの --ry とは別変数なので、回されている最中にドラッグしても取り合いにならない。
+  useEffect(() => {
+    const tower = towerRef.current;
+    // 崩れているときは回さない（tumble と重ねると何が起きたか分からなくなる）
+    if (sabotageId === null || tower === null || collapsed) {
+      return;
+    }
+    // 動きを控えたい設定では回さない（キャラは CSS 側で静かに出る）
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+    const startedAt = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const elapsed = now - startedAt;
+      if (elapsed >= SPIN_DURATION_MS) {
+        tower.style.setProperty("--spin", "0deg");
+        return;
+      }
+      tower.style.setProperty("--spin", `${spinAngleAt(elapsed, sabotageSeed).toFixed(2)}deg`);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      tower.style.setProperty("--spin", "0deg");
+    };
+  }, [sabotageId, sabotageSeed, collapsed]);
 
   // ドラッグで回す。文字が読めなくなるところまでは倒せないようにする。
   //
@@ -383,7 +426,29 @@ export function JengaTower({
         </div>
       ) : null}
 
+      {/* 妨害中のおせっかいくん。key を id にして、連続で来ても走り直す */}
+      {sabotage !== null && !collapsed ? (
+        mascotImageFailed ? (
+          <span key={sabotage.id} aria-hidden className={`${styles.sabotageMascot} ${styles.sabotageMascotEmoji}`}>
+            😏
+          </span>
+        ) : (
+          // 小さな固定画像なので next/image の最適化は使わない
+          <img
+            key={sabotage.id}
+            aria-hidden
+            src="/images/mascot/smug.gif"
+            alt=""
+            width={64}
+            height={64}
+            className={styles.sabotageMascot}
+            onError={() => setMascotImageFailed(true)}
+          />
+        )
+      ) : null}
+
       <div
+        ref={towerRef}
         className={towerClassName}
         style={
           {

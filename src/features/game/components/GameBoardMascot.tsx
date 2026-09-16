@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTurnTimer } from "../hooks/useTurnTimer";
 import { pickMascotLine, type MascotLine, type MascotSituation } from "../mascot-lines";
+import type { SabotageIncident } from "../sabotage";
 import { Mascot } from "./Mascot";
 
 const MASCOT_HURRY_SECONDS = 10;
@@ -16,6 +17,8 @@ interface GameBoardMascotProps {
   latestTurnResult: "safe" | "out" | "timeout" | null;
   latestTurnByMe: boolean;
   turnNo: number;
+  /** 進行中の妨害。null なら無し */
+  sabotage?: SabotageIncident | null;
 }
 
 export function GameBoardMascot({
@@ -26,6 +29,7 @@ export function GameBoardMascot({
   latestTurnResult,
   latestTurnByMe,
   turnNo,
+  sabotage = null,
 }: GameBoardMascotProps) {
   const remainingSeconds = useTurnTimer(turnDeadlineAt);
   const [idleTick, setIdleTick] = useState(0);
@@ -42,8 +46,10 @@ export function GameBoardMascot({
     latestTurnResult,
     latestTurnByMe,
     idleTick,
+    sabotage,
   });
-  const mascotKey = `${situation}:${turnNo}:${idleTick}`;
+  // 妨害は同じ状況でも回ごとにセリフを引き直したいので id を混ぜる
+  const mascotKey = `${situation}:${turnNo}:${idleTick}:${sabotage?.id ?? 0}`;
   const [mascot, setMascot] = useState<{ key: string; line: MascotLine } | null>(null);
   if (mascot === null || mascot.key !== mascotKey) {
     setMascot({ key: mascotKey, line: pickMascotLine(situation, mascot?.line.message ?? null) });
@@ -53,7 +59,7 @@ export function GameBoardMascot({
   return <Mascot message={mascotLine.message} mood={mascotLine.mood} />;
 }
 
-interface MascotContext {
+export interface MascotContext {
   isMyTurn: boolean;
   isSelected: boolean;
   isBlocked: boolean;
@@ -61,10 +67,13 @@ interface MascotContext {
   latestTurnResult: "safe" | "out" | "timeout" | null;
   latestTurnByMe: boolean;
   idleTick: number;
+  sabotage: SabotageIncident | null;
 }
 
-function resolveMascotSituation(ctx: MascotContext): MascotSituation {
+export function resolveMascotSituation(ctx: MascotContext): MascotSituation {
+  // 残り時間がわずかなら、邪魔されていても急かすほうを優先する
   if (ctx.isMyTurn && ctx.isHurrying) return "hurry";
+  if (ctx.sabotage !== null) return ctx.sabotage.byMe ? "sabotaging" : "sabotaged";
   if (ctx.isMyTurn && ctx.isBlocked) return "blocked";
   if (ctx.isMyTurn && ctx.isSelected) return "selected";
   if (ctx.idleTick > 0 && ctx.idleTick % 2 === 1) return "idle";
