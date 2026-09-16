@@ -1,13 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import type { CodeLanguage } from "@/types/game";
 import { LANGUAGE_LABEL, SUPPORTED_LANGUAGES } from "@/lib/shared/language";
+import { BrainfuckLecturePopup } from "./BrainfuckLecturePopup";
 
 // ロビーでの実行言語の選択。担当: FE-A
 //
 // ホストだけが切り替えられ、参加者には現在の言語を表示するだけにする。
 // 押せそうな見た目の disabled ボタンを参加者に見せるより、最初から表示専用にした方が誤解が少ない。
 // 選択結果は games.language に保存され、Realtime の games UPDATE で全員へ同期される。
+// Brainfuck が選ばれているときは、ホスト・参加者を問わず講義コード（BrainfuckLecturePopup）を開けるボタンを出す。
 
 export interface LanguageSelectorProps {
   language: CodeLanguage;
@@ -19,6 +22,8 @@ export interface LanguageSelectorProps {
 }
 
 export function LanguageSelector({ language, isHost, disabled, onChange, errorMessage }: LanguageSelectorProps) {
+  const [isLectureOpen, setIsLectureOpen] = useState(false);
+
   return (
     <div>
       <p className="mb-2 font-mono text-[10px] tracking-[0.2em] text-gray-500 uppercase">language</p>
@@ -51,6 +56,17 @@ export function LanguageSelector({ language, isHost, disabled, onChange, errorMe
           <span className="shrink-0 text-[10px] tracking-[0.15em] text-black/50 uppercase">host&apos;s pick</span>
         </div>
       )}
+
+      {language === "brainfuck" ? (
+        <button
+          type="button"
+          onClick={() => setIsLectureOpen(true)}
+          className="mt-2 flex h-9 w-full cursor-pointer items-center justify-center rounded-sm border border-amber-600/60 bg-transparent px-3 font-mono text-xs tracking-[0.1em] text-amber-700 transition hover:bg-amber-600/10 dark:text-amber-400"
+        >
+          Brainfuck の講義コードを見る
+        </button>
+      ) : null}
+      <BrainfuckLecturePopup isOpen={isLectureOpen} onClose={() => setIsLectureOpen(false)} />
 
       {errorMessage ? (
         <p className="mt-2 rounded-md border border-red-300 bg-red-50/60 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
