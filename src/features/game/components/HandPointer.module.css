@@ -118,6 +118,19 @@
   background: #7c2d12;
 }
 
+/* もう一度つまむと消える場所（選択中の行・削除ボタン）では赤くする */
+.cursor[data-target="confirm"] .cursorRing {
+  border-color: rgb(185 28 28 / 0.55);
+}
+
+.cursor[data-target="confirm"][data-pinching="true"] .cursorRing {
+  border-color: #b91c1c;
+}
+
+.cursor[data-target="confirm"] .cursorDot {
+  background: #b91c1c;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cursor {
     transition: none;

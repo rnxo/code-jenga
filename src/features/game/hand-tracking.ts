@@ -25,16 +25,34 @@ const MODEL_URL =
 const ACTIVE_MARGIN = 0.16;
 /** 手ぶれを均す割合。1 に近いほど追従が速く、その分ぶれる */
 const SMOOTHING = 0.35;
-/** 手の大きさに対する指先の距離がこれを下回ったら「つまんだ」とみなす */
+/**
+ * 手の大きさに対する指先の距離が、これを下回ったら「つまんだ」。
+ * 一度つまんだあとは PINCH_RELEASE_RATIO を上回るまで離したと見なさない。
+ *
+ * 入口と出口を分けているのは、しきい値ちょうどで指が震えると
+ * つまむ／離すが高速で入れ替わり、ためが何度も振り出しに戻るため。
+ */
 const PINCH_RATIO = 0.42;
+const PINCH_RELEASE_RATIO = 0.58;
 /** つまみっぱなしで決定になるまでの時間 */
 export const PINCH_HOLD_MS = 700;
+/**
+ * つまみが外れて見えても、この時間までは「取りこぼし」と見なしてためを保つ。
+ *
+ * 検出は毎フレーム確実に当たるわけではない。0.7 秒 = 30fps で 21 フレームを
+ * 全部成功させる必要があると、1 フレームの取りこぼしでも全部やり直しになる。
+ */
+const PINCH_RELEASE_GRACE_MS = 220;
 
 /** MediaPipe のランドマーク番号（21点のうち使うぶんだけ） */
 const WRIST = 0;
 const THUMB_TIP = 4;
+const INDEX_MCP = 5;
 const INDEX_TIP = 8;
 const MIDDLE_MCP = 9;
+const PINKY_MCP = 17;
+/** 手のひらの縦（手首→中指の付け根）は、横（人差し指→小指の付け根）の約 1.25 倍 */
+const PALM_ASPECT = 1.25;
 
 export type HandTrackerStatus = "idle" | "loading" | "running" | "error";
 
@@ -76,6 +94,10 @@ let lastVideoTime = -1;
 let smoothed: { x: number; y: number } | null = null;
 /** つまみ始めた時刻。離したら null に戻す */
 let pinchStartedAt: number | null = null;
+/** つまみが外れて見えはじめた時刻。猶予のうちに戻ってくれば、ためは消さない */
+let pinchReleasedAt: number | null = null;
+/** 直前のフレームでつまんでいたか。入口と出口のしきい値を切り替えるのに使う */
+let wasPinching = false;
 /**
  * 一度確定したつまみ。指を離すまで次を数えない。
  * これが無いと、つまんだまま別の行へ流れたときに 0.7 秒ごとに選び直してしまう。
@@ -253,8 +275,10 @@ function tick() {
 
   if (!hand) {
     smoothed = null;
-    pinchStartedAt = null;
-    emit({ visible: false, x: 0, y: 0, pinching: false, holdProgress: 0 });
+    // 1 フレーム見失っただけでためを捨てない。猶予の判断は advancePinch に任せる
+    // （手を止めていても、検出は時々すべる）
+    const holdProgress = advancePinch(false, performance.now());
+    emit({ visible: false, x: 0, y: 0, pinching: false, holdProgress });
     return;
   }
 
@@ -287,16 +311,32 @@ function tick() {
  * カメラを繋がないと確かめられない部分なので、ここだけ切り出して export している。
  */
 export function advancePinch(pinching: boolean, now: number): number {
-  if (!pinching) {
-    // 指を離した。ここで初めて、次のつまみを数えられるようになる
-    resetPinch();
-    return 0;
+  if (pinching) {
+    pinchReleasedAt = null;
+    if (pinchConsumed) {
+      return 0;
+    }
+    pinchStartedAt ??= now;
+    return Math.min(1, (now - pinchStartedAt) / PINCH_HOLD_MS);
   }
-  if (pinchConsumed) {
-    return 0;
+
+  // ここから「つまんでいないように見える」
+  pinchReleasedAt ??= now;
+
+  if (now - pinchReleasedAt < PINCH_RELEASE_GRACE_MS) {
+    // 取りこぼしかもしれないので、状態は消さずに止めておく。
+    // 確定済み（consumePinch 後）も同じで、1 フレームの取りこぼしを
+    // 「離した」と受け取って二度目を許してしまわないようにする。
+    if (pinchConsumed || pinchStartedAt === null) {
+      return 0;
+    }
+    // 進めもしないので、猶予だけで確定することはない
+    return Math.min(1, (pinchReleasedAt - pinchStartedAt) / PINCH_HOLD_MS);
   }
-  pinchStartedAt ??= now;
-  return Math.min(1, (now - pinchStartedAt) / PINCH_HOLD_MS);
+
+  // 猶予を過ぎた。本当に離したと見なす。ここで初めて次のつまみを数えられる
+  resetPinch();
+  return 0;
 }
 
 /**
@@ -305,6 +345,7 @@ export function advancePinch(pinching: boolean, now: number): number {
  */
 export function consumePinch(): void {
   pinchStartedAt = null;
+  pinchReleasedAt = null;
   pinchConsumed = true;
 }
 
@@ -314,7 +355,9 @@ export function consumePinch(): void {
  */
 export function resetPinch(): void {
   pinchStartedAt = null;
+  pinchReleasedAt = null;
   pinchConsumed = false;
+  wasPinching = false;
 }
 
 /**
@@ -333,18 +376,40 @@ export function toScreenRatio(point: NormalizedLandmark): { x: number; y: number
 }
 
 /**
+ * 手の大きさの見積もり。カメラからの距離が変わっても同じ判定になるよう、
+ * つまみ具合をこれで割る。
+ *
+ * 手首→中指の付け根だけで測ると、画面を指すために手のひらをカメラへ向けた
+ * とたんに、その軸が奥へ倒れて短く写る（見込み）。割る数が小さくなるので
+ * 比が跳ね上がり、ちゃんとつまんでいるのに判定されなくなる。
+ *
+ * 付け根どうしの幅（人差し指→小指）は、手のひらを向けても横を向いたままで
+ * 縮まない。2つのうち長いほうを採る（投影は縮める方向にしか働かないので、
+ * 長いほうが本来の大きさに近い）。
+ */
+export function estimateHandSize(hand: NormalizedLandmark[]): number {
+  const palmLength = distance(hand[WRIST], hand[MIDDLE_MCP]);
+  const knuckleSpan = distance(hand[INDEX_MCP], hand[PINKY_MCP]) * PALM_ASPECT;
+  return Math.max(palmLength, knuckleSpan);
+}
+
+/**
  * つまんでいるかどうか。指先どうしの距離を手の大きさで割って測るので、
  * カメラに近づいても遠ざかっても同じ判定になる。
+ *
+ * 一度つまんだら、はっきり離すまでは「つまんでいる」ままにする（ヒステリシス）。
  *
  * toScreenRatio と同じく、テストから直接確かめられるように export している。
  */
 export function isPinching(hand: NormalizedLandmark[]): boolean {
-  const pinchDistance = distance(hand[THUMB_TIP], hand[INDEX_TIP]);
-  const handSize = distance(hand[WRIST], hand[MIDDLE_MCP]);
+  const handSize = estimateHandSize(hand);
   if (handSize === 0) {
     return false;
   }
-  return pinchDistance / handSize < PINCH_RATIO;
+  const ratio = distance(hand[THUMB_TIP], hand[INDEX_TIP]) / handSize;
+  const threshold = wasPinching ? PINCH_RELEASE_RATIO : PINCH_RATIO;
+  wasPinching = ratio < threshold;
+  return wasPinching;
 }
 
 function distance(a: NormalizedLandmark, b: NormalizedLandmark): number {

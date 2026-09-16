@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   advancePinch,
   consumePinch,
+  estimateHandSize,
   isPinching,
   PINCH_HOLD_MS,
   resetPinch,
@@ -141,14 +142,30 @@ describe("advancePinch", () => {
     expect(advancePinch(true, PINCH_HOLD_MS * 5)).toBe(0);
   });
 
-  it("指を一度離せば、次のつまみは数え直せる", () => {
+  it("指をしっかり離せば、次のつまみは数え直せる", () => {
     advancePinch(true, 0);
     advancePinch(true, PINCH_HOLD_MS);
     consumePinch();
 
+    // 猶予（取りこぼしとの区別）を超えて離す
+    const released = PINCH_HOLD_MS + 400;
     expect(advancePinch(false, PINCH_HOLD_MS + 10)).toBe(0);
-    expect(advancePinch(true, PINCH_HOLD_MS + 20)).toBe(0);
-    expect(advancePinch(true, PINCH_HOLD_MS * 2 + 20)).toBe(1);
+    expect(advancePinch(false, released)).toBe(0);
+
+    // ここから数え直せる
+    expect(advancePinch(true, released + 10)).toBe(0);
+    expect(advancePinch(true, released + 10 + PINCH_HOLD_MS)).toBe(1);
+  });
+
+  it("一瞬だけ離れて見えたくらいでは、確定済みが解けない（連続して消えない）", () => {
+    advancePinch(true, 0);
+    advancePinch(true, PINCH_HOLD_MS);
+    consumePinch();
+
+    // 取りこぼし1フレームぶん（33ms）だけ離れて見えて、すぐ戻る
+    expect(advancePinch(false, PINCH_HOLD_MS + 33)).toBe(0);
+    expect(advancePinch(true, PINCH_HOLD_MS + 66)).toBe(0);
+    expect(advancePinch(true, PINCH_HOLD_MS * 3)).toBe(0);
   });
 
   it("ねらわせない間にリセットすれば、溜めた時間は持ち越さない（#49 レビュー 3）", () => {
@@ -160,5 +177,150 @@ describe("advancePinch", () => {
 
     // 手番が戻った最初のフレームで、いきなり確定しない
     expect(advancePinch(true, PINCH_HOLD_MS * 0.95)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 「つまんでいるのに反応しない」を防ぐための回帰。
+// 実機で弱いと言われたのは、次の2つが重なっていたため。
+//   1. 画面を指すと手のひらがカメラを向き、手首→中指の付け根が短く写って
+//      比が跳ね上がる（見込み）
+//   2. 0.7 秒のためが「21 フレーム連続成功」を要求していて、1 フレームの
+//      取りこぼしで全部やり直しになる
+// ---------------------------------------------------------------------------
+
+/**
+ * 手のひらをカメラへ tilt 度ぶん向けた手。
+ * 向けるほど、手首→中指の付け根だけが短く写る（横幅は変わらない）。
+ */
+function tiltedHand(tiltDeg: number, pinchGap: number): NormalizedLandmark[] {
+  const landmarks = Array.from({ length: 21 }, () => point(0, 0));
+  const palm = 0.22 * Math.cos((tiltDeg * Math.PI) / 180);
+  landmarks[0] = point(0.5, 0.5 + palm); // 手首
+  landmarks[9] = point(0.5, 0.5); // 中指の付け根
+  landmarks[5] = point(0.5 - 0.085, 0.51); // 人差し指の付け根
+  landmarks[17] = point(0.5 + 0.085, 0.51); // 小指の付け根
+  landmarks[4] = point(0.5 - pinchGap / 2, 0.42); // 親指の先
+  landmarks[8] = point(0.5 + pinchGap / 2, 0.42); // 人差し指の先
+  return landmarks;
+}
+
+describe("手のひらをカメラに向けても、つまみ判定が効く", () => {
+  beforeEach(() => {
+    resetPinch();
+  });
+
+  it("画面を指す角度（0〜70度）のどこでも、つまめば反応する", () => {
+    for (const tilt of [0, 30, 45, 60, 70]) {
+      for (const gap of [0.02, 0.04]) {
+        resetPinch();
+        expect(isPinching(tiltedHand(tilt, gap)), `傾き${tilt}度 / すきま${gap}`).toBe(true);
+      }
+    }
+  });
+
+  it("手を開いていれば、どの角度でも反応しない（誤爆しない）", () => {
+    for (const tilt of [0, 30, 45, 60, 70]) {
+      resetPinch();
+      expect(isPinching(tiltedHand(tilt, 0.14)), `傾き${tilt}度`).toBe(false);
+    }
+  });
+
+  it("手の大きさの見積もりは、手のひらを向けても大きく崩れない", () => {
+    const sizes = [0, 30, 45, 60, 70].map((tilt) => estimateHandSize(tiltedHand(tilt, 0.03)));
+    const min = Math.min(...sizes);
+    const max = Math.max(...sizes);
+    // 見込みで縮むのを横幅で補うので、端から端まで 1.1 倍以内に収まる
+    expect(max / min).toBeLessThan(1.1);
+  });
+
+  it("しきい値ちょうどで震えても、つまむ／離すが高速で入れ替わらない", () => {
+    resetPinch();
+    // 入口を少し下回ってつまむ
+    expect(isPinching(tiltedHand(0, 0.085))).toBe(true);
+    // 少し戻した程度では離したことにしない（ヒステリシス）
+    expect(isPinching(tiltedHand(0, 0.1))).toBe(true);
+    // はっきり開けば離れる
+    expect(isPinching(tiltedHand(0, 0.16))).toBe(false);
+  });
+});
+
+describe("検出が時々すべっても、ためが振り出しに戻らない", () => {
+  beforeEach(() => {
+    resetPinch();
+  });
+
+  /** 30fps で dropRate の割合だけ取りこぼしながら、指をつまみ続ける */
+  function holdWithDrops(dropRate: number, seconds: number, seed: number): boolean {
+    let random = seed;
+    const next = () => {
+      // 再現できる疑似乱数（テストを揺らさない）
+      random = (random * 1664525 + 1013904223) % 4294967296;
+      return random / 4294967296;
+    };
+    const frames = Math.round(seconds * 30);
+    for (let frame = 0; frame < frames; frame += 1) {
+      const detected = next() >= dropRate;
+      if (advancePinch(detected, (frame / 30) * 1000) >= 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  it("2割取りこぼしても、2秒つまみ続ければ確定する", () => {
+    for (let seed = 1; seed <= 30; seed += 1) {
+      resetPinch();
+      expect(holdWithDrops(0.2, 2, seed), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it("本当に指を離したら、猶予を過ぎた時点でためは消える", () => {
+    resetPinch();
+    const at = PINCH_HOLD_MS * 0.6;
+    advancePinch(true, 0);
+    expect(advancePinch(true, at)).toBeCloseTo(0.6, 5);
+
+    // 離れて見えた瞬間の値で止まる（そこから先は進まない）
+    expect(advancePinch(false, at)).toBeCloseTo(0.6, 5);
+    expect(advancePinch(false, at + 100)).toBeCloseTo(0.6, 5);
+    // 猶予を過ぎたら消える
+    expect(advancePinch(false, at + 400)).toBe(0);
+  });
+
+  it("猶予だけでためが満ちることはない（手を離したのに確定しない）", () => {
+    resetPinch();
+    advancePinch(true, 0);
+    advancePinch(true, PINCH_HOLD_MS * 0.95);
+    // ここで離す。猶予のあいだ何度呼んでも 1 には届かない
+    for (const t of [10, 50, 100, 150, 210]) {
+      expect(advancePinch(false, PINCH_HOLD_MS * 0.95 + t)).toBeLessThan(1);
+    }
+  });
+
+  it("確定したあとは、猶予の中で指が震えても二度目が走らない", () => {
+    resetPinch();
+    advancePinch(true, 0);
+    expect(advancePinch(true, PINCH_HOLD_MS)).toBe(1);
+    consumePinch();
+
+    expect(advancePinch(false, PINCH_HOLD_MS + 50)).toBe(0);
+    expect(advancePinch(true, PINCH_HOLD_MS + 100)).toBe(0);
+    expect(advancePinch(true, PINCH_HOLD_MS * 3)).toBe(0);
+  });
+
+  it("確定したあと、しっかり離してからつまめば、次の行を選べる", () => {
+    resetPinch();
+    advancePinch(true, 0);
+    advancePinch(true, PINCH_HOLD_MS);
+    consumePinch();
+
+    // 猶予は「離れて見えはじめてから」数えるので、そのあいだも毎フレーム届く
+    const released = PINCH_HOLD_MS + 500;
+    advancePinch(false, released);
+    advancePinch(false, released + 300);
+
+    expect(advancePinch(true, released + 310)).toBe(0);
+    expect(advancePinch(true, released + 310 + PINCH_HOLD_MS)).toBe(1);
   });
 });
