@@ -9,6 +9,12 @@ import {
   type PointerEvent,
 } from "react";
 import styles from "./JengaTower.module.css";
+import {
+  CODE_BORDER_PX,
+  CODE_TOP_PADDING_PX,
+  LINE_GAP_PX,
+  PIECE_HEIGHT_PX,
+} from "../board-metrics";
 import { playCollapseSound } from "../collapse-sound";
 import {
   getServerSoundMuted,
@@ -72,6 +78,20 @@ function towerZoom(lineCount: number, step: (typeof DENSITY_STEPS)[number]): num
   return Math.max(MIN_ZOOM, MAX_TOWER_PX / naturalHeight);
 }
 
+/**
+ * コードの行送りにぴったり合わせた積み方。
+ * 詰め方を行数で変えないので、何行でも N 行目どうしが揃う。
+ */
+function lineAlignedStyle(): CSSProperties {
+  return {
+    "--piece-min-height": `${PIECE_HEIGHT_PX}px`,
+    "--piece-padding": "0 0.5rem",
+    "--piece-font-size": "11px",
+    "--piece-line-height": `${PIECE_HEIGHT_PX}px`,
+    "--tower-gap": `${LINE_GAP_PX}px`,
+  } as CSSProperties;
+}
+
 function densityStyle(lineCount: number): CSSProperties {
   const step =
     DENSITY_STEPS.find((candidate) => lineCount <= candidate.maxLines) ??
@@ -117,6 +137,14 @@ export interface JengaTowerProps {
    */
   compact?: boolean;
   /**
+   * 段の高さをコードの行送りに合わせる。
+   *
+   * 盤面ではタワーと Monaco を横に並べるので、N 行目どうしが同じ高さに
+   * 来ていないと「どの木片がどの行か」が分からない。これを立てると
+   * 行数ぶんの詰め方（DENSITY_STEPS）ではなく、コードと同じ行送りで積む。
+   */
+  lineAligned?: boolean;
+  /**
    * 外からねらっている行を渡す口（#44 のカメラのスワイプなど）。
    * 渡さなければ、下の HandPointer が見つけた行を自分で使う。
    * selectedLineNo（確定した選択）とは別で、こちらは「いまここを指している」の下見。
@@ -133,6 +161,7 @@ export function JengaTower({
   silent = false,
   verdict = null,
   compact = false,
+  lineAligned = false,
   aimedLineNo,
 }: JengaTowerProps) {
   const lines = code.length > 0 ? code.split("\n") : [];
@@ -288,7 +317,20 @@ export function JengaTower({
       // 叩いたら鳴る音（#50）。積み木なので、ばね
       data-silly-sound="boing"
       className={[styles.scene, compact ? styles.sceneCompact : ""].filter(Boolean).join(" ")}
-      style={{ paddingTop: compact ? 8 : 24, paddingBottom: collapsed && !compact ? 176 : 24 }}
+      style={{
+        /*
+         * 行を揃えるときの上余白。
+         *   コード側の枠線(1) + Monaco の上余白(12) … 1 行目が始まる位置
+         *   + 隙間(4) … 木片は 18px で、残り 4px は段の下側に付くため、
+         *               その半端なぶんだけ下げると N 行目どうしが揃う（実測で確認）
+         */
+        paddingTop: lineAligned
+          ? CODE_BORDER_PX + CODE_TOP_PADDING_PX + LINE_GAP_PX
+          : compact
+            ? 8
+            : 24,
+        paddingBottom: collapsed && !compact ? 176 : 24,
+      }}
     >
       {/* 崩壊後のおまけ。瓦礫の奥からせり上がってくる */}
       {collapsed ? <CollapseMonuments compact={compact} verdict={verdict} /> : null}
@@ -314,7 +356,7 @@ export function JengaTower({
           {
             "--rx": `${angle.rx}deg`,
             "--ry": `${angle.ry}deg`,
-            ...densityStyle(lines.length),
+            ...(lineAligned ? lineAlignedStyle() : densityStyle(lines.length)),
           } as CSSProperties
         }
         onPointerDown={handlePointerDown}

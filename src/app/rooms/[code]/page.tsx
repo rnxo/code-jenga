@@ -213,7 +213,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
     // 盤面はコードの行幅に合わせて広がるので、他の画面より広めに取る。
     // さらに広い画面では、タワーとコードを横に2つ並べるぶんの幅を許す。
     return (
-      <main className="mx-auto w-full max-w-4xl px-4 py-12 xl:max-w-7xl">
+      <main className="mx-auto w-full max-w-4xl px-4 py-6 xl:max-w-7xl [@media(max-height:700px)]:py-3">
         <GameBoard gameId={game.id} currentUserId={userId} />
       </main>
     );
