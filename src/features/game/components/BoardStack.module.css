@@ -1,0 +1,76 @@
+/*
+ * 盤面の並べ方。担当: ようた
+ *
+ * 狭い画面は縦積みで、タワーかコードのどちらか片方だけ。
+ * 広い画面は横に2つ並べて、両方いっぺんに見せる。
+ */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pane {
+  /* flex の子が中身の幅で押し広げないようにする（Monaco は横に伸びたがる） */
+  min-width: 0;
+}
+
+.toggle {
+  align-self: flex-end;
+  border: 1px solid rgb(120 53 15 / 0.25);
+  border-radius: 0.375rem;
+  background: rgb(255 255 255 / 0.7);
+  padding: 0.25rem 0.75rem;
+  font-size: 12px;
+  color: rgb(120 53 15 / 0.8);
+  cursor: pointer;
+}
+
+.toggle:hover {
+  background: #fffbeb;
+}
+
+/* ------------------------------------------------------------------
+ * 狭い画面: どちらか片方だけ出す
+ * ------------------------------------------------------------------ */
+@media (max-width: 1279px) {
+  .stack[data-view="tower"] .pane[data-pane="code"] {
+    display: none;
+  }
+
+  .stack[data-view="code"] .pane[data-pane="tower"] {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+ * 広い画面: 横に2つ並べる
+ *
+ * 境目の 1280px は Tailwind の xl と同じ。盤面の器（page.tsx の main）が
+ * 広がるのもここなので、揃えていないと「並べたいのに器が狭い」ことになる。
+ * この幅なら片側 600px 以上あり、タワー（max-width 30rem）も Monaco も
+ * 窮屈にならない。
+ * ------------------------------------------------------------------ */
+@media (min-width: 1280px) {
+  .stack {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+
+  .pane {
+    flex: 1 1 0;
+  }
+
+  /* 両方見えているので、切り替えるものがない */
+  .toggle {
+    display: none;
+  }
+
+  /* 並べたときに 2D 側が上に張り付かないよう、高さの基準を揃える */
+  .pane[data-pane="code"] {
+    position: sticky;
+    top: 1rem;
+  }
+}

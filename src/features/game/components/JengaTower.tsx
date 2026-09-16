@@ -16,7 +16,8 @@ import {
   subscribeSoundMuted,
   toggleSoundMuted,
 } from "../sound-settings";
-import { CollapseMonuments } from "./CollapseMonuments";
+import { CollapseMonuments, type CollapseVerdict } from "./CollapseMonuments";
+import { HandPointer, LINE_NO_ATTRIBUTE } from "./HandPointer";
 
 // コードを 3D の積み木として見せる盤面。担当: FE-B
 //
@@ -35,20 +36,53 @@ const DEFAULT_RY = -14;
  * 縦スクロールにしないのは、ドラッグ回転と操作が競合するため。
  * 読む用途は下の CodeViewer が担うので、こちらは全体像を優先する。
  */
+/**
+ * perLine は「その詰め方での1段ぶんの高さ（木片＋隙間）」の実測値。
+ * 何行でどれだけの高さになるかを、DOM を測らずに見積もるために持つ。
+ */
 const DENSITY_STEPS = [
-  { maxLines: 10, minHeight: "44px", padding: "0.5rem 0.75rem", fontSize: "13px", gap: "0.75rem" },
-  { maxLines: 16, minHeight: "36px", padding: "0.375rem 0.75rem", fontSize: "12px", gap: "0.5rem" },
-  { maxLines: 24, minHeight: "30px", padding: "0.25rem 0.625rem", fontSize: "11px", gap: "0.375rem" },
-  { maxLines: Infinity, minHeight: "24px", padding: "0.125rem 0.5rem", fontSize: "10px", gap: "0.25rem" },
+  { maxLines: 10, minHeight: "44px", padding: "0.5rem 0.75rem", fontSize: "13px", lineHeight: "1.5", gap: "0.75rem", perLine: 65 },
+  { maxLines: 16, minHeight: "36px", padding: "0.375rem 0.75rem", fontSize: "12px", lineHeight: "1.5", gap: "0.5rem", perLine: 53 },
+  { maxLines: 24, minHeight: "30px", padding: "0.25rem 0.625rem", fontSize: "11px", lineHeight: "1.4", gap: "0.375rem", perLine: 44 },
+  { maxLines: 34, minHeight: "24px", padding: "0.125rem 0.5rem", fontSize: "10px", lineHeight: "1.3", gap: "0.25rem", perLine: 36 },
+  { maxLines: 44, minHeight: "20px", padding: "0 0.5rem", fontSize: "10px", lineHeight: "1.2", gap: "3px", perLine: 30 },
+  { maxLines: Infinity, minHeight: "16px", padding: "0 0.4rem", fontSize: "9px", lineHeight: "1.15", gap: "2px", perLine: 25 },
 ] as const;
 
+/**
+ * タワーがこれ以上高くなるなら縮める。
+ *
+ * タワーは内部スクロールしない（ドラッグ回転と competing するため）ので、
+ * 行数が増えるとそのままページが下に伸び、削除ボタンや判定が画面外へ行く。
+ * Brainfuck のお題は 15〜50 行あり、詰めるだけでは 50 行で 1250px 残る。
+ */
+const MAX_TOWER_PX = 900;
+/** これ以上小さくすると、木片が積み木に見えなくなる */
+const MIN_ZOOM = 0.6;
+
+/**
+ * 行数から縮小率を出す。zoom はレイアウトの高さごと縮むので、
+ * transform: scale と違ってページの下の要素がちゃんと上がってくる。
+ */
+function towerZoom(lineCount: number, step: (typeof DENSITY_STEPS)[number]): number {
+  const naturalHeight = lineCount * step.perLine;
+  if (naturalHeight <= MAX_TOWER_PX) {
+    return 1;
+  }
+  return Math.max(MIN_ZOOM, MAX_TOWER_PX / naturalHeight);
+}
+
 function densityStyle(lineCount: number): CSSProperties {
-  const step = DENSITY_STEPS.find((candidate) => lineCount <= candidate.maxLines) ?? DENSITY_STEPS[3];
+  const step =
+    DENSITY_STEPS.find((candidate) => lineCount <= candidate.maxLines) ??
+    DENSITY_STEPS[DENSITY_STEPS.length - 1];
   return {
     "--piece-min-height": step.minHeight,
     "--piece-padding": step.padding,
     "--piece-font-size": step.fontSize,
+    "--piece-line-height": step.lineHeight,
     "--tower-gap": step.gap,
+    "--tower-zoom": towerZoom(lineCount, step),
   } as CSSProperties;
 }
 
@@ -75,11 +109,19 @@ export interface JengaTowerProps {
   collapsed: boolean;
   /** 効果音を鳴らさない。盤面で既に鳴っている結果画面などで使う */
   silent?: boolean;
+  /** 見ている人の勝敗。崩壊後の像に勝ち／負けを持たせる */
+  verdict?: CollapseVerdict | null;
   /**
    * 崩れ方を詰める。盤面では派手に散らしたいが、終了画面では
    * 「崩れたあとの山」として枠に収めたいので、そちらで使う。
    */
   compact?: boolean;
+  /**
+   * 外からねらっている行を渡す口（#44 のカメラのスワイプなど）。
+   * 渡さなければ、下の HandPointer が見つけた行を自分で使う。
+   * selectedLineNo（確定した選択）とは別で、こちらは「いまここを指している」の下見。
+   */
+  aimedLineNo?: number | null;
 }
 
 export function JengaTower({
@@ -89,7 +131,9 @@ export function JengaTower({
   interactive,
   collapsed,
   silent = false,
+  verdict = null,
   compact = false,
+  aimedLineNo,
 }: JengaTowerProps) {
   const lines = code.length > 0 ? code.split("\n") : [];
 
@@ -109,6 +153,13 @@ export function JengaTower({
   const isMuted = useSyncExternalStore(subscribeSoundMuted, isSoundMuted, getServerSoundMuted);
   /** 同じ崩壊で二度鳴らさないための記録 */
   const playedCollapse = useRef(false);
+  /**
+   * カメラの手でねらっている行。選択（selectedLineNo）とは別物で、
+   * 「いまここを指している」という下見の表示にだけ使う。
+   * 外から aimedLineNo を渡されたらそちらを優先する。
+   */
+  const [ownAimedLineNo, setOwnAimedLineNo] = useState<number | null>(null);
+  const aimed = aimedLineNo !== undefined ? aimedLineNo : ownAimedLineNo;
 
   useEffect(() => {
     if (!collapsed) {
@@ -234,17 +285,22 @@ export function JengaTower({
 
   return (
     <div
-      // 叩いたら鳴る音（#全セクション）。積み木なので、ばね
+      // 叩いたら鳴る音（#50）。積み木なので、ばね
       data-silly-sound="boing"
-      className={`${styles.scene} ${compact ? styles.sceneCompact : ""}`}
+      className={[styles.scene, compact ? styles.sceneCompact : ""].filter(Boolean).join(" ")}
       style={{ paddingTop: compact ? 8 : 24, paddingBottom: collapsed && !compact ? 176 : 24 }}
     >
       {/* 崩壊後のおまけ。瓦礫の奥からせり上がってくる */}
-      {collapsed ? <CollapseMonuments compact={compact} /> : null}
+      {collapsed ? <CollapseMonuments compact={compact} verdict={verdict} /> : null}
 
       {/* 崩壊の光。奥から差してくる演出で、崩れているあいだだけ出す */}
       {collapsed ? (
-        <div aria-hidden className={styles.burst}>
+        <div
+          aria-hidden
+          className={[styles.burst, compact ? "" : styles.burstFullscreen]
+            .filter(Boolean)
+            .join(" ")}
+        >
           <span className={styles.burstVeil} />
           <span className={styles.burstRays} />
           <span className={styles.burstGlow} />
@@ -272,6 +328,7 @@ export function JengaTower({
           const lineNo = index + 1;
           const isBlank = line.trim().length === 0;
           const isSelected = selectedLineNo === lineNo;
+          const isAimed = aimed === lineNo && !isSelected;
           // 空行も正当な手なので選べる（DB_DESIGN.md 10章「空行の削除は禁止していない」）
           const canSelect = interactive && !collapsed;
 
@@ -280,6 +337,7 @@ export function JengaTower({
             isBlank ? styles.pieceBlank : "",
             canSelect ? styles.pieceSelectable : "",
             isSelected ? styles.pieceSelected : "",
+            isAimed ? styles.pieceAimed : "",
             collapsed ? styles.pieceFalling : "",
           ]
             .filter(Boolean)
@@ -290,6 +348,8 @@ export function JengaTower({
               key={lineNo}
               type="button"
               className={className}
+              // 手でねらう操作が、指先の下にある木片を引くのに使う
+              {...{ [LINE_NO_ATTRIBUTE]: lineNo }}
               // disabled にすると pointer イベントが出ず、相手の手番で回転も
               // 文字選択もできなくなる（#2）。押せないことは aria で伝える
               aria-disabled={!canSelect}
@@ -344,6 +404,12 @@ export function JengaTower({
           >
             {isMuted ? "効果音オフ" : "効果音オン"}
           </button>
+          {" · "}
+          <HandPointer
+            disabled={!interactive}
+            onAim={setOwnAimedLineNo}
+            onCommit={onSelectLine}
+          />
         </p>
       ) : null}
     </div>

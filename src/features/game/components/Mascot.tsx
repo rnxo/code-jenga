@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MascotMood } from "../mascot-lines";
+import { speakMascotLine, stopMascotVoice } from "../mascot-voice";
 
 // カイル風マスコットの見た目。担当: 見た目（Nezumi / ようた）
 // 渡されたセリフを吹き出しで出すだけ。何を喋るかは GameBoard 側（mascot-lines.ts）で決める。
 // キャラの絵は public/images/mascot/{mood}.gif|png（#42）。画像がまだ無い（404）間は絵文字で代用する。
 // GIF は自前で動くので CSS のアニメを付けない（animated）。PNG の表情は CSS で揺らす。
+// 動きを控えたい設定（prefers-reduced-motion: reduce）のときは、同じ絵の静止版（PNG）を出す。
+// セリフが変わるたびに声を出す（mascot-voice.ts）。「黙らせる」と右上の 🔊 のどちらでも黙る。
 
 export interface MascotProps {
   message: string | null;
@@ -22,10 +25,13 @@ export interface MascotProps {
   anchored?: boolean;
 }
 
-const FACE: Record<MascotMood, { src: string; emoji: string; animated: boolean }> = {
-  idle: { src: "/images/mascot/idle.gif", emoji: "🐭", animated: true },
-  smug: { src: "/images/mascot/smug.gif", emoji: "😏", animated: true },
-  panic: { src: "/images/mascot/panic.gif", emoji: "😱", animated: true },
+const FACE: Record<
+  MascotMood,
+  { src: string; still: string; emoji: string; animated: boolean }
+> = {
+  idle: { src: "/images/mascot/idle.gif", still: "/images/mascot/idle.png", emoji: "🐭", animated: true },
+  smug: { src: "/images/mascot/smug.gif", still: "/images/mascot/smug.png", emoji: "😏", animated: true },
+  panic: { src: "/images/mascot/panic.gif", still: "/images/mascot/panic.png", emoji: "😱", animated: true },
 };
 
 const BUBBLE_CLASS: Record<MascotMood, string> = {
@@ -44,6 +50,19 @@ export function Mascot({
   const [isMuted, setIsMuted] = useState(false);
   /** 読み込みに失敗した表情。その表情だけ絵文字に戻す */
   const [failedMoods, setFailedMoods] = useState<Partial<Record<MascotMood, true>>>({});
+  // セリフが変わったら喋る。黙らせているあいだは声も出さない。
+  // 効果音そのもののオンオフ（右上の 🔊）は mascot-voice.ts 側で見ている。
+  useEffect(() => {
+    if (message === null || isMuted) {
+      stopMascotVoice();
+      return;
+    }
+    speakMascotLine(message, mood);
+  }, [message, mood, isMuted]);
+
+  // 画面から消えるときは言いかけを止める（結果画面へ切り替わった直後など）
+  useEffect(() => stopMascotVoice, []);
+
   const face = FACE[mood];
   const motionClass = mood === "panic" ? "animate-bounce" : "animate-pulse";
   const anchorClass = anchored ? "fixed right-4 bottom-4 z-40" : "relative z-40";
@@ -100,21 +119,30 @@ export function Mascot({
       ) : null}
       <div className="pointer-events-auto flex shrink-0 flex-col items-center gap-1">
         {failedMoods[mood] ? (
-          <span aria-hidden className={`select-none text-5xl drop-shadow ${motionClass}`}>
+          <span
+            aria-hidden
+            className={`select-none text-5xl drop-shadow motion-reduce:animate-none ${motionClass}`}
+          >
             {face.emoji}
           </span>
         ) : (
-          // 小さな固定画像で、後で GIF にする予定なので next/image の最適化は使わない
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            aria-hidden
-            src={face.src}
-            alt=""
-            width={64}
-            height={64}
-            className={`h-16 w-16 select-none object-contain drop-shadow ${face.animated ? "" : motionClass}`}
-            onError={() => setFailedMoods((prev) => ({ ...prev, [mood]: true }))}
-          />
+          // 動きを控えたい設定のときは静止版（PNG）を先に当てる。
+          // <picture> の source は img より先に評価されるので、GIF は読み込まれない。
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcSet={face.still} />
+            {/* 小さな固定画像なので next/image の最適化は使わない */}
+            <img
+              aria-hidden
+              src={face.src}
+              alt=""
+              width={64}
+              height={64}
+              className={`h-16 w-16 select-none object-contain drop-shadow motion-reduce:animate-none ${
+                face.animated ? "" : motionClass
+              }`}
+              onError={() => setFailedMoods((prev) => ({ ...prev, [mood]: true }))}
+            />
+          </picture>
         )}
         <button
           type="button"
