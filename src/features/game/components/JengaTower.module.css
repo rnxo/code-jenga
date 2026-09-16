@@ -96,8 +96,9 @@
 }
 
 /*
- * カメラの手でねらっている行。まだ選んだわけではないので、選択より控えめに出す。
- * 手はどうしても揺れるので、脈を打たせて「ここを見ているよ」と分かるようにする。
+ * カメラの手でねらっている行。まだ削除が決まったわけではないので、
+ * 選択より控えめに出す。手はどうしても揺れるので、脈を打たせて
+ * 「ここを見ているよ」と分かるようにする。
  */
 .pieceAimed {
   transform: translateZ(22px);
@@ -107,6 +108,34 @@
   outline: 2px dashed rgb(251 191 36 / 0.85);
   outline-offset: -2px;
   animation: aimPulse 0.9s ease-in-out infinite alternate;
+}
+
+/*
+ * 指が止まっているあいだ、その木片が左から赤く満ちていく（--dwell は 0→1）。
+ * 満ちたらその行が消えるので、「いま何が起きようとしているか」が
+ * 待っている時間のうちに分かる。
+ *
+ * --dwell は HandPointer が毎フレーム直接書き込む。React の state に載せると
+ * タワーごと 30〜60fps で描き直しになるため。
+ */
+.piece[data-dwelling] .front {
+  outline: 2px solid rgb(220 38 38 / 0.9);
+  outline-offset: -2px;
+  animation: none;
+}
+
+.piece[data-dwelling] .front::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* 面より手前に出す。木片の文字より下、木口より上 */
+  transform: translateZ(1px);
+  background: linear-gradient(
+    to right,
+    rgb(220 38 38 / 0.45) calc(var(--dwell, 0) * 100%),
+    transparent calc(var(--dwell, 0) * 100%)
+  );
+  pointer-events: none;
 }
 
 @keyframes aimPulse {
@@ -256,6 +285,8 @@
   .pieceAimed .front {
     animation: none;
   }
+
+  /* 溜まっていく色は「あと何秒で消えるか」の情報なので、動きを控える設定でも残す */
 }
 
 /* ------------------------------------------------------------------
