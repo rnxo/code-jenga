@@ -73,10 +73,12 @@ async function loadFromSupabase(code: string): Promise<RoomPageData | null> {
 
   let lobbyPlayers: LobbyPlayer[] = [];
   if (game.status === "waiting") {
+    // 退室済み（left_at あり）の人はロビーに出さない（#65）
     const { data: gamePlayers, error: gamePlayersError } = await supabase
       .from("game_players")
       .select("*")
-      .eq("game_id", game.id);
+      .eq("game_id", game.id)
+      .is("left_at", null);
 
     if (gamePlayersError) {
       throw new Error(`参加者情報の取得に失敗しました: ${gamePlayersError.message}`);

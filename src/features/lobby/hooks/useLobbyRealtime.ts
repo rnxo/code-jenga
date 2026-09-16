@@ -42,7 +42,8 @@ export function useLobbyRealtime(gameId: string, roomId: string): UseLobbyRealti
     async function loadInitialState() {
       const [gameResult, playersResult, roomResult] = await Promise.all([
         supabase.from("games").select("*").eq("id", gameId).single(),
-        supabase.from("game_players").select("*").eq("game_id", gameId),
+        // 退室は行を消さず left_at を入れる方式なので、在室中の人だけに絞る（#65）
+        supabase.from("game_players").select("*").eq("game_id", gameId).is("left_at", null),
         supabase.from("rooms").select("host_id").eq("id", roomId).maybeSingle(),
       ]);
 
@@ -105,6 +106,7 @@ export function useLobbyRealtime(gameId: string, roomId: string): UseLobbyRealti
             .from("game_players")
             .select("*")
             .eq("game_id", gameId)
+            .is("left_at", null)
             .then(({ data }) => {
               if (isMounted && data) {
                 setPlayers(data);
