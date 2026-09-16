@@ -2,7 +2,30 @@
 
 import { useEffect, useRef } from "react";
 
-export function OsekkaikunBackground() {
+export interface OsekkaikunBackgroundProps {
+  /**
+   * 背景に敷く絵。渡さなければ、おせっかいくん。
+   * トップページは洋楽のジャケットふうの絵に差し替えている（#42 の背景そのもの
+   * ではなくなるが、部品は残してあるので src を外せば戻る）。
+   */
+  src?: string;
+  /** 濃さ。絵によって沈み方が違うので、呼び出し側で決められるようにする */
+  opacity?: number;
+  /** 一辺の最大の長さ（px）。ジャケットは正方形なので大きめに出したい */
+  maxSizePx?: number;
+  /**
+   * 重ね方。おせっかいくんは線画なので multiply で紙に刷ったように乗るが、
+   * 写真を multiply で敷くと明るい紙に負けて真っ白に飛ぶ。写真は normal。
+   */
+  blend?: "multiply" | "normal";
+}
+
+export function OsekkaikunBackground({
+  src = "/images/osekkaikun.png",
+  opacity = 0.15,
+  maxSizePx = 700,
+  blend = "multiply",
+}: OsekkaikunBackgroundProps = {}) {
   const imageRef = useRef<HTMLImageElement>(null);
 
   const targetX = useRef(0);
@@ -80,9 +103,10 @@ export function OsekkaikunBackground() {
     >
       <img
         ref={imageRef}
-        src="/images/osekkaikun.png"
+        src={src}
         alt=""
-        className="absolute left-1/2 top-1/2 h-auto w-[min(700px,100%)] -translate-x-1/2 -translate-y-1/2 opacity-15 mix-blend-multiply will-change-transform"
+        style={{ width: `min(${maxSizePx}px, 92vw)`, opacity, mixBlendMode: blend }}
+        className="absolute left-1/2 top-1/2 h-auto -translate-x-1/2 -translate-y-1/2 rounded-sm shadow-2xl will-change-transform"
       />
     </div>
   );
