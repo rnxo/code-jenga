@@ -18,6 +18,12 @@
   transform-style: preserve-3d;
   transform: perspective(1500px) rotateX(var(--rx)) rotateY(var(--ry));
   transform-origin: 50% 45%;
+  /*
+   * 行数が多すぎるお題（Brainfuck は 15〜50 行）でタワーが画面を突き抜けないよう縮める。
+   * transform: scale ではなく zoom を使うのは、こちらはレイアウトの高さも縮むので、
+   * 下に続く削除ボタンや判定パネルがちゃんと上がってくるため。
+   */
+  zoom: var(--tower-zoom, 1);
   transition: transform 0.12s linear;
   display: flex;
   flex-direction: column;
@@ -184,7 +190,7 @@
   user-select: text;
   font-family: var(--font-geist-mono), monospace;
   font-size: var(--piece-font-size, 13px);
-  line-height: 1.5;
+  line-height: var(--piece-line-height, 1.5);
   color: rgb(0 0 0 / 0.85);
 }
 
