@@ -704,9 +704,9 @@
  */
 .monumentSolo {
   animation-name: monumentBurst;
-  animation-duration: 0.86s;
+  animation-duration: 1.05s;
   /* 立ち上がりを鋭く。じわっと出ると「バン」にならない */
-  animation-timing-function: cubic-bezier(0.14, 1.4, 0.28, 1);
+  animation-timing-function: cubic-bezier(0.12, 1.75, 0.24, 1);
   animation-delay: 0.85s;
 }
 
@@ -721,27 +721,33 @@
   0% {
     opacity: 0;
     /* ほぼ点。ここからの落差が「バン」の量になる */
-    transform: scale(0.05) rotate(-6deg);
+    transform: scale(0.02) rotate(-14deg);
   }
-  38% {
+  32% {
     opacity: 1;
     /* 着弾。行き過ぎるほど強く見える */
-    transform: scale(1.42) rotate(2.5deg);
+    transform: scale(1.85) rotate(5deg);
   }
-  50% {
-    transform: scale(0.84) rotate(-3.4deg);
+  42% {
+    transform: scale(0.7) rotate(-7deg);
   }
-  62% {
-    transform: scale(1.22) rotate(2.2deg);
+  53% {
+    transform: scale(1.4) rotate(5.5deg);
+  }
+  64% {
+    transform: scale(0.82) rotate(-4deg);
   }
   74% {
-    transform: scale(0.92) rotate(-1.4deg);
+    transform: scale(1.2) rotate(2.8deg);
   }
-  85% {
-    transform: scale(1.08) rotate(0.7deg);
+  83% {
+    transform: scale(0.91) rotate(-1.6deg);
   }
-  93% {
-    transform: scale(0.97) rotate(-0.3deg);
+  90% {
+    transform: scale(1.07) rotate(0.8deg);
+  }
+  96% {
+    transform: scale(0.98) rotate(-0.3deg);
   }
   100% {
     opacity: 1;
@@ -767,25 +773,89 @@
   border: 0.6vmin solid currentColor;
   opacity: 0;
   pointer-events: none;
-  animation: monumentShock 0.55s cubic-bezier(0.1, 0.8, 0.3, 1) 1.18s forwards;
+  animation: monumentShock 0.7s cubic-bezier(0.08, 0.85, 0.25, 1) 1.15s forwards;
 }
 
-/* 2 枚目。少し遅らせて重ねると、一発の衝撃が厚くなる */
+/* 2 枚目・3 枚目。少しずつ遅らせて重ねると、一発の衝撃が厚くなる */
 .monumentShockLate {
-  animation-delay: 1.3s;
-  animation-duration: 0.62s;
-  border-width: 0.35vmin;
+  animation-delay: 1.26s;
+  animation-duration: 0.78s;
+  border-width: 0.4vmin;
+}
+
+.monumentShockLatest {
+  animation-delay: 1.37s;
+  animation-duration: 0.86s;
+  border-width: 0.25vmin;
 }
 
 @keyframes monumentShock {
   0% {
-    opacity: 0.85;
-    transform: scale(0.15) scaleY(0.4);
+    opacity: 0.95;
+    transform: scale(0.1) scaleY(0.38);
   }
   100% {
     opacity: 0;
-    transform: scale(3.4) scaleY(0.4);
+    transform: scale(6) scaleY(0.38);
   }
+}
+
+/*
+ * 着弾の閃光。像の後ろで一瞬だけ白く飛ばす。
+ * 輪（衝撃波）が「広がり」を出すのに対して、こちらは「衝撃の瞬間」を出す係。
+ */
+.monumentFlash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 60vmin;
+  height: 60vmin;
+  margin: -30vmin 0 0 -30vmin;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgb(255 251 235 / 0.9) 0%,
+    rgb(253 230 138 / 0.55) 35%,
+    transparent 70%
+  );
+  opacity: 0;
+  pointer-events: none;
+  /* 像より後ろ。前に出すと顔が飛ぶ */
+  z-index: -1;
+  animation: monumentFlash 0.42s ease-out 1.13s forwards;
+}
+
+@keyframes monumentFlash {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+/*
+ * 着弾で画面が揺れる。像を載せている層ごと揺らす。
+ * 揺れるのはこの層だけなので、本文のレイアウトには触らない。
+ */
+.monumentsQuake {
+  animation: monumentQuake 0.42s ease-out 1.13s;
+}
+
+@keyframes monumentQuake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  8%  { transform: translate3d(-1.2vmin, 0.7vmin, 0); }
+  20% { transform: translate3d(1vmin, -0.9vmin, 0); }
+  33% { transform: translate3d(-0.8vmin, -0.5vmin, 0); }
+  47% { transform: translate3d(0.6vmin, 0.6vmin, 0); }
+  62% { transform: translate3d(-0.4vmin, 0.3vmin, 0); }
+  78% { transform: translate3d(0.25vmin, -0.2vmin, 0); }
 }
 
 .monumentsFullscreen .verdictText {
@@ -1052,9 +1122,14 @@
     transform: none;
   }
 
-  /* 衝撃波は飾りきりなので、動きを控える設定では出さない */
-  .monumentShock {
+  /* 衝撃波・閃光・揺れは飾りきりなので、動きを控える設定では出さない */
+  .monumentShock,
+  .monumentFlash {
     animation: none;
     opacity: 0;
+  }
+
+  .monumentsQuake {
+    animation: none;
   }
 }
