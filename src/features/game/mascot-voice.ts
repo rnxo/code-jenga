@@ -10,7 +10,7 @@
 // 実際の言葉として聞き取れる必要はない。吹き出しの文字は目で読めるので、
 // 声の役割は「誰が喋っているか」と「どんな気分か」を伝えることに絞る。
 
-import { isSoundMuted } from "./sound-settings";
+import { isSoundMuted, subscribeSoundMuted } from "./sound-settings";
 import type { MascotMood } from "./mascot-lines";
 
 let context: AudioContext | null = null;
@@ -63,6 +63,23 @@ const MAX_BLIPS = 36;
 /** 鳴らしている最中の音。次のセリフが来たら止める */
 let speaking: OscillatorNode[] = [];
 
+/**
+ * 消音されたら、予約済みの音も止める。
+ * ここの音は先の時刻に予約してあるので、黙らせても鳴り続けてしまう。
+ */
+let watchingMute = false;
+function watchMute(): void {
+  if (watchingMute) {
+    return;
+  }
+  watchingMute = true;
+  subscribeSoundMuted(() => {
+    if (isSoundMuted()) {
+      stopMascotVoice();
+    }
+  });
+}
+
 export function stopMascotVoice(): void {
   for (const osc of speaking) {
     try {
@@ -88,6 +105,8 @@ export function speakMascotLine(message: string, mood: MascotMood): void {
   if (!ctx) {
     return;
   }
+
+  watchMute();
   // タブが一度も操作されていないと suspended のまま。戻せなければ黙って諦める
   void ctx.resume().catch(() => {});
 
