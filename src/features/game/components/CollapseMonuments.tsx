@@ -211,12 +211,13 @@ function Impact() {
 }
 
 /**
- * 盤面いっぱいに広がる着弾の演出。
+ * 画面いっぱいに広がる着弾の演出。
  *
  * 像そのものは本文の後ろに置く必要がある（前に出すとコードと削除ボタンを
  * 覆ってしまう。#39 のレビュー）。一方で衝撃は前に出ないと見えない。
  * そこで、消えてなくなるものだけをこの層に分けて本文の前に出す。
  *
+ * 結果画面でもカードの枠を越えて画面全体に広がる（position: fixed）。
  * pointer-events: none なので、出ている間もクリックは下へ抜ける。
  */
 function ImpactOverlay() {
@@ -251,8 +252,11 @@ export function CollapseMonuments({
 
   return (
     <>
-      {/* 盤面では像が本文の後ろなので、衝撃だけを前に出す層をかぶせる */}
-      {isSingle && !compact ? <ImpactOverlay /> : null}
+      {/*
+        * 衝撃は結果画面でも画面いっぱいに出す。position: fixed なので、
+        * 結果カードの枠を越えて画面全体に広がる。
+        */}
+      {isSingle ? <ImpactOverlay /> : null}
     <div
       aria-hidden
       className={[
