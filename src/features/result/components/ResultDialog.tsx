@@ -145,7 +145,12 @@ export function ResultDialog({
     <section
       // 決着の枠なので、宇宙人みたいなテルミン
       data-silly-sound="theremin"
-      className="flex flex-col items-center gap-5 rounded-xl border-2 border-amber-900/25 bg-amber-50 p-6 text-center shadow-sm"
+      /*
+       * 縦スクロールを出さないための詰め方。
+       * ノート PC のビューポート（650〜700px）に収めたいので、すきまと余白を
+       * 詰めたうえで、低い画面ではさらに詰める。
+       */
+      className="flex flex-col items-center gap-3 rounded-xl border-2 border-amber-900/25 bg-amber-50 p-4 text-center shadow-sm [@media(max-height:700px)]:gap-2 [@media(max-height:700px)]:p-3"
     >
       <div className="flex flex-col items-center gap-0.5">
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber-900/60">
@@ -191,7 +196,7 @@ export function ResultDialog({
         </div>
       )}
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-0.5">
         <h2 className="text-xl font-bold text-amber-950">
           {loserNickname ? `${loserNickname} の負け！` : "対戦終了"}
         </h2>
@@ -202,15 +207,18 @@ export function ResultDialog({
         ) : null}
       </div>
 
-      <div className="flex flex-col items-center gap-2">
-        <span className="rounded-md border border-amber-300 bg-white px-2 py-0.5 font-mono text-xs font-semibold uppercase tracking-wider text-amber-800">
-          {finishReason ? FINISH_REASON_LABEL[finishReason] : "理由不明"}
-        </span>
-        <p className="text-sm text-amber-900/80">
+      <div className="flex flex-col items-center gap-1">
+        {/* ラベルと本文を横に並べる。縦3段だと、それだけで 70px 使ってしまう */}
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+          <span className="rounded-md border border-amber-300 bg-white px-2 py-0.5 font-mono text-xs font-semibold uppercase tracking-wider text-amber-800">
+            {finishReason ? FINISH_REASON_LABEL[finishReason] : "理由不明"}
+          </span>
+          <p className="text-sm text-amber-900/80">
           {finishReason
-            ? FINISH_REASON_TEXT[finishReason]
-            : "終了理由が記録されていません。"}
-        </p>
+              ? FINISH_REASON_TEXT[finishReason]
+              : "終了理由が記録されていません。"}
+          </p>
+        </div>
         <p className="text-xs tabular-nums text-amber-900/60">
           {game.turn_no} 手目で終了 / 残り {game.current_line_count ?? "-"} 行
         </p>
