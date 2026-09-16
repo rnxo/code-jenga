@@ -1,7 +1,7 @@
 // MediaPipe の手のランドマーク検出を、盤面から使いやすい形に包んだもの。担当: ようた（見た目）
 //
 // カメラ映像から人差し指の先を拾い、画面の座標に直して配る。
-// 親指と人差し指をつまむと「決定」とみなす。
+// 同じところに指を止め続けると「決定」とみなす（つまみ動作は使わない）。
 //
 // React には 2 つの入口を出す。
 //   - 状態（読み込み中／動作中／失敗）は useSyncExternalStore 用の subscribe/getSnapshot
@@ -25,34 +25,26 @@ const MODEL_URL =
 const ACTIVE_MARGIN = 0.16;
 /** 手ぶれを均す割合。1 に近いほど追従が速く、その分ぶれる */
 const SMOOTHING = 0.35;
+/** 同じところに指を止め続けて、決定になるまでの時間 */
+export const DWELL_MS = 1200;
 /**
- * 手の大きさに対する指先の距離が、これを下回ったら「つまんだ」。
- * 一度つまんだあとは PINCH_RELEASE_RATIO を上回るまで離したと見なさない。
+ * 「止まっている」と見なす揺れの幅（px）。
  *
- * 入口と出口を分けているのは、しきい値ちょうどで指が震えると
- * つまむ／離すが高速で入れ替わり、ためが何度も振り出しに戻るため。
+ * 手は必ず震えるので 0 にはできない。広げすぎると、隣の木片へ移ったのに
+ * 数え続けてしまう。木片の高さ（詰めたときで 23px 前後）より少し小さい値にし、
+ * 行が変わったかどうかは座標ではなく「どの木片の上か」で見る。
  */
-const PINCH_RATIO = 0.42;
-const PINCH_RELEASE_RATIO = 0.58;
-/** つまみっぱなしで決定になるまでの時間 */
-export const PINCH_HOLD_MS = 700;
+const DWELL_RADIUS_PX = 18;
 /**
- * つまみが外れて見えても、この時間までは「取りこぼし」と見なしてためを保つ。
+ * 指を見失っても、この時間までは「取りこぼし」と見なして数えたぶんを保つ。
  *
- * 検出は毎フレーム確実に当たるわけではない。0.7 秒 = 30fps で 21 フレームを
+ * 検出は毎フレーム確実に当たるわけではない。1.2 秒 = 30fps で 36 フレームを
  * 全部成功させる必要があると、1 フレームの取りこぼしでも全部やり直しになる。
  */
-const PINCH_RELEASE_GRACE_MS = 220;
+const DWELL_LOST_GRACE_MS = 220;
 
 /** MediaPipe のランドマーク番号（21点のうち使うぶんだけ） */
-const WRIST = 0;
-const THUMB_TIP = 4;
-const INDEX_MCP = 5;
 const INDEX_TIP = 8;
-const MIDDLE_MCP = 9;
-const PINKY_MCP = 17;
-/** 手のひらの縦（手首→中指の付け根）は、横（人差し指→小指の付け根）の約 1.25 倍 */
-const PALM_ASPECT = 1.25;
 
 export type HandTrackerStatus = "idle" | "loading" | "running" | "error";
 
@@ -68,10 +60,6 @@ export interface HandFrame {
   /** 人差し指の先。ビューポート左上からの px */
   x: number;
   y: number;
-  /** 親指と人差し指をつまんでいるか */
-  pinching: boolean;
-  /** つまみ続けている割合（0〜1）。1 になったら決定 */
-  holdProgress: number;
 }
 
 const IDLE_SNAPSHOT: HandTrackerSnapshot = { status: "idle", message: null };
@@ -92,17 +80,19 @@ let rafId: number | null = null;
 let lastVideoTime = -1;
 /** 平滑化後の指先。px ではなく 0〜1 で持つ（画面サイズが変わっても破綻しない） */
 let smoothed: { x: number; y: number } | null = null;
-/** つまみ始めた時刻。離したら null に戻す */
-let pinchStartedAt: number | null = null;
-/** つまみが外れて見えはじめた時刻。猶予のうちに戻ってくれば、ためは消さない */
-let pinchReleasedAt: number | null = null;
-/** 直前のフレームでつまんでいたか。入口と出口のしきい値を切り替えるのに使う */
-let wasPinching = false;
+/** いま数えている対象（行番号など）。変わったら数え直す */
+let dwellKey: string | null = null;
+/** 数え始めた場所。ここから DWELL_RADIUS_PX 以上動いたら数え直す */
+let dwellAnchor: { x: number; y: number } | null = null;
+/** 数え始めた時刻 */
+let dwellStartedAt: number | null = null;
+/** 対象を見失った時刻。猶予のうちに戻ってくれば、数えたぶんは消さない */
+let dwellLostAt: number | null = null;
 /**
- * 一度確定したつまみ。指を離すまで次を数えない。
- * これが無いと、つまんだまま別の行へ流れたときに 0.7 秒ごとに選び直してしまう。
+ * 一度確定した滞在。その場から離れるまで次を数えない。
+ * これが無いと、指を置いたままだと 1.2 秒ごとに何度も削除してしまう。
  */
-let pinchConsumed = false;
+let dwellConsumed = false;
 /**
  * start の世代。初回は読み込みに10秒ほどかかるので、その間に止められる
  * （＝盤面が結果画面に切り替わる）ことが普通に起きる。await のたびにこれを
@@ -217,7 +207,7 @@ export async function startHandTracking(video: HTMLVideoElement): Promise<void> 
 
     lastVideoTime = -1;
     smoothed = null;
-    resetPinch();
+    resetDwell();
     setSnapshot("running");
     rafId = requestAnimationFrame(tick);
   } catch (error) {
@@ -248,8 +238,8 @@ export function stopHandTracking(): void {
     videoEl = null;
   }
   smoothed = null;
-  resetPinch();
-  emit({ visible: false, x: 0, y: 0, pinching: false, holdProgress: 0 });
+  resetDwell();
+  emit({ visible: false, x: 0, y: 0 });
   // landmarker は作り直しが重いので残す（次に開くときが速い）
   //
   // エラー表示もここで消す。モジュールに状態が残ると、カメラを拒否したあと
@@ -275,10 +265,9 @@ function tick() {
 
   if (!hand) {
     smoothed = null;
-    // 1 フレーム見失っただけでためを捨てない。猶予の判断は advancePinch に任せる
-    // （手を止めていても、検出は時々すべる）
-    const holdProgress = advancePinch(false, performance.now());
-    emit({ visible: false, x: 0, y: 0, pinching: false, holdProgress });
+    // ここでは数えたぶんを捨てない。1 フレーム見失っただけかもしれないので、
+    // 猶予の判断は advanceDwell に任せる（対象なしとして呼ばれる）
+    emit({ visible: false, x: 0, y: 0 });
     return;
   }
 
@@ -290,74 +279,82 @@ function tick() {
       }
     : target;
 
-  const pinching = isPinching(hand);
-  const holdProgress = advancePinch(pinching, performance.now());
-
   emit({
     visible: true,
     x: smoothed.x * window.innerWidth,
     y: smoothed.y * window.innerHeight,
-    pinching,
-    holdProgress,
   });
 }
 
 /**
- * つまみ続けている割合を1フレーム進める。0〜1 を返し、1 で確定。
+ * 同じところに指が止まっている時間を1フレーム進める。0〜1 を返し、1 で決定。
  *
- * 一度確定したら、指を離すまで 0 のまま。つまんだまま別の行へ流れても
- * 0.7 秒ごとに選び直さないための決まりごと（#49 のレビュー）。
+ * key は「いま指している対象」。行番号でも、ボタンの名前でもよい。
+ * これが変われば数え直す。座標だけで見ると、木片をまたいでも数え続けてしまう。
+ *
+ * 対象から外れた（key が null）ときは、すぐには捨てずに猶予を置く。
+ * 検出は毎フレーム当たるわけではないので、1 フレームの取りこぼしで
+ * 振り出しに戻ると、いつまでも決定できない。
  *
  * カメラを繋がないと確かめられない部分なので、ここだけ切り出して export している。
  */
-export function advancePinch(pinching: boolean, now: number): number {
-  if (pinching) {
-    pinchReleasedAt = null;
-    if (pinchConsumed) {
+export function advanceDwell(
+  key: string | null,
+  x: number,
+  y: number,
+  now: number,
+): number {
+  if (key === null) {
+    if (dwellKey === null) {
+      resetDwell();
       return 0;
     }
-    pinchStartedAt ??= now;
-    return Math.min(1, (now - pinchStartedAt) / PINCH_HOLD_MS);
-  }
-
-  // ここから「つまんでいないように見える」
-  pinchReleasedAt ??= now;
-
-  if (now - pinchReleasedAt < PINCH_RELEASE_GRACE_MS) {
-    // 取りこぼしかもしれないので、状態は消さずに止めておく。
-    // 確定済み（consumePinch 後）も同じで、1 フレームの取りこぼしを
-    // 「離した」と受け取って二度目を許してしまわないようにする。
-    if (pinchConsumed || pinchStartedAt === null) {
-      return 0;
+    dwellLostAt ??= now;
+    if (now - dwellLostAt < DWELL_LOST_GRACE_MS) {
+      // 取りこぼしかもしれないので、数えたぶんは残す。
+      // 進めはしないので、猶予だけで決定することはない
+      return dwellConsumed || dwellStartedAt === null
+        ? 0
+        : Math.min(1, (dwellLostAt - dwellStartedAt) / DWELL_MS);
     }
-    // 進めもしないので、猶予だけで確定することはない
-    return Math.min(1, (pinchReleasedAt - pinchStartedAt) / PINCH_HOLD_MS);
+    resetDwell();
+    return 0;
   }
 
-  // 猶予を過ぎた。本当に離したと見なす。ここで初めて次のつまみを数えられる
-  resetPinch();
-  return 0;
+  dwellLostAt = null;
+
+  const moved =
+    dwellAnchor === null || Math.hypot(x - dwellAnchor.x, y - dwellAnchor.y) > DWELL_RADIUS_PX;
+
+  if (key !== dwellKey || moved) {
+    // 別のものを指した、または指が動いた。ここから数え直す
+    dwellKey = key;
+    dwellAnchor = { x, y };
+    dwellStartedAt = now;
+    dwellConsumed = false;
+    return 0;
+  }
+
+  if (dwellConsumed) {
+    return 0;
+  }
+  return Math.min(1, (now - (dwellStartedAt ?? now)) / DWELL_MS);
 }
 
 /**
- * 決定が通ったら呼ぶ。つまんだまま別の行へ流れても、指を離すまでは
- * 二度目が走らない。
+ * 決定が通ったら呼ぶ。指を置いたままでも、その場から離れるまで二度目は走らない。
  */
-export function consumePinch(): void {
-  pinchStartedAt = null;
-  pinchReleasedAt = null;
-  pinchConsumed = true;
+export function consumeDwell(): void {
+  dwellConsumed = true;
 }
 
-/**
- * つまみの計測をやり直す。相手の手番など、ねらわせない間に呼んでおく。
- * 溜めたままにすると、自分の手番に戻った最初のフレームで猶予なしに確定してしまう。
- */
-export function resetPinch(): void {
-  pinchStartedAt = null;
-  pinchReleasedAt = null;
-  pinchConsumed = false;
-  wasPinching = false;
+/** 数え直す。ねらわせない間（相手の手番など）に呼んでおく */
+export function resetDwell(): void {
+  dwellKey = null;
+  dwellAnchor = null;
+  dwellStartedAt = null;
+  dwellLostAt = null;
+  dwellConsumed = false;
 }
 
 /**
@@ -373,47 +370,6 @@ export function toScreenRatio(point: NormalizedLandmark): { x: number; y: number
     x: clamp01((1 - point.x - ACTIVE_MARGIN) / span),
     y: clamp01((point.y - ACTIVE_MARGIN) / span),
   };
-}
-
-/**
- * 手の大きさの見積もり。カメラからの距離が変わっても同じ判定になるよう、
- * つまみ具合をこれで割る。
- *
- * 手首→中指の付け根だけで測ると、画面を指すために手のひらをカメラへ向けた
- * とたんに、その軸が奥へ倒れて短く写る（見込み）。割る数が小さくなるので
- * 比が跳ね上がり、ちゃんとつまんでいるのに判定されなくなる。
- *
- * 付け根どうしの幅（人差し指→小指）は、手のひらを向けても横を向いたままで
- * 縮まない。2つのうち長いほうを採る（投影は縮める方向にしか働かないので、
- * 長いほうが本来の大きさに近い）。
- */
-export function estimateHandSize(hand: NormalizedLandmark[]): number {
-  const palmLength = distance(hand[WRIST], hand[MIDDLE_MCP]);
-  const knuckleSpan = distance(hand[INDEX_MCP], hand[PINKY_MCP]) * PALM_ASPECT;
-  return Math.max(palmLength, knuckleSpan);
-}
-
-/**
- * つまんでいるかどうか。指先どうしの距離を手の大きさで割って測るので、
- * カメラに近づいても遠ざかっても同じ判定になる。
- *
- * 一度つまんだら、はっきり離すまでは「つまんでいる」ままにする（ヒステリシス）。
- *
- * toScreenRatio と同じく、テストから直接確かめられるように export している。
- */
-export function isPinching(hand: NormalizedLandmark[]): boolean {
-  const handSize = estimateHandSize(hand);
-  if (handSize === 0) {
-    return false;
-  }
-  const ratio = distance(hand[THUMB_TIP], hand[INDEX_TIP]) / handSize;
-  const threshold = wasPinching ? PINCH_RELEASE_RATIO : PINCH_RATIO;
-  wasPinching = ratio < threshold;
-  return wasPinching;
-}
-
-function distance(a: NormalizedLandmark, b: NormalizedLandmark): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function emit(frame: HandFrame) {
