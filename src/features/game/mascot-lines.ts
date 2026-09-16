@@ -10,6 +10,8 @@ export type MascotSituation =
   | "safe_mine" // 自分の手がセーフだった（相手の手番に移った直後）
   | "safe_opponent" // 相手の手がセーフだった（自分の手番が来た直後）
   | "idle" // しばらく何も起きていない
+  | "sabotaged" // 相手に邪魔された（自分のタワーが回されている）
+  | "sabotaging" // 相手を邪魔した（おせっかいくんを送り込んだ）
   | "title"; // タイトル画面（試合の外）
 
 export type MascotMood = "idle" | "smug" | "panic";
@@ -63,6 +65,14 @@ const LINES: Record<MascotSituation, MascotLine[]> = {
     { message: "ジェンガって、最後に崩した人が負けなんだよね。知ってた？", mood: "smug" },
     { message: "……。", mood: "idle" },
   ],
+  sabotaged: [
+    { message: "わー、相手に頼まれちゃった。ちょっと回すよ、ごめんね！", mood: "smug" },
+    { message: "目が回る？ 落ち着いてからで大丈夫、時間は…減ってるけど。", mood: "panic" },
+  ],
+  sabotaging: [
+    { message: "行ってきた！ 相手のタワー、いま絶賛ぐるぐる中。", mood: "smug" },
+    { message: "ボクを使うなんて、いい性格してるね。褒めてるよ。", mood: "smug" },
+  ],
 };
 
 /**
@@ -115,6 +125,14 @@ const TAUNT_LINES: Record<MascotSituation, MascotLine[]> = {
   title: [
     { message: "来たね。前回の惨敗、まだ覚えてる？", mood: "smug" },
     { message: "今日は何回崩すつもり？ 一応数えておくね。", mood: "smug" },
+  ],
+  sabotaged: [
+    { message: "回されてる間に選んだ行、あとで見返すと面白いよ。", mood: "smug" },
+    { message: "ちゃんと読んでから抜いてね。読めないと思うけど。", mood: "smug" },
+  ],
+  sabotaging: [
+    { message: "正面から勝てないときは、こういうのもアリだよね。", mood: "smug" },
+    { message: "相手、いま画面に酔ってると思う。ナイス判断。", mood: "smug" },
   ],
 };
 

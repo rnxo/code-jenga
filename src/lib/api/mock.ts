@@ -35,6 +35,7 @@ const MOCK_ROOM_ID = "10000000-0000-4000-8000-000000000001";
 const MOCK_GAME_ID = "20000000-0000-4000-8000-000000000001";
 const MOCK_BOARD_GAME_ID = "20000000-0000-4000-8000-000000000002";
 const MOCK_RESULT_GAME_ID = "20000000-0000-4000-8000-000000000003";
+const MOCK_OPPONENT_TURN_GAME_ID = "20000000-0000-4000-8000-000000000004";
 const MOCK_PROBLEM_ID = "30000000-0000-4000-8000-000000000001";
 
 const SAMPLE_SOURCE = [
@@ -170,6 +171,12 @@ const MOCK_GAME_BY_CODE: Record<string, () => Game> = {
       current_turn_difficulty: rollTurnDifficulty(codeAfter),
     });
   },
+  // 相手（ゲスト）の手番。待っている側の画面（「邪魔する」ボタン）を見るためのもの。
+  MOCK04: () =>
+    mockGame({
+      id: MOCK_OPPONENT_TURN_GAME_ID,
+      current_player_id: MOCK_GUEST_ID,
+    }),
   MOCK03: () =>
     mockGame({
       id: MOCK_RESULT_GAME_ID,

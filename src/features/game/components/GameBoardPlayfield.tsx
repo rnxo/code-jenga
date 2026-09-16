@@ -7,7 +7,9 @@ import type { CollapseVerdict } from "./CollapseMonuments";
 import { CodeViewer } from "./CodeViewer";
 import { JengaTower } from "./JengaTower";
 import { LineDeleteControls } from "./LineDeleteControls";
+import { SabotageControls } from "./SabotageControls";
 import { TestResultPanel } from "./TestResultPanel";
+import type { SabotageIncident } from "../sabotage";
 
 interface GameBoardPlayfieldProps {
   code: string;
@@ -23,6 +25,14 @@ interface GameBoardPlayfieldProps {
   onConfirmDelete: () => void;
   /** 崩れたときに像へ出す勝敗。見ている人から見た結果（#39） */
   verdict?: CollapseVerdict | null;
+  /** 進行中の妨害（おせっかいくんがタワーを回す）。null なら無し */
+  sabotage: SabotageIncident | null;
+  /** 相手の手番に「邪魔する」を押せるか */
+  canSabotage: boolean;
+  /** このターンにもう邪魔したか */
+  sabotageUsedThisTurn: boolean;
+  sabotageError: string | null;
+  onSabotage: () => Promise<void>;
 }
 
 export function GameBoardPlayfield({
@@ -37,6 +47,11 @@ export function GameBoardPlayfield({
   onSelectLine,
   onConfirmDelete,
   verdict = null,
+  sabotage,
+  canSabotage,
+  sabotageUsedThisTurn,
+  sabotageError,
+  onSabotage,
 }: GameBoardPlayfieldProps) {
   return (
     <>
@@ -52,7 +67,15 @@ export function GameBoardPlayfield({
           blockedReason={blockedReason}
           onConfirm={onConfirmDelete}
         />
-      ) : null}
+      ) : (
+        // 相手の手番は削除ボタンの代わりに「邪魔する」を同じ場所に出す
+        <SabotageControls
+          canSend={canSabotage}
+          usedThisTurn={sabotageUsedThisTurn}
+          errorMessage={sabotageError}
+          onSend={onSabotage}
+        />
+      )}
       <TestResultPanel turn={latestTurn} />
 
       {/* 狭い画面では片方だけ出す（切り替えは BoardStack の中） */}
@@ -66,6 +89,8 @@ export function GameBoardPlayfield({
             collapsed={latestTurn !== null && latestTurn.result !== "safe"}
             verdict={verdict}
             lineAligned
+            // 仕掛けた側のタワーは回さない（回るのは相手の画面）
+            sabotage={sabotage !== null && !sabotage.byMe ? sabotage : null}
           />
         }
         code={
