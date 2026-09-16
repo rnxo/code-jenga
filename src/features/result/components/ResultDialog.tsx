@@ -1,8 +1,14 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { JengaTower, type CollapseVerdict } from "@/features/game";
+import {
+  getServerViewportHeight,
+  getViewportHeight,
+  subscribeViewportHeight,
+} from "../viewport-height";
 import type { Game, GameFinishReason } from "@/types/game";
 
 // 敗者表示＋再戦ボタン。担当: ようた（#21 で FE-B から移管）
@@ -102,6 +108,23 @@ const RUBBLE = [
   },
 ] as const;
 
+/**
+ * 崩れたタワー以外が使う高さ（px）。実測で 387px（低い画面の詰めた余白のとき）。
+ * 見出し・敗者名・終了理由・土下座ボタン・再戦まわり・枠と外側の余白の合計。
+ */
+const FIXED_CHROME_PX = 387;
+/**
+ * 説明の2行（「タワーを崩したのはこの人です」と終了理由の本文）を畳んだときの値。
+ * どちらも無くても、敗者名と終了理由のラベルで筋は通る。
+ */
+const FIXED_CHROME_TRIMMED_PX = 365;
+/** この高さを下回ったら説明の2行を畳む。CSS 側のしきい値と必ず揃えること */
+const TRIM_TEXT_BELOW_PX = 560;
+/** ぴったりに詰めると、文字の折り返しで溢れる。少しだけ余らせる */
+const SAFETY_PX = 12;
+/** これ以下にするとタワーが何だか分からなくなる。そこまで低い画面は諦める */
+const MIN_TOWER_PX = 90;
+
 export function ResultDialog({
   game,
   loserNickname,
@@ -129,6 +152,22 @@ export function ResultDialog({
   }
 
   // 敗者が分かっていて、かつ見ている人が誰か分かるときだけ勝敗を出す
+  // 画面の高さから、崩れたタワーに割ける高さを決める。
+  // 固定の px でメディアクエリを刻む形だと、行数によってタワーの素の高さが
+  // 261px〜1700px と変わるので合わせきれない（#58 のレビュー）。
+  const viewportHeight = useSyncExternalStore(
+    subscribeViewportHeight,
+    getViewportHeight,
+    getServerViewportHeight,
+  );
+  // サーバー側（0）では制限しない。クライアントで描き直したときに効く
+  const chromePx =
+    viewportHeight < TRIM_TEXT_BELOW_PX ? FIXED_CHROME_TRIMMED_PX : FIXED_CHROME_PX;
+  const towerBudgetPx =
+    viewportHeight === 0
+      ? null
+      : Math.max(MIN_TOWER_PX, viewportHeight - chromePx - SAFETY_PX);
+
   const verdict: CollapseVerdict | null =
     game.loser_id === null || currentUserId === null
       ? null
@@ -145,7 +184,12 @@ export function ResultDialog({
     <section
       // 決着の枠なので、宇宙人みたいなテルミン
       data-silly-sound="theremin"
-      className="flex flex-col items-center gap-5 rounded-xl border-2 border-amber-900/25 bg-amber-50 p-6 text-center shadow-sm"
+      /*
+       * 縦スクロールを出さないための詰め方。
+       * ノート PC のビューポート（650〜700px）に収めたいので、すきまと余白を
+       * 詰めたうえで、低い画面ではさらに詰める。
+       */
+      className="flex flex-col items-center gap-3 rounded-xl border-2 border-amber-900/25 bg-amber-50 p-4 text-center shadow-sm [@media(max-height:700px)]:gap-2 [@media(max-height:700px)]:p-3"
     >
       <div className="flex flex-col items-center gap-0.5">
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber-900/60">
@@ -174,6 +218,7 @@ export function ResultDialog({
             compact
             silent
             verdict={verdict}
+            maxHeightPx={towerBudgetPx}
           />
         </div>
       ) : (
@@ -191,26 +236,30 @@ export function ResultDialog({
         </div>
       )}
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-0.5">
         <h2 className="text-xl font-bold text-amber-950">
           {loserNickname ? `${loserNickname} の負け！` : "対戦終了"}
         </h2>
         {loserNickname ? (
-          <p className="text-sm text-amber-900/70">
+          // 低い画面では畳む。敗者名だけで意味は通る（しきい値は TRIM_TEXT_BELOW_PX と揃える）
+          <p className="text-sm text-amber-900/70 [@media(max-height:560px)]:hidden">
             タワーを崩したのはこの人です
           </p>
         ) : null}
       </div>
 
-      <div className="flex flex-col items-center gap-2">
-        <span className="rounded-md border border-amber-300 bg-white px-2 py-0.5 font-mono text-xs font-semibold uppercase tracking-wider text-amber-800">
-          {finishReason ? FINISH_REASON_LABEL[finishReason] : "理由不明"}
-        </span>
-        <p className="text-sm text-amber-900/80">
+      <div className="flex flex-col items-center gap-1">
+        {/* ラベルと本文を横に並べる。縦3段だと、それだけで 70px 使ってしまう */}
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+          <span className="rounded-md border border-amber-300 bg-white px-2 py-0.5 font-mono text-xs font-semibold uppercase tracking-wider text-amber-800">
+            {finishReason ? FINISH_REASON_LABEL[finishReason] : "理由不明"}
+          </span>
+          <p className="text-sm text-amber-900/80">
           {finishReason
-            ? FINISH_REASON_TEXT[finishReason]
-            : "終了理由が記録されていません。"}
-        </p>
+              ? FINISH_REASON_TEXT[finishReason]
+              : "終了理由が記録されていません。"}
+          </p>
+        </div>
         <p className="text-xs tabular-nums text-amber-900/60">
           {game.turn_no} 手目で終了 / 残り {game.current_line_count ?? "-"} 行
         </p>

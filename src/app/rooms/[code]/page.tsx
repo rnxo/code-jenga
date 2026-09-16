@@ -221,7 +221,8 @@ export default async function RoomPage({ params }: RoomPageProps) {
 
   // status: 'finished' | 'aborted'
   return (
-    <main className="mx-auto max-w-md px-4 py-12">
+    // 結果画面は縦スクロール無しで収めたいので、上下の余白は控えめにする
+    <main className="mx-auto max-w-md px-4 py-6 [@media(max-height:700px)]:py-3">
       <ResultPanel
         game={game}
         loserNickname={loserNickname}
