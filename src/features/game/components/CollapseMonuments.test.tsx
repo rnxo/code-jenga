@@ -46,15 +46,15 @@ describe("CollapseMonuments", () => {
     }
   });
 
-  it("盤面（compact でない）で1体のときだけ、前面の衝撃が出る", () => {
+  it("1体のときは、盤面でも結果画面でも前面の衝撃が出る", () => {
     const 盤面 = render(<CollapseMonuments verdict="win" />);
     expect(盤面.container.querySelector('[class*="impactOverlay"]')).not.toBeNull();
 
-    // 結果画面のカードは狭いので、画面いっぱいの衝撃は出さない
+    // 結果画面でもカードの枠を越えて画面いっぱいに出す
     const 結果 = render(<CollapseMonuments verdict="win" compact />);
-    expect(結果.container.querySelector('[class*="impactOverlay"]')).toBeNull();
+    expect(結果.container.querySelector('[class*="impactOverlay"]')).not.toBeNull();
 
-    // 勝敗が分からず2体並ぶときも出さない（飛び出しそのものが無いため）
+    // 勝敗が分からず2体並ぶときは出さない（飛び出しそのものが無いため）
     const 両方 = render(<CollapseMonuments verdict={null} />);
     expect(両方.container.querySelector('[class*="impactOverlay"]')).toBeNull();
   });
