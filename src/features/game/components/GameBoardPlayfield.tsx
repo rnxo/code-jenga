@@ -40,7 +40,22 @@ export function GameBoardPlayfield({
 }: GameBoardPlayfieldProps) {
   return (
     <>
-      {/* 縦に入り切らない画面では、既定で 2D のコードを畳む（切り替えは BoardStack の中） */}
+      {/*
+       * 操作と判定はコードより先に置く。下に置くと、コードが長いほど画面の
+       * 外へ押し出されて、削除ボタンを押すのにスクロールが要る。
+       */}
+      {isMyTurn ? (
+        <LineDeleteControls
+          selectedLineNo={selectedLineNo}
+          isSubmitting={isSubmitting}
+          errorMessage={submitError}
+          blockedReason={blockedReason}
+          onConfirm={onConfirmDelete}
+        />
+      ) : null}
+      <TestResultPanel turn={latestTurn} />
+
+      {/* 狭い画面では片方だけ出す（切り替えは BoardStack の中） */}
       <BoardStack
         tower={
           <JengaTower
@@ -50,6 +65,7 @@ export function GameBoardPlayfield({
             interactive={isMyTurn && !isSubmitting}
             collapsed={latestTurn !== null && latestTurn.result !== "safe"}
             verdict={verdict}
+            lineAligned
           />
         }
         code={
@@ -61,16 +77,6 @@ export function GameBoardPlayfield({
           />
         }
       />
-      {isMyTurn ? (
-        <LineDeleteControls
-          selectedLineNo={selectedLineNo}
-          isSubmitting={isSubmitting}
-          errorMessage={submitError}
-          blockedReason={blockedReason}
-          onConfirm={onConfirmDelete}
-        />
-      ) : null}
-      <TestResultPanel turn={latestTurn} />
     </>
   );
 }

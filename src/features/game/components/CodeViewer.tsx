@@ -6,6 +6,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import type { OnMount } from "@monaco-editor/react";
+import { CODE_TOP_PADDING_PX, LINE_HEIGHT_PX } from "../board-metrics";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -147,8 +148,10 @@ export function CodeViewer({
             minimap: { enabled: false },
             lineNumbers: "on",
             fontSize: 14,
-            lineHeight: 22,
-            padding: { top: 12, bottom: 12 },
+            // 行送りと上の余白は、3D タワーと揃えるため board-metrics.ts から取る。
+            // ここだけ直すと、横に並べたときに N 行目どうしがずれる
+            lineHeight: LINE_HEIGHT_PX,
+            padding: { top: CODE_TOP_PADDING_PX, bottom: CODE_TOP_PADDING_PX },
             scrollBeyondLastLine: false,
             automaticLayout: true,
             overviewRulerLanes: 0,
