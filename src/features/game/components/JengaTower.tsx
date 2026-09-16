@@ -9,6 +9,12 @@ import {
   type PointerEvent,
 } from "react";
 import styles from "./JengaTower.module.css";
+import {
+  CODE_BORDER_PX,
+  CODE_TOP_PADDING_PX,
+  LINE_GAP_PX,
+  PIECE_HEIGHT_PX,
+} from "../board-metrics";
 import { playCollapseSound } from "../collapse-sound";
 import {
   getServerSoundMuted,
@@ -94,6 +100,21 @@ function towerZoom(
   return Math.max(floor, budget / naturalHeight);
 }
 
+/**
+ * コードの行送りにぴったり合わせた積み方。
+ * 詰め方を行数で変えないので、何行でも N 行目どうしが揃う。
+ */
+function lineAlignedStyle(): CSSProperties {
+  return {
+    "--piece-min-height": `${PIECE_HEIGHT_PX}px`,
+    "--piece-padding": "0 0.5rem",
+    "--piece-font-size": "11px",
+    "--piece-line-height": `${PIECE_HEIGHT_PX}px`,
+    "--tower-gap": `${LINE_GAP_PX}px`,
+    "--tower-zoom": 1,
+  } as CSSProperties;
+}
+
 function densityStyle(
   lineCount: number,
   compact: boolean,
@@ -143,6 +164,14 @@ export interface JengaTowerProps {
    */
   compact?: boolean;
   /**
+   * 段の高さをコードの行送りに合わせる。
+   *
+   * 盤面ではタワーと Monaco を横に並べるので、N 行目どうしが同じ高さに
+   * 来ていないと「どの木片がどの行か」が分からない。これを立てると
+   * 行数ぶんの詰め方（DENSITY_STEPS）ではなく、コードと同じ行送りで積む。
+   */
+  lineAligned?: boolean;
+  /**
    * タワーに割ける高さ（px）。渡すと、その中に収まるように縮める。
    * 結果画面が画面の高さから計算して渡す（#58）。渡さなければ既定の上限を使う。
    */
@@ -164,6 +193,7 @@ export function JengaTower({
   silent = false,
   verdict = null,
   compact = false,
+  lineAligned = false,
   maxHeightPx = null,
   aimedLineNo,
 }: JengaTowerProps) {
@@ -320,7 +350,20 @@ export function JengaTower({
       // 叩いたら鳴る音（#50）。積み木なので、ばね
       data-silly-sound="boing"
       className={[styles.scene, compact ? styles.sceneCompact : ""].filter(Boolean).join(" ")}
-      style={{ paddingTop: compact ? 8 : 24, paddingBottom: collapsed && !compact ? 176 : 24 }}
+      style={{
+        /*
+         * 行を揃えるときの上余白。
+         *   コード側の枠線(1) + Monaco の上余白(12) … 1 行目が始まる位置
+         *   + 隙間(4) … 木片は 18px で、残り 4px は段の下側に付くため、
+         *               その半端なぶんだけ下げると N 行目どうしが揃う（実測で確認）
+         */
+        paddingTop: lineAligned
+          ? CODE_BORDER_PX + CODE_TOP_PADDING_PX + LINE_GAP_PX
+          : compact
+            ? 8
+            : 24,
+        paddingBottom: collapsed && !compact ? 176 : 24,
+      }}
     >
       {/* 崩壊後のおまけ。瓦礫の奥からせり上がってくる */}
       {collapsed ? <CollapseMonuments compact={compact} verdict={verdict} /> : null}
@@ -346,7 +389,9 @@ export function JengaTower({
           {
             "--rx": `${angle.rx}deg`,
             "--ry": `${angle.ry}deg`,
-            ...densityStyle(lines.length, compact, maxHeightPx),
+            ...(lineAligned
+              ? lineAlignedStyle()
+              : densityStyle(lines.length, compact, maxHeightPx)),
           } as CSSProperties
         }
         onPointerDown={handlePointerDown}
