@@ -2,7 +2,12 @@
 
 import styles from "./JengaTower.module.css";
 
-// 崩壊が終わったあと、瓦礫の奥から自由の女神と奈良の大仏がせり上がってくる。
+// 崩壊が終わったあと、瓦礫の奥から像が「バン」と飛び出してくる。
+//
+// 出てくるのは勝敗で決まる1体だけ。勝ちなら自由の女神、負けなら奈良の大仏。
+// 2体並べて片方を暗くしていた頃より、どちらだったのかが一目で分かる。
+// 勝敗が分からないとき（観戦・未サインインなど）だけ、両方を並べて出す。
+//
 // ゲームの進行には一切関与しない完全な飾り。絵はインライン SVG なので画像ファイルは持たない。
 
 function LibertySvg() {
@@ -192,8 +197,8 @@ export interface CollapseMonumentsProps {
   /** 結果画面の小さいタワーに重ねるとき。像も小さくして枠に収める */
   compact?: boolean;
   /**
-   * 見ている人の勝敗。自由の女神が勝ち側、奈良の大仏が負け側を持ち、
-   * 自分の側だけが明るく立つ。渡さなければ両方が同じ明るさで並ぶ。
+   * 見ている人の勝敗。勝ちなら自由の女神、負けなら奈良の大仏が1体だけ出る。
+   * 渡さなければ（勝敗が分からなければ）両方を並べて出す。
    */
   verdict?: CollapseVerdict | null;
 }
@@ -202,24 +207,30 @@ export function CollapseMonuments({
   compact = false,
   verdict = null,
 }: CollapseMonumentsProps) {
-  // 自分の側だけを立たせる。勝敗が分からないときは両方そのまま出す
-  const libertyDimmed = verdict === "lose";
-  const buddhaDimmed = verdict === "win";
+  // 勝敗が分かっていれば、その側だけ。分からなければ両方
+  const showLiberty = verdict !== "lose";
+  const showBuddha = verdict !== "win";
+  const isSingle = verdict !== null;
+
   return (
     <div
       aria-hidden
       className={[
         styles.monuments,
         compact ? styles.monumentsCompact : styles.monumentsFullscreen,
+        // 1体だけのときは真ん中に据える（2体のときは左右に振り分ける）
+        isSingle ? styles.monumentsSingle : "",
       ]
         .filter(Boolean)
         .join(" ")}
     >
+      {showLiberty ? (
       <figure
         className={[
           styles.monument,
           styles.monumentLiberty,
-          libertyDimmed ? styles.monumentDimmed : "",
+          // 1体だけなら、ためを置かずに飛び出す
+          isSingle ? styles.monumentSolo : "",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -236,12 +247,14 @@ export function CollapseMonuments({
         </span>
         <figcaption className={styles.monumentCaption}>自由の女神</figcaption>
       </figure>
+      ) : null}
 
+      {showBuddha ? (
       <figure
         className={[
           styles.monument,
           styles.monumentBuddha,
-          buddhaDimmed ? styles.monumentDimmed : "",
+          isSingle ? styles.monumentSolo : "",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -258,6 +271,7 @@ export function CollapseMonuments({
         </span>
         <figcaption className={styles.monumentCaption}>奈良の大仏</figcaption>
       </figure>
+      ) : null}
     </div>
   );
 }
