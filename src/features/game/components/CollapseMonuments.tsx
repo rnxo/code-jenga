@@ -193,6 +193,16 @@ function DaibutsuSvg() {
 /** 見ている人の勝敗。null なら勝敗を出さず、像だけ立てる */
 export type CollapseVerdict = "win" | "lose";
 
+/** 着弾の衝撃波。足もとから輪が広がって消える。2 枚重ねて厚みを出す */
+function ShockWave() {
+  return (
+    <>
+      <span className={styles.monumentShock} />
+      <span className={`${styles.monumentShock} ${styles.monumentShockLate}`} />
+    </>
+  );
+}
+
 export interface CollapseMonumentsProps {
   /** 結果画面の小さいタワーに重ねるとき。像も小さくして枠に収める */
   compact?: boolean;
@@ -237,6 +247,7 @@ export function CollapseMonuments({
       >
         {/* 掲げた銘板の位置に札を重ねて、女神が持っているように見せる */}
         <span className={styles.monumentBody}>
+          {isSingle ? <ShockWave /> : null}
           <LibertySvg />
           <span
             className={`${styles.verdictBadge} ${styles.verdictWin} ${styles.verdictOnLiberty}`}
@@ -261,6 +272,7 @@ export function CollapseMonuments({
       >
         {/* 印を結んだ手のあたりに札を重ねて、大仏が掲げているように見せる */}
         <span className={styles.monumentBody}>
+          {isSingle ? <ShockWave /> : null}
           <DaibutsuSvg />
           <span
             className={`${styles.verdictBadge} ${styles.verdictLose} ${styles.verdictOnBuddha}`}
